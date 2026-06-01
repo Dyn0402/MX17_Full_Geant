@@ -103,6 +103,19 @@ w_LS_f   = w_sc_b  + gap3;    w_LS_b   = w_LS_f   + t_LS
 w_bsc_f  = w_LS_b  + gap4;    w_bsc_b  = w_bsc_f  + t_bsc
 stack_depth = w_bsc_b
 
+# LS sub-layer positions (within the LS stack):
+#   CFRP_1 | InnerCFRP_1+Al_1 | LAB_1 | CFRP_2 | InnerCFRP_2+Al_2 | LAB_2 | CFRP_3
+_lsDivFront_f = w_LS_f
+_lsDivFront_b = w_LS_f + tLSCfrp + tLSInnerCfrp + tLSInnerAl   # front wall + liners
+_wLS1_f       = _lsDivFront_b
+_wLS1_b       = _wLS1_f + tLS
+_lsDivMid_f   = _wLS1_b
+_lsDivMid_b   = _wLS1_b + tLSCfrp + tLSInnerCfrp + tLSInnerAl  # middle wall + liners
+_wLS2_f       = _lsDivMid_b
+_wLS2_b       = _wLS2_f + tLS
+_lsDivRear_f  = _wLS2_b
+_lsDivRear_b  = w_LS_b                                            # rear CFRP wall
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Arm geometry
@@ -133,10 +146,14 @@ bsc_u_offset = bscTape_hu + bsc_gap / 2.0   # 12.52 + 0.15 = 12.67 cm
 # Standard slab layers for 2D/3D
 # Back scints are omitted here and handled separately in each plot function.
 LAYERS_2D = [
-    ('MM',       w_MM_f,  w_MM_b,  'mm',    'mm',    '#4a90d9'),
-    ('PCB',      w_PCB_f, w_PCB_b, 'mm',    'mm',    '#5cb85c'),
-    ('PlScint',  w_sc_f,  w_sc_b,  'scint', 'scint', '#f0c040'),
-    ('LiqScint', w_LS_f,  w_LS_b,  'ls',    'ls',    '#d9534f'),
+    ('MM',        w_MM_f,        w_MM_b,        'mm',    'mm',    '#4a90d9'),
+    ('PCB',       w_PCB_f,       w_PCB_b,       'mm',    'mm',    '#5cb85c'),
+    ('PlScint',   w_sc_f,        w_sc_b,        'scint', 'scint', '#f0c040'),
+    ('LS_CFRP',   _lsDivFront_f, _lsDivFront_b, 'ls',    'ls',    '#303030'),
+    ('LiqScint1', _wLS1_f,       _wLS1_b,       'ls',    'ls',    '#d9534f'),
+    ('LS_CFRP',   _lsDivMid_f,   _lsDivMid_b,   'ls',    'ls',    '#303030'),
+    ('LiqScint2', _wLS2_f,       _wLS2_b,       'ls',    'ls',    '#d9534f'),
+    ('LS_CFRP',   _lsDivRear_f,  _lsDivRear_b,  'ls',    'ls',    '#303030'),
 ]
 
 he3_r       = 1.5   # radius = 1.5 cm  → diameter = 3 cm
@@ -187,7 +204,9 @@ def plot_2d_topdown():
         loff = ff / np.linalg.norm(ff) * 2.5
         ax.text(mid[0]+loff[0], mid[2]+loff[2],
                 f"Arm {arm['id']}\n({arm['label']})",
-                ha='center', va='center', fontsize=9, fontweight='bold', zorder=5)
+                ha='center', va='center', fontsize=9, fontweight='bold', zorder=5,
+                bbox=dict(boxstyle='round,pad=0.3', facecolor='white',
+                          edgecolor='none', alpha=0.8))
 
     # Back plastic scints — two individual bars per arm with gap visible
     for arm in ARM_DEF:
@@ -211,11 +230,13 @@ def plot_2d_topdown():
         mpatches.Patch(color='#f0c040', alpha=0.75,
                        label=f'Trigger plastic scint  ({tPlScint*10:.0f} mm, 48×48 cm)'),
         mpatches.Patch(color='#d9534f', alpha=0.75,
-                       label=f'Liq. scint. stack  (2×{tLS*10:.0f} mm LAB, {CFG["ls_size_u_cm"]:.0f}×{CFG["ls_size_v_cm"]:.0f} cm)'),
+                       label=f'Liq. scint. LAB layers  (2×{tLS*10:.0f} mm, {CFG["ls_size_u_cm"]:.0f}×{CFG["ls_size_v_cm"]:.0f} cm)'),
+        mpatches.Patch(color='#303030', alpha=0.85,
+                       label=f'LS CFRP walls + liners  ({tLSCfrp*10:.0f} mm CFRP + {tLSInnerCfrp*1e3:.0f} µm + {tLSInnerAl*1e3:.0f} µm Al)'),
         mpatches.Patch(color='#e07820', alpha=0.75,
                        label=f'Back plastic scints  ({int(bsc_u)} mm, {int(bsc_v)}×(2×{int(bsc_th*10)}) cm)'),
     ]
-    ax.legend(handles=legend_patches, loc='upper left', fontsize=8, framealpha=0.6)
+    ax.legend(handles=legend_patches, loc='upper left', fontsize=8, framealpha=0.8)
 
     lim = dist + stack_depth + 4
     ax.set_xlim(-lim, lim);  ax.set_ylim(-lim, lim)
@@ -261,8 +282,13 @@ def plot_3d_pyvista(out_path=None, interactive=True):
          f'PCB stack  ({t_PCB*10:.1f} mm)'),
         ('SC',  w_sc_f,  w_sc_b,  'scint', (0.94, 0.75, 0.25), 0.85,
          f'Trigger plastic scint  ({tPlScint*10:.0f} mm, 48×48 cm)'),
-        ('LS',  w_LS_f,  w_LS_b,  'ls',    (0.85, 0.33, 0.31), 0.70,
-         f'Liq. scint. stack  (2×{tLS*10:.0f} mm LAB, {CFG["ls_size_u_cm"]:.0f}×{CFG["ls_size_v_cm"]:.0f} cm)'),
+        ('LS_CFRP', _lsDivFront_f, _lsDivFront_b, 'ls', (0.20, 0.20, 0.20), 0.85,
+         f'LS CFRP walls + liners  ({tLSCfrp*10:.0f} mm + {tLSInnerCfrp*1e3:.0f} µm + {tLSInnerAl*1e3:.0f} µm Al)'),
+        ('LS',  _wLS1_f, _wLS1_b, 'ls', (0.85, 0.33, 0.31), 0.70,
+         f'Liq. scint. LAB layers  (2×{tLS*10:.0f} mm, {CFG["ls_size_u_cm"]:.0f}×{CFG["ls_size_v_cm"]:.0f} cm)'),
+        ('LS_CFRP', _lsDivMid_f,  _lsDivMid_b,  'ls', (0.20, 0.20, 0.20), 0.85, None),
+        ('LS',  _wLS2_f, _wLS2_b, 'ls', (0.85, 0.33, 0.31), 0.70, None),
+        ('LS_CFRP', _lsDivRear_f, _lsDivRear_b, 'ls', (0.20, 0.20, 0.20), 0.85, None),
     ]
     bsc_col   = (0.88, 0.47, 0.13)
     bsc_label = f'Back plastic scints  ({int(bsc_u)}mm, {int(bsc_v)}×(2×{int(bsc_th*10)}) cm)'

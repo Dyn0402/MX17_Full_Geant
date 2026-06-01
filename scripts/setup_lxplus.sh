@@ -16,6 +16,18 @@ if [[ ! -d /cvmfs/geant4.cern.ch ]]; then
     return 1 2>/dev/null || exit 1
 fi
 
+# ---- GCC 13 (required by Geant4 el9-gcc13 build and LCG_106) ---------------
+# Must be sourced FIRST: LCG_106/setup.sh references $COMPILER which this sets.
+GCC13_SETUP="/cvmfs/sft.cern.ch/lcg/contrib/gcc/13/x86_64-el9/setup.sh"
+if [[ -f "$GCC13_SETUP" ]]; then
+    echo "==> Setting up GCC 13"
+    source "$GCC13_SETUP"
+else
+    echo "ERROR: GCC 13 setup not found: $GCC13_SETUP"
+    echo "  Check: ls /cvmfs/sft.cern.ch/lcg/contrib/gcc/"
+    return 1 2>/dev/null || exit 1
+fi
+
 # ---- Geant4 11.2.p02 on AlmaLinux9 / gcc13 ----
 # This is the latest stable build available on lxplus9 as of 2025.
 # Falls back to 11.1 if 11.2 isn't present yet on your node.

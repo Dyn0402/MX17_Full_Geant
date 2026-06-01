@@ -83,8 +83,12 @@ def write_wrapper(job_dir: Path, exe: str, setup_script: str) -> Path:
     wrapper = job_dir / "run_pairs_job.sh"
     wrapper.write_text(textwrap.dedent(f"""\
         #!/usr/bin/env bash
-        set -euo pipefail
+        set -eo pipefail
+        # Disable -u around setup sourcing: LCG/GCC scripts may reference
+        # unset variables internally before they define them.
+        set +u
         source "{setup_script}"
+        set -u
 
         OUTFILE="$1"
         NEVENTS="$2"
