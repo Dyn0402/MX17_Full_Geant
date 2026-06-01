@@ -47,7 +47,8 @@ Pressurised cylinder with axis along **Y** (beam direction).
 | Al wall           | Aluminium                  | 0.5 mm              |
 | CFRP outer shell  | C-fibre/epoxy, 1.55 g/cm³  | 0.9 mm              |
 
-Cylinder length: **8 cm** along Y. Gun fires from the origin (He-3 gas centre).
+Cylinder length: **8 cm** along Y. Production vertex sampled **uniformly inside
+the gas volume** (uniform disk in r, uniform in Y) for each event.
 
 ---
 
@@ -165,17 +166,32 @@ Arm IDs: **0 = +X**, **1 = −X**, **2 = +Z**, **3 = −Z**.
 
 ---
 
-## X17 primary generator
+## Primary generator
 
-**Pair mode** (default): fires one e⁻ and one e⁺ per event from the origin.
+The reaction is **³He + n → ⁴He\*** with the ⁴He\* at rest in the lab frame
+(slow neutron capture). The ⁴He\* de-excitation at **20.58 MeV** produces an
+e⁺e⁻ pair via one of two modes, chosen randomly each event:
 
-- X17 mass: **16.8 MeV** (configurable via `--mass`)
-- X17 lab energy: **20.58 MeV** (configurable via `--energy`), boosted along +Y
-- Isotropic decay in X17 rest frame → Lorentz boost → correlated lab momenta
-- Opening angle peaked near 120°; asymmetric energy split
+**X17 signal mode** (`event_type = 0`):
+- ⁴He\* → ⁴He + X17 (mass 16.8 MeV, emitted **isotropically**)
+- X17 → e⁺e⁻ in the X17 rest frame (isotropic), boosted to lab along the random X17 direction
+- β ≈ 0.578, opening angle peaked near 120°
+
+**IPC background mode** (`event_type = 1`):
+- ⁴He\* → ⁴He + γ\* (virtual photon, emitted **isotropically**, same transition energy)
+- Invariant mass Mee sampled from **dN/dMee ∝ 1/Mee** (log-uniform, 2mₑ → 20.58 MeV)
+- γ\* → e⁺e⁻ in the γ\* rest frame (isotropic), boosted to lab
+- Broadly distributed opening angles; pairs more asymmetric in energy than X17
+
+Both modes sample the production vertex **uniformly inside the He-3 cylinder**
+and record it in the EventTree.
+
+The fraction of IPC events is set by `--ipc` (default **0.5** — equal statistics
+for building event pools). The physical ratio is what the experiment measures, so
+the pools should be reweighted in analysis, not baked into the simulation.
 
 **Single-particle mode** (`--single`): fires one particle at a fixed energy and
-angle, useful for efficiency cross-checks against the single-arm simulation.
+angle from the origin, useful for efficiency cross-checks.
 
 ---
 
@@ -223,10 +239,11 @@ build/mx17_full_sim -n 1000 -v -o /tmp/test
 | `-o <path>` | `x17_output` | Output file base (no extension) |
 | `-s <seed>` | time-based | Random seed |
 | `-t <N>` | 1 | MT threads (each writes its own file) |
-| `-g <gas>` | `ArCF4` | MM drift gas: `ArCF4`, `ArIso`, `HeEth`, `ArCO2`, etc. |
+| `-g <gas>` | `ArIso` | MM drift gas: `ArCF4`, `ArIso`, `HeEth`, `ArCO2`, etc. |
 | `-v` | off | Verbose event printout |
 | `--mass <MeV>` | 16.8 | X17 mass |
-| `--energy <MeV>` | 20.58 | X17 lab energy |
+| `--energy <MeV>` | 20.58 | ⁴He\* transition energy (used by both X17 and IPC modes) |
+| `--ipc <frac>` | 0.5 | Fraction of events generated as IPC (0 = all X17, 1 = all IPC) |
 | `--dist <cm>` | 22.0 | Arm distance (MM front face to origin) |
 | `--single <name> <E> <θ> <φ>` | off | Single-particle mode: `e-`, `e+`, etc. |
 
@@ -259,11 +276,13 @@ In MT mode each thread writes `<outfile>_t<N>.root`; merge with `hadd`.
 | Branch | Type | Units | Description |
 |--------|------|-------|-------------|
 | `eventID` | Int | — | Event number |
+| `event_type` | Int | — | 0 = X17 signal, 1 = IPC background, −1 = single-particle |
 | `vtx_x`, `vtx_y`, `vtx_z` | Double | mm | Production vertex in He-3 gas |
+| `inv_mass` | Double | MeV | Pair invariant mass: m_X17 (signal) or sampled Mee (IPC) |
 | `em_ke`, `ep_ke` | Double | MeV | e⁻ / e⁺ kinetic energy |
 | `em_px/py/pz` | Double | — | e⁻ momentum unit vector |
 | `ep_px/py/pz` | Double | — | e⁺ momentum unit vector |
-| `openingAngle` | Double | deg | True opening angle |
+| `openingAngle` | Double | deg | True opening angle between e⁻ and e⁺ |
 
 The vertex is sampled uniformly within the He-3 cylinder (radius 1.5 cm, ±4 cm along Y).
 Momentum unit vector + kinetic energy fully specify the 4-momentum of each lepton.
@@ -296,36 +315,67 @@ print("Events with ≥2 LS-hit arms:", (ls_arms >= 2).sum())
 
 ## HTCondor submission (lxplus)
 
-```bash
-# Large X17 run — 1M events, 4 threads per job
-python3 scripts/submit_condor_full.py \
-    --outdir /eos/experiment/ntof/data/x17/geant_x17_hits \
-    --jobdir /afs/cern.ch/user/d/dneff/condor/mx17_full \
-    --nevents 100000 --threads 4
+`submit_pairs.py` runs the X17+IPC pair simulation at scale. Default: 100 jobs
+× 100k events = **10M events total**, 50% X17 / 50% IPC, output to EOS.
 
+```bash
+# Dry run — print job list without submitting
+python3 scripts/submit_pairs.py --dry-run
+
+# Submit 10M events (100 jobs × 100k each)
+python3 scripts/submit_pairs.py
+
+# Custom scale / IPC fraction
+python3 scripts/submit_pairs.py --njobs 200 --nevents 50000 --ipc 0.5
+
+# Monitor
 condor_q
 ```
 
-After all jobs finish, merge per-thread files:
+Key options:
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `--njobs` | 100 | Number of Condor jobs |
+| `--nevents` | 100000 | Events per job |
+| `--ipc` | 0.5 | IPC fraction (0 = all X17, 1 = all IPC) |
+| `--outdir` | `/eos/user/d/dneff/mx17_geant_sim_results/pairs` | ROOT output (EOS) |
+| `--jobdir` | `/afs/cern.ch/user/d/dneff/condor/mx17_pairs` | Condor files + logs (AFS) |
+| `--flavour` | `workday` | HTCondor job flavour (~8 h); use `tomorrow` if jobs time out |
+
+After all jobs finish, merge into a single file:
 
 ```bash
-hadd /eos/.../geant_x17_hits/x17_merged.root \
-     /eos/.../geant_x17_hits/x17_output_*.root
+hadd x17_ipc_merged.root \
+     /eos/user/d/dneff/mx17_geant_sim_results/pairs/x17_ipc_pairs_job*.root
+```
+
+The merged file contains both X17 and IPC events tagged by `event_type`.
+Split them in Python for separate signal/background pools:
+
+```python
+import uproot, numpy as np
+
+with uproot.open("x17_ipc_merged.root") as f:
+    evts = f["EventTree"].arrays(library="pd")
+    hits = f["HitTree"].arrays(library="pd")
+
+x17_evts = evts[evts["event_type"] == 0]
+ipc_evts  = evts[evts["event_type"] == 1]
 ```
 
 ---
 
 ## Integration with Python fast-MC
 
-The Python fast-MC (`nTof_x17/MX17_Simulation`) can sample X17 signal events
-directly from the Geant4 hit tree instead of using geometric acceptance
-approximations. See `scripts/sample_x17_hits.py` for the bridge helper:
+The Python fast-MC (`nTof_x17/MX17_Simulation`) replaces its geometric
+straight-line propagation with direct sampling from the Geant4 event pools.
+For each simulated time window the fast-MC draws events from the merged ROOT
+file rather than generating them analytically, inheriting the full Geant4
+detector response (multiple scattering, energy loss, stopping, acceptance).
 
-```python
-from scripts.sample_x17_hits import sample_x17_event
-
-hits = sample_x17_event(hit_tree, rng)   # returns list of Hit objects
-```
+The `event_type` branch allows independent sampling of X17 and IPC pools at
+whatever assumed signal/background ratio the analysis requires.
 
 ---
 
@@ -359,11 +409,10 @@ MX17_Full_Geant/
 ├── macros/
 │   └── run_default.mac
 └── scripts/
-    ├── setup_lxplus.sh        Load Geant4 + ROOT from CVMFS
+    ├── setup_lxplus.sh        Load GCC 13 + Geant4 + ROOT from CVMFS
     ├── build.sh               CMake configure + make
-    ├── submit_condor_full.py  HTCondor job submission
-    ├── plot_geometry.py       2D + 3D detector geometry plots (pyvista)
-    └── sample_x17_hits.py     Bridge: Geant4 hit tree → Python fast-MC format
+    ├── submit_pairs.py        HTCondor submission for X17+IPC pair run (10M events)
+    └── plot_geometry.py       2D + 3D detector geometry plots (pyvista)
 ```
 
 ---
@@ -373,9 +422,11 @@ MX17_Full_Geant/
 1. **He-3 isotope**: defined with `G4Isotope` (A=3, Z=2), not natural helium.
    Geant4 HP physics includes the ³He(n,p)T thermal capture cross section.
 
-2. **Pair kinematics**: the generator reproduces the Python script
-   `e+e-_rel_angle_sim.py` — isotropic decay in the X17 rest frame, then a
-   Lorentz boost along +Y with β = p/E at `x17Energy_MeV`.
+2. **Pair kinematics**: ⁴He\* is produced at rest (slow neutron capture). The
+   X17 / virtual photon is emitted **isotropically** (no preferred direction),
+   then decays to e⁺e⁻ in its rest frame (also isotropic) before being boosted
+   to the lab. The IPC invariant mass Mee is sampled from dN/dMee ∝ 1/Mee
+   (log-uniform, 2mₑ → transition energy).
 
 3. **Thread safety**: each worker thread fills its own `EventData` vector and
    writes its own ROOT file. No locks needed. Merge with `hadd` after all
