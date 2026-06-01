@@ -1,0 +1,6 @@
+# run_default.mac — MX17 full 4-arm simulation
+# The run is launched by C++ main(); this macro is for verbosity only.
+
+/run/verbose 1
+/event/verbose 0
+/tracking/verbose 0

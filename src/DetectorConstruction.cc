@@ -1,0 +1,518 @@
+// DetectorConstruction.cc
+// 4-arm X17 experiment geometry.
+// Beam axis = +Y. Arms at ±X (arm 0,1) and ±Z (arm 2,3).
+//
+// Stack per arm (front face at mm_distance from origin, outward):
+//   MM window layers
+//   MM drift gas (30 mm, scored)
+//   Amplification gas + resistive paste
+//   PCB stack
+//   [gap_pcb_to_scint] air
+//   Trigger scint wall: black-mylar tape | 3mm plastic scint | tape | Al foil
+//   [gap_scint_to_ls] air
+//   LS stack: 2mm CFRP | 2cm LAB (scored) | 2mm CFRP | 2cm LAB (scored) | 2mm CFRP
+//   [gap_ls_to_backscint] air
+//   Back scints: 2× (black-mylar tape envelope | 25×30×2cm plastic scint (scored))
+//                placed side-by-side in u, 3mm gap between wrapped bars
+
+#include "DetectorConstruction.hh"
+#include "SensitiveDetector.hh"
+
+#include "G4NistManager.hh"
+#include "G4Material.hh"
+#include "G4Element.hh"
+#include "G4Isotope.hh"
+#include "G4Box.hh"
+#include "G4Tubs.hh"
+#include "G4LogicalVolume.hh"
+#include "G4PVPlacement.hh"
+#include "G4RotationMatrix.hh"
+#include "G4SystemOfUnits.hh"
+#include "G4PhysicalConstants.hh"
+#include "G4VisAttributes.hh"
+#include "G4Color.hh"
+#include "G4SDManager.hh"
+#include "G4UserLimits.hh"
+
+#include <stdexcept>
+#include <cmath>
+
+DetectorConstruction::DetectorConstruction(const SimConfig& cfg)
+    : G4VUserDetectorConstruction(), fConfig(cfg) {}
+
+// ─────────────────────────────────────────────────────────────────────────────
+void DetectorConstruction::DefineMaterials() {
+    G4NistManager* nist = G4NistManager::Instance();
+
+    G4Element* elH  = nist->FindOrBuildElement("H");
+    G4Element* elC  = nist->FindOrBuildElement("C");
+    G4Element* elN  = nist->FindOrBuildElement("N");
+    G4Element* elO  = nist->FindOrBuildElement("O");
+    G4Element* elSi = nist->FindOrBuildElement("Si");
+    G4Element* elCl = nist->FindOrBuildElement("Cl");
+    G4Element* elAr = nist->FindOrBuildElement("Ar");
+    G4Element* elNe = nist->FindOrBuildElement("Ne");
+    G4Element* elHe = nist->FindOrBuildElement("He");
+    G4Element* elF  = nist->FindOrBuildElement("F");
+
+    // ── Gas component materials ──────────────────────────────
+    auto* isobutane = new G4Material("Isobutane", 2.67e-3*g/cm3, 2, kStateGas, 293.15*kelvin, 1*atmosphere);
+    isobutane->AddElement(elC, 4); isobutane->AddElement(elH, 10);
+
+    auto* ethane = new G4Material("Ethane", 1.356e-3*g/cm3, 2, kStateGas, 293.15*kelvin, 1*atmosphere);
+    ethane->AddElement(elC, 2); ethane->AddElement(elH, 6);
+
+    auto* CO2 = new G4Material("CO2_gas", 1.977e-3*g/cm3, 2, kStateGas, 293.15*kelvin, 1*atmosphere);
+    CO2->AddElement(elC, 1); CO2->AddElement(elO, 2);
+
+    auto* CF4 = new G4Material("CF4_gas", 3.72e-3*g/cm3, 2, kStateGas, 293.15*kelvin, 1*atmosphere);
+    CF4->AddElement(elC, 1); CF4->AddElement(elF, 4);
+
+    auto* purAr = new G4Material("PureArgon", 1.782e-3*g/cm3, 1, kStateGas, 293.15*kelvin, 1*atmosphere);
+    purAr->AddElement(elAr, 1);
+
+    auto* pureHe = new G4Material("PureHe", 0.1786e-3*g/cm3, 1, kStateGas, 293.15*kelvin, 1*atmosphere);
+    pureHe->AddElement(elHe, 1);
+
+    auto* pureNe = new G4Material("PureNe", 0.8999e-3*g/cm3, 1, kStateGas, 293.15*kelvin, 1*atmosphere);
+    pureNe->AddElement(elNe, 1);
+
+    auto makeMix2 = [&](const char* name, G4double rho,
+                        G4Material* m1, G4double f1,
+                        G4Material* m2, G4double f2) -> G4Material* {
+        auto* m = new G4Material(name, rho*g/cm3, 2, kStateGas, 293.15*kelvin, 1*atmosphere);
+        m->AddMaterial(m1, f1); m->AddMaterial(m2, f2); return m;
+    };
+    auto makeMix3 = [&](const char* name, G4double rho,
+                        G4Material* m1, G4double f1,
+                        G4Material* m2, G4double f2,
+                        G4Material* m3, G4double f3) -> G4Material* {
+        auto* m = new G4Material(name, rho*g/cm3, 3, kStateGas, 293.15*kelvin, 1*atmosphere);
+        m->AddMaterial(m1, f1); m->AddMaterial(m2, f2); m->AddMaterial(m3, f3); return m;
+    };
+
+    fMats["ArCF4"]    = makeMix2("ArCF4",    0.90*1.782e-3+0.10*3.72e-3, purAr,0.90,CF4,0.10);
+    fMats["HeEth"]    = makeMix2("HeEth",    0.965*0.1786e-3+0.035*1.356e-3, pureHe,0.965,ethane,0.035);
+    fMats["ArCO2"]    = makeMix2("ArCO2",    0.70*1.782e-3+0.30*1.977e-3, purAr,0.70,CO2,0.30);
+    fMats["ArIso"]    = makeMix2("ArIso",    0.95*1.782e-3+0.05*2.67e-3, purAr,0.95,isobutane,0.05);
+    fMats["NeIso"]    = makeMix2("NeIso",    0.95*0.8999e-3+0.05*2.67e-3, pureNe,0.95,isobutane,0.05);
+    fMats["NeCF4"]    = makeMix2("NeCF4",    0.90*0.8999e-3+0.10*3.72e-3, pureNe,0.90,CF4,0.10);
+    fMats["ArCF4Iso"] = makeMix3("ArCF4Iso", 0.88*1.782e-3+0.10*3.72e-3+0.02*2.67e-3, purAr,0.88,CF4,0.10,isobutane,0.02);
+    fMats["ArCF4CO2"] = makeMix3("ArCF4CO2", 0.45*1.782e-3+0.40*3.72e-3+0.15*1.977e-3, purAr,0.45,CF4,0.40,CO2,0.15);
+    auto* purCF4 = new G4Material("PureCF4", 3.72e-3*g/cm3, 2, kStateGas, 293.15*kelvin, 1*atmosphere);
+    purCF4->AddElement(elC,1); purCF4->AddElement(elF,4);
+    fMats["PureCF4"]   = purCF4;
+    fMats["PureAr"]    = purAr;
+    fMats["PureHe"]    = pureHe;
+    fMats["PureNe"]    = pureNe;
+    fMats["PureEthane"]= ethane;
+    fMats["PureIso"]   = isobutane;
+    fMats["PureCO2"]   = CO2;
+
+    // ── He-3 gas at 300 bar ──────────────────────────────────
+    {
+        auto* isoHe3 = new G4Isotope("He3_iso", 2, 3, 3.0160293*g/mole);
+        auto* elHe3  = new G4Element("Helium3_elem", "3He", 1);
+        elHe3->AddIsotope(isoHe3, 1.0);
+        auto* m = new G4Material("He3Gas_300bar", 37.6e-3*g/cm3, 1,
+                                  kStateGas, 293.15*kelvin, 300*atmosphere);
+        m->AddElement(elHe3, 1);
+        fMats["He3Gas"] = m;
+    }
+
+    // ── Structural / detector materials ─────────────────────
+    {
+        auto* m = new G4Material("CFRP", 1.55*g/cm3, 3);
+        m->AddElement(elC, 0.8968); m->AddElement(elH, 0.0207); m->AddElement(elO, 0.0826);
+        fMats["CFRP"] = m;
+    }
+    {
+        auto* m = new G4Material("ResistivePaste", 1.4*g/cm3, 3);
+        m->AddElement(elC, 0.65); m->AddElement(elH, 0.08); m->AddElement(elO, 0.27);
+        fMats["ResistivePaste"] = m;
+    }
+    {
+        auto* m = new G4Material("FR4", 1.85*g/cm3, 4);
+        m->AddElement(elSi, 0.2805); m->AddElement(elO, 0.4195);
+        m->AddElement(elC,  0.2750); m->AddElement(elH, 0.0250);
+        fMats["FR4"] = m;
+    }
+    {
+        auto* m = new G4Material("Rohacell51", 0.052*g/cm3, 4);
+        m->AddElement(elC, 0.5783); m->AddElement(elH, 0.0602);
+        m->AddElement(elN, 0.1687); m->AddElement(elO, 0.1928);
+        fMats["Rohacell51"] = m;
+    }
+    {
+        auto* m = new G4Material("LAB_LiqScint", 0.86*g/cm3, 2);
+        m->AddElement(elC, 0.8780); m->AddElement(elH, 0.1220);
+        fMats["LAB"] = m;
+    }
+    // Black mylar tape: used for trigger scint wall wrapping and back scint wrapping.
+    // PET (polyethylene terephthalate), density 1.38 g/cm3.
+    // Black dye negligible for radiation; treated as pure PET.
+    fMats["BlackMylar"] = nist->FindOrBuildMaterial("G4_MYLAR");
+}
+
+G4Material* DetectorConstruction::GetMat(const std::string& name) const {
+    auto it = fMats.find(name);
+    if (it == fMats.end())
+        throw std::runtime_error("DetectorConstruction: unknown material '" + name + "'");
+    return it->second;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+G4VPhysicalVolume* DetectorConstruction::Construct() {
+    DefineMaterials();
+
+    G4NistManager* nist = G4NistManager::Instance();
+    G4Material* matAir    = nist->FindOrBuildMaterial("G4_AIR");
+    G4Material* matMylar  = nist->FindOrBuildMaterial("G4_MYLAR");
+    G4Material* matAl     = nist->FindOrBuildMaterial("G4_Al");
+    G4Material* matKapton = nist->FindOrBuildMaterial("G4_KAPTON");
+    G4Material* matCu     = nist->FindOrBuildMaterial("G4_Cu");
+    G4Material* matSteel  = nist->FindOrBuildMaterial("G4_STAINLESS-STEEL");
+    G4Material* matGas    = GetMat(fConfig.gas);
+    G4Material* matPlScint= nist->FindOrBuildMaterial("G4_PLASTIC_SC_VINYLTOLUENE");
+    G4Material* matBlkMylar = GetMat("BlackMylar");
+
+    fMats["_Gas"] = matGas;
+
+    // ── Layer thicknesses ────────────────────────────────────
+    // MM stack
+    G4double tMylar    = 40.0  * um;
+    G4double tAlWin    = 0.1   * um;
+    G4double tKapCath  = 50.0  * um;
+    G4double tCuCath   = 9.0   * um;
+    G4double tDrift    = 30.0  * mm;
+    G4double tMesh     = 30.0  * um;
+    G4double tAmp      = 150.0 * um;
+    G4double tResPaste = 100.0 * um;
+
+    // PCB stack
+    G4double tPCBKap  = 50.0  * um;
+    G4double tPCBCu   = 26.0  * um;
+    G4double tPCBFR4  = 100.0 * um;
+    G4double tPCBRoh  = 5.0   * mm;
+    G4double tPCBAl   = 50.0  * um;
+
+    // Trigger scint wall
+    G4double tBlkTape = 200.0 * um;   // black mylar tape
+    G4double tPlScint = 3.0   * mm;
+    G4double tScAl    = 50.0  * um;
+    G4double scintWallT = 2*tBlkTape + tPlScint + tScAl;
+
+    // LS stack
+    G4double tLSCfrp       = fConfig.ls_cfrp_mm      * mm;   // 2 mm structural CFRP wall
+    G4double tLSInnerCfrp  = fConfig.ls_inner_cfrp_um * um;  // 600 µm inner CFRP liner
+    G4double tLSInnerAl    = fConfig.ls_inner_al_um   * um;  // 40 µm Al liner
+    G4double tLS           = fConfig.ls_thick_cm      * cm;  // 2 cm LAB per layer
+
+    // Back scint wrapping: tape (outer) → Al foil → PVT
+    G4double tTape    = fConfig.backscint_tape_um * um;  // 200 µm black mylar
+    G4double tBscAl   = fConfig.backscint_al_um   * um;  // 20 µm Al foil
+
+    // Air gaps
+    G4double gapPCBtoScint  = fConfig.gap_pcb_to_scint_mm    * mm;
+    G4double gapScintToLS   = fConfig.gap_scint_to_ls_mm     * mm;
+    G4double gapLStoBack    = fConfig.gap_ls_to_backscint_mm * mm;
+
+    // ── Half-sizes in arm local frame (u, v) ────────────────
+    G4double mmU_hf  = fConfig.mm_size_u_cm    * cm / 2;
+    G4double mmV_hf  = fConfig.mm_size_v_cm    * cm / 2;
+    G4double scU_hf  = fConfig.scint_size_u_cm * cm / 2;
+    G4double scV_hf  = fConfig.scint_size_v_cm * cm / 2;
+    G4double lsU_hf  = fConfig.ls_size_u_cm    * cm / 2;
+    G4double lsV_hf  = fConfig.ls_size_v_cm    * cm / 2;
+
+    // Back scint bar: PVT wrapped in Al foil then black mylar tape
+    G4double bsc_u  = fConfig.backscint_u_cm     * cm;
+    G4double bsc_v  = fConfig.backscint_v_cm     * cm;
+    G4double bsc_th = fConfig.backscint_thick_cm * cm;
+    G4double bsc_gap= fConfig.backscint_gap_cm   * cm;
+    // Al envelope half-sizes (Al foil directly on scint surface)
+    G4double bscAl_hu = (bsc_u  + 2*tBscAl) / 2;
+    G4double bscAl_hv = (bsc_v  + 2*tBscAl) / 2;
+    G4double bscAl_hw = (bsc_th + 2*tBscAl) / 2;
+    // Tape envelope half-sizes (outer, wraps Al+scint)
+    G4double bscTape_hu = (bsc_u  + 2*tBscAl + 2*tTape) / 2;
+    G4double bscTape_hv = (bsc_v  + 2*tBscAl + 2*tTape) / 2;
+    G4double bscTape_hw = (bsc_th + 2*tBscAl + 2*tTape) / 2;
+
+    // ── World volume ─────────────────────────────────────────
+    G4double dist      = fConfig.mm_distance_cm * cm;
+
+    // Compute total stack depth to size the world
+    G4double tMM   = tMylar+tAlWin+tKapCath+tCuCath+tDrift+tMesh+tAmp+tResPaste;
+    G4double tPCB  = tPCBKap + 4*(tPCBCu+tPCBFR4) + tPCBRoh + tPCBAl;
+    G4double tLS_stack = 3*tLSCfrp + 2*(tLSInnerCfrp + tLSInnerAl + tLS);
+    G4double tBack = 2*bscTape_hw;   // depth of tape envelope
+    G4double stackDepth = tMM + tPCB + gapPCBtoScint + scintWallT
+                        + gapScintToLS + tLS_stack + gapLStoBack + tBack;
+
+    G4double scintV_hf  = std::max(scU_hf, scV_hf);  // max half-size for world
+    G4double bsc_max_hu = bscTape_hu * 2 + bsc_gap / 2;  // half total pair width
+    G4double worldHalfXZ = dist + stackDepth + 5.0*cm;
+    G4double worldHalfY  = std::max({scintV_hf, lsV_hf, bscTape_hv}) + 5.0*cm;
+
+    auto* worldBox = new G4Box("World", worldHalfXZ, worldHalfY, worldHalfXZ);
+    auto* worldLV  = new G4LogicalVolume(worldBox, matAir, "World");
+    worldLV->SetVisAttributes(G4VisAttributes::GetInvisible());
+    auto* worldPV  = new G4PVPlacement(nullptr, G4ThreeVector(), worldLV,
+                                        "World", nullptr, false, 0, true);
+
+    // ── He-3 pressurised capsule at origin ───────────────────
+    // Cylinder axis along Y (beam): rotateX(-90°) maps local Z → world Y
+    G4double he3R      = fConfig.he3_radius_cm      * cm;
+    G4double he3HalfL  = fConfig.he3_half_length_cm * cm;
+    G4double alWallT   = 0.5  * mm;
+    G4double cfrpWallT = 0.9  * mm;
+    G4double alR       = he3R + alWallT;
+    G4double cfrpR     = alR  + cfrpWallT;
+    G4double alHalfL   = he3HalfL + alWallT;
+    G4double cfrpHalfL = alHalfL  + cfrpWallT;
+
+    auto* capRot = new G4RotationMatrix();
+    capRot->rotateX(-90.*deg);
+
+    auto* cfrpSolid = new G4Tubs("He3Cap_CFRP",  0, cfrpR, cfrpHalfL, 0, 360.*deg);
+    auto* cfrpLV    = new G4LogicalVolume(cfrpSolid, GetMat("CFRP"), "He3Cap_CFRP");
+    cfrpLV->SetVisAttributes(new G4VisAttributes(G4Color(0.15, 0.15, 0.15, 0.9)));
+    new G4PVPlacement(capRot, G4ThreeVector(), cfrpLV, "He3Cap_CFRP", worldLV, false, 0, true);
+
+    auto* alSolid = new G4Tubs("He3Cap_Al", 0, alR, alHalfL, 0, 360.*deg);
+    auto* alLV    = new G4LogicalVolume(alSolid, matAl, "He3Cap_Al");
+    alLV->SetVisAttributes(new G4VisAttributes(G4Color(0.7, 0.7, 0.7, 0.8)));
+    new G4PVPlacement(nullptr, G4ThreeVector(), alLV, "He3Cap_Al", cfrpLV, false, 0, true);
+
+    auto* he3Solid = new G4Tubs("He3Gas", 0, he3R, he3HalfL, 0, 360.*deg);
+    auto* he3LV    = new G4LogicalVolume(he3Solid, GetMat("He3Gas"), "He3Gas");
+    he3LV->SetVisAttributes(new G4VisAttributes(G4Color(0.6, 0.9, 1.0, 0.4)));
+    new G4PVPlacement(nullptr, G4ThreeVector(), he3LV, "He3Gas", alLV, false, 0, true);
+    he3LV->SetUserLimits(new G4UserLimits(1.0*mm));
+
+    G4cout << "\n=== X17 Full-Experiment Geometry ===" << G4endl;
+    G4cout << "  Beam axis    : +Y" << G4endl;
+    G4cout << "  He-3 target  : r=" << he3R/cm << " cm, L=" << 2*he3HalfL/cm
+           << " cm along Y, 300 bar" << G4endl;
+    G4cout << "  Gas mixture  : " << fConfig.gas
+           << "  (rho=" << matGas->GetDensity()/(mg/cm3) << " mg/cm3)" << G4endl;
+    G4cout << "  Stack depth  : " << stackDepth/cm << " cm" << G4endl;
+
+    // ── Helper: create a named logical volume (box) ──────────
+    auto MakeLV = [&](const std::string& name, G4double hu, G4double hv,
+                       G4double hw, G4Material* mat,
+                       const G4Color& col, bool solid=false) -> G4LogicalVolume* {
+        auto* box = new G4Box(name, hu, hv, hw);
+        auto* lv  = new G4LogicalVolume(box, mat, name);
+        auto* vis = new G4VisAttributes(col);
+        if (solid) vis->SetForceSolid(true);
+        lv->SetVisAttributes(vis);
+        return lv;
+    };
+
+    // ── Create logical volumes for each layer type ───────────
+    // (shared across 4 arms via copy number = arm ID)
+
+    // MM layers (38×34 cm face)
+    auto* mylarLV   = MakeLV("GasWindow_Mylar",     mmU_hf,mmV_hf,tMylar/2,    matMylar,  G4Color(0.7,0.9,0.7,0.5));
+    auto* alWinLV   = MakeLV("GasWindow_Al",         mmU_hf,mmV_hf,tAlWin/2,    matAl,     G4Color(0.7,0.7,0.7,0.8));
+    auto* kapCathLV = MakeLV("DriftCathode_Kapton",  mmU_hf,mmV_hf,tKapCath/2,  matKapton, G4Color(0.9,0.7,0.0,0.7));
+    auto* cuCathLV  = MakeLV("DriftCathode_Cu",      mmU_hf,mmV_hf,tCuCath/2,   matCu,     G4Color(0.8,0.4,0.1,0.8));
+    fDriftGasLV     = MakeLV("DriftGas",             mmU_hf,mmV_hf,tDrift/2,    matGas,    G4Color(0.2,0.5,1.0,0.3));
+    auto* meshLV    = MakeLV("Micromesh",             mmU_hf,mmV_hf,tMesh/2,     matSteel,  G4Color(0.5,0.5,0.5,0.9));
+    fAmpGasLV       = MakeLV("AmpGas",               mmU_hf,mmV_hf,tAmp/2,      matGas,    G4Color(1.0,0.3,0.3,0.3));
+    auto* resLV     = MakeLV("ResistivePaste",        mmU_hf,mmV_hf,tResPaste/2, GetMat("ResistivePaste"),G4Color(0.2,0.2,0.2,0.8));
+
+    // PCB layers (38×34 cm face)
+    auto* pcbKapLV  = MakeLV("PCB_Kapton",   mmU_hf,mmV_hf,tPCBKap/2,  matKapton,         G4Color(0.9,0.7,0.0,0.7));
+    auto* pcbCu1LV  = MakeLV("PCB_Cu_1",     mmU_hf,mmV_hf,tPCBCu/2,   matCu,             G4Color(0.8,0.4,0.1,0.8));
+    auto* pcbFR41LV = MakeLV("PCB_FR4_1",    mmU_hf,mmV_hf,tPCBFR4/2,  GetMat("FR4"),     G4Color(0.2,0.6,0.2,0.8));
+    auto* pcbCu2LV  = MakeLV("PCB_Cu_2",     mmU_hf,mmV_hf,tPCBCu/2,   matCu,             G4Color(0.8,0.4,0.1,0.8));
+    auto* pcbFR42LV = MakeLV("PCB_FR4_2",    mmU_hf,mmV_hf,tPCBFR4/2,  GetMat("FR4"),     G4Color(0.2,0.6,0.2,0.8));
+    auto* pcbCu3LV  = MakeLV("PCB_Cu_3",     mmU_hf,mmV_hf,tPCBCu/2,   matCu,             G4Color(0.8,0.4,0.1,0.8));
+    auto* pcbFR43LV = MakeLV("PCB_FR4_3",    mmU_hf,mmV_hf,tPCBFR4/2,  GetMat("FR4"),     G4Color(0.2,0.6,0.2,0.8));
+    auto* pcbCu4LV  = MakeLV("PCB_Cu_4",     mmU_hf,mmV_hf,tPCBCu/2,   matCu,             G4Color(0.8,0.4,0.1,0.8));
+    auto* pcbFR44LV = MakeLV("PCB_FR4_4",    mmU_hf,mmV_hf,tPCBFR4/2,  GetMat("FR4"),     G4Color(0.2,0.6,0.2,0.8));
+    auto* pcbRohLV  = MakeLV("PCB_Rohacell", mmU_hf,mmV_hf,tPCBRoh/2,  GetMat("Rohacell51"),G4Color(0.9,0.9,0.6,0.5));
+    auto* pcbAlLV   = MakeLV("PCB_AlFoil",   mmU_hf,mmV_hf,tPCBAl/2,   matAl,             G4Color(0.7,0.7,0.7,0.8));
+
+    // Trigger scint wall (48×48 cm face) — black mylar tape
+    auto* bkTape1LV = MakeLV("ScintWall_BlackTape1", scU_hf,scV_hf,tBlkTape/2, matBlkMylar, G4Color(0.1,0.1,0.1,0.9));
+    fPlScintLV      = MakeLV("PlasticScint",          scU_hf,scV_hf,tPlScint/2, matPlScint,  G4Color(0.9,0.9,0.2,0.7));
+    auto* bkTape2LV = MakeLV("ScintWall_BlackTape2", scU_hf,scV_hf,tBlkTape/2, matBlkMylar, G4Color(0.1,0.1,0.1,0.9));
+    auto* scAlLV    = MakeLV("ScintWall_AlFoil",     scU_hf,scV_hf,tScAl/2,    matAl,       G4Color(0.7,0.7,0.7,0.8));
+
+    // LS stack (45×45 cm face)
+    // Structural CFRP walls (2 mm)
+    auto* lsCFRP1LV      = MakeLV("LS_CFRP_1",      lsU_hf,lsV_hf,tLSCfrp/2,      GetMat("CFRP"),G4Color(0.15,0.15,0.15,0.9));
+    auto* lsCFRP2LV      = MakeLV("LS_CFRP_2",      lsU_hf,lsV_hf,tLSCfrp/2,      GetMat("CFRP"),G4Color(0.15,0.15,0.15,0.9));
+    auto* lsCFRP3LV      = MakeLV("LS_CFRP_3",      lsU_hf,lsV_hf,tLSCfrp/2,      GetMat("CFRP"),G4Color(0.15,0.15,0.15,0.9));
+    // Inner CFRP liner (600 µm, before each LAB layer)
+    auto* lsInnerCFRP1LV = MakeLV("LS_InnerCFRP_1", lsU_hf,lsV_hf,tLSInnerCfrp/2, GetMat("CFRP"),G4Color(0.25,0.25,0.25,0.8));
+    auto* lsInnerCFRP2LV = MakeLV("LS_InnerCFRP_2", lsU_hf,lsV_hf,tLSInnerCfrp/2, GetMat("CFRP"),G4Color(0.25,0.25,0.25,0.8));
+    // Al liner (40 µm, between inner CFRP and LAB)
+    auto* lsAl1LV        = MakeLV("LS_Al_1",         lsU_hf,lsV_hf,tLSInnerAl/2,   matAl,         G4Color(0.7,0.7,0.7,0.8));
+    auto* lsAl2LV        = MakeLV("LS_Al_2",         lsU_hf,lsV_hf,tLSInnerAl/2,   matAl,         G4Color(0.7,0.7,0.7,0.8));
+    // LAB layers (scored)
+    fLS1LV               = MakeLV("LiqScint_1",      lsU_hf,lsV_hf,tLS/2,          GetMat("LAB"), G4Color(0.3,0.8,0.9,0.4));
+    fLS2LV               = MakeLV("LiqScint_2",      lsU_hf,lsV_hf,tLS/2,          GetMat("LAB"), G4Color(0.3,0.8,0.9,0.4));
+
+    // Back plastic scint bars: tape (outer, 200µm mylar) → Al foil (20µm) → PVT scint
+    // Two LVs per component (L/R) so volume name encodes which bar.
+    auto* bscTapeLLV = MakeLV("BackScintTapeL", bscTape_hu,bscTape_hv,bscTape_hw,
+                               matBlkMylar, G4Color(0.1,0.1,0.1,0.7));
+    auto* bscTapeRLV = MakeLV("BackScintTapeR", bscTape_hu,bscTape_hv,bscTape_hw,
+                               matBlkMylar, G4Color(0.1,0.1,0.1,0.7));
+    auto* bscAlLLV   = MakeLV("BackScintAlL",   bscAl_hu,  bscAl_hv,  bscAl_hw,
+                               matAl,       G4Color(0.7,0.7,0.7,0.6));
+    auto* bscAlRLV   = MakeLV("BackScintAlR",   bscAl_hu,  bscAl_hv,  bscAl_hw,
+                               matAl,       G4Color(0.7,0.7,0.7,0.6));
+    fBackScintLLV    = MakeLV("BackScintL",  bsc_u/2,bsc_v/2,bsc_th/2,
+                               matPlScint, G4Color(0.9,0.5,0.1,0.8));
+    fBackScintRLV    = MakeLV("BackScintR",  bsc_u/2,bsc_v/2,bsc_th/2,
+                               matPlScint, G4Color(0.9,0.5,0.1,0.8));
+
+    // Nesting: tape → Al → PVT (all centred at parent origin)
+    new G4PVPlacement(nullptr, G4ThreeVector(), bscAlLLV,    "BackScintAlL_in_tape", bscTapeLLV, false, 0, true);
+    new G4PVPlacement(nullptr, G4ThreeVector(), bscAlRLV,    "BackScintAlR_in_tape", bscTapeRLV, false, 0, true);
+    new G4PVPlacement(nullptr, G4ThreeVector(), fBackScintLLV,"BackScintL_in_al",    bscAlLLV,   false, 0, true);
+    new G4PVPlacement(nullptr, G4ThreeVector(), fBackScintRLV,"BackScintR_in_al",    bscAlRLV,   false, 0, true);
+
+    fDriftGasLV->SetUserLimits(new G4UserLimits(100.*um));
+    fAmpGasLV  ->SetUserLimits(new G4UserLimits(100.*um));
+
+    // ── Build ordered slab list ───────────────────────────────
+    // nullptr entries = air gaps (world volume fills them)
+    struct Slab { G4LogicalVolume* lv; G4double thickness; };
+    std::vector<Slab> slabs = {
+        // MM
+        {mylarLV,   tMylar},
+        {alWinLV,   tAlWin},
+        {kapCathLV, tKapCath},
+        {cuCathLV,  tCuCath},
+        {fDriftGasLV, tDrift},
+        {meshLV,    tMesh},
+        {fAmpGasLV, tAmp},
+        {resLV,     tResPaste},
+        // PCB
+        {pcbKapLV,  tPCBKap},
+        {pcbCu1LV,  tPCBCu}, {pcbFR41LV, tPCBFR4},
+        {pcbCu2LV,  tPCBCu}, {pcbFR42LV, tPCBFR4},
+        {pcbCu3LV,  tPCBCu}, {pcbFR43LV, tPCBFR4},
+        {pcbCu4LV,  tPCBCu}, {pcbFR44LV, tPCBFR4},
+        {pcbRohLV,  tPCBRoh},
+        {pcbAlLV,   tPCBAl},
+        // Air gap → trigger scint wall
+        {nullptr,   gapPCBtoScint},
+        {bkTape1LV, tBlkTape},
+        {fPlScintLV,tPlScint},
+        {bkTape2LV, tBlkTape},
+        {scAlLV,    tScAl},
+        // Air gap → LS stack (structural CFRP → inner CFRP liner → Al liner → LAB)
+        {nullptr,        gapScintToLS},
+        {lsCFRP1LV,      tLSCfrp},
+        {lsInnerCFRP1LV, tLSInnerCfrp},
+        {lsAl1LV,        tLSInnerAl},
+        {fLS1LV,         tLS},
+        {lsCFRP2LV,      tLSCfrp},
+        {lsInnerCFRP2LV, tLSInnerCfrp},
+        {lsAl2LV,        tLSInnerAl},
+        {fLS2LV,         tLS},
+        {lsCFRP3LV,      tLSCfrp},
+        // Air gap → back scints (back scints placed separately below)
+        {nullptr,   gapLStoBack},
+    };
+
+    // Compute total depth of slab list (= depth of back-scint front face)
+    G4double slabsTotalDepth = 0.0;
+    for (const auto& s : slabs) slabsTotalDepth += s.thickness;
+    // Back-scint tape envelope centre depth from arm front face
+    G4double bscWCenter = slabsTotalDepth + bscTape_hw;
+
+    // ── Arm placement definitions ─────────────────────────────
+    struct ArmDef {
+        G4RotationMatrix* rot;
+        G4ThreeVector     frontFace;
+        G4ThreeVector     uHat;    // local u direction in world
+        G4ThreeVector     wHat;    // local w (depth) direction in world
+    };
+
+    auto* rot0 = new G4RotationMatrix(); rot0->rotateY( 90.*deg);
+    auto* rot1 = new G4RotationMatrix(); rot1->rotateY(-90.*deg);
+    auto* rot3 = new G4RotationMatrix(); rot3->rotateY(180.*deg);
+
+    ArmDef armDefs[4] = {
+        {rot0, {dist,0,0},  {0,0,-1}, {1,0,0}},
+        {rot1, {-dist,0,0}, {0,0, 1}, {-1,0,0}},
+        {nullptr, {0,0,dist}, {1,0,0}, {0,0,1}},
+        {rot3, {0,0,-dist}, {-1,0,0}, {0,0,-1}},
+    };
+
+    // ── Place arms ────────────────────────────────────────────
+    for (int arm = 0; arm < 4; ++arm) {
+        const auto& ad = armDefs[arm];
+
+        // Store arm axes for SteppingAction coordinate transforms
+        fArmAxes[arm].frontFace = ad.frontFace;
+        fArmAxes[arm].uHat      = ad.uHat;
+        fArmAxes[arm].vHat      = G4ThreeVector(0, 1, 0);
+        fArmAxes[arm].wHat      = ad.wHat;
+
+        // Place each slab
+        G4double zLocal = 0.0;
+        for (const auto& s : slabs) {
+            zLocal += s.thickness;
+            if (!s.lv) continue;
+            G4double zCen = zLocal - s.thickness / 2.0;
+            G4ThreeVector localOff(0, 0, zCen);
+            G4ThreeVector worldCen = ad.frontFace +
+                (ad.rot ? (*ad.rot)*localOff : localOff);
+            std::string pvName = "Arm" + std::to_string(arm) + "_" + s.lv->GetName();
+            new G4PVPlacement(ad.rot, worldCen, s.lv,
+                               pvName, worldLV, false, arm, true);
+        }
+
+        // Place back-scint tape envelopes (left and right bars)
+        // u-offset from arm centre = ±(half_u_tape + gap/2)
+        G4double uOff = bscTape_hu + bsc_gap / 2.0;
+        for (int side = 0; side < 2; ++side) {
+            G4double uSign = (side == 0) ? -1.0 : +1.0;
+            G4ThreeVector localW(0, 0, bscWCenter);
+            G4ThreeVector localU = uSign * uOff * G4ThreeVector(1, 0, 0);  // local x = arm u
+            G4ThreeVector localPos = localW + localU;
+            G4ThreeVector worldPos = ad.frontFace +
+                (ad.rot ? (*ad.rot)*localPos : localPos);
+
+            G4LogicalVolume* tapeLV = (side == 0) ? bscTapeLLV : bscTapeRLV;
+            std::string pvName = "Arm" + std::to_string(arm) +
+                                  (side == 0 ? "_BackTapeL" : "_BackTapeR");
+            new G4PVPlacement(ad.rot, worldPos, tapeLV,
+                               pvName, worldLV, false, arm, true);
+        }
+
+        G4cout << "  Arm " << arm << " placed, front face at "
+               << ad.frontFace/cm << " cm" << G4endl;
+    }
+
+    G4cout << "=====================================" << G4endl;
+    return worldPV;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+void DetectorConstruction::ConstructSDandField() {
+    auto RegisterSD = [&](G4LogicalVolume* lv, const std::string& sdName) {
+        if (!lv) return;
+        auto* sd = new SensitiveDetector(sdName, sdName + "Hits",
+                                          lv->GetName(), fConfig);
+        G4SDManager::GetSDMpointer()->AddNewDetector(sd);
+        SetSensitiveDetector(lv, sd);
+    };
+    RegisterSD(fDriftGasLV,   "DriftGasSD");
+    RegisterSD(fAmpGasLV,     "AmpGasSD");
+    RegisterSD(fPlScintLV,    "PlasticScintSD");
+    RegisterSD(fLS1LV,        "LiqScint1SD");
+    RegisterSD(fLS2LV,        "LiqScint2SD");
+    RegisterSD(fBackScintLLV, "BackScintLSD");
+    RegisterSD(fBackScintRLV, "BackScintRSD");
+}
