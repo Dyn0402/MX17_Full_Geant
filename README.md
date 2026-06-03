@@ -288,27 +288,29 @@ The vertex is sampled uniformly within the He-3 cylinder (radius 1.5 cm, ±4 cm 
 Momentum unit vector + kinetic energy fully specify the 4-momentum of each lepton.
 In single-particle mode the vertex is always (0, 0, 0).
 
-### Merging MT output
+### Reading individual files in Python
 
-```bash
-hadd x17_merged.root x17_output_t*.root
-```
-
-### Reading in Python
+The output files are processed directly — no merging needed. Use uproot's
+`iterate` to stream one file at a time to avoid loading everything into memory:
 
 ```python
-import uproot, numpy as np
+import uproot, numpy as np, glob
 
-with uproot.open("x17_merged.root") as f:
-    hits = f["HitTree"].arrays(library="pd")
+files = sorted(glob.glob("/eos/.../pairs/x17_ipc_pairs_job*_t0.root"))
+
+for path in files:
+    with uproot.open(path) as f:
+        evts = f["EventTree"].arrays(library="pd")
+        # Stream HitTree in 300k-row chunks
+        for chunk in f["HitTree"].iterate(step_size=300_000, library="pd"):
+            # process chunk ...
+            pass
+
+# Or load a single file's EventTree fully (it's small — ~2 MB per 100k events)
+with uproot.open(files[0]) as f:
     evts = f["EventTree"].arrays(library="pd")
-
-# Per-arm hit counts
-print(hits.groupby("armID")["edep"].count())
-
-# Events with hits in both LS layers on at least one arm
-ls_arms = hits[hits.detType.isin(["LiqScint_1","LiqScint_2"])].groupby("eventID")["armID"].nunique()
-print("Events with ≥2 LS-hit arms:", (ls_arms >= 2).sum())
+    x17  = evts[evts["event_type"] == 0]
+    ipc  = evts[evts["event_type"] == 1]
 ```
 
 ---
@@ -343,26 +345,51 @@ Key options:
 | `--jobdir` | `/afs/cern.ch/user/d/dneff/condor/mx17_pairs` | Condor files + logs (AFS) |
 | `--flavour` | `workday` | HTCondor job flavour (~8 h); use `tomorrow` if jobs time out |
 
-After all jobs finish, merge into a single file:
+---
+
+## Analysis (lxplus)
+
+### Sanity check a single output file
 
 ```bash
-hadd x17_ipc_merged.root \
-     /eos/user/d/dneff/mx17_geant_sim_results/pairs/x17_ipc_pairs_job*.root
+python3 scripts/check_output.py \
+    /eos/user/d/dneff/mx17_geant_sim_results/pairs/x17_ipc_pairs_job000_t0.root \
+    -o check_job000.pdf
 ```
 
-The merged file contains both X17 and IPC events tagged by `event_type`.
-Split them in Python for separate signal/background pools:
+Prints a pass/fail summary (tree presence, EventTree physics non-zero, IPC
+fraction, arm symmetry, etc.) and saves a 2-page PDF of key distributions.
 
-```python
-import uproot, numpy as np
+### Full physics analysis across all jobs
 
-with uproot.open("x17_ipc_merged.root") as f:
-    evts = f["EventTree"].arrays(library="pd")
-    hits = f["HitTree"].arrays(library="pd")
+`analyze_pairs.py` processes the individual unmerged ROOT files directly —
+no `hadd` required. It streams each file in 300k-row HitTree chunks and
+accumulates histograms, so memory stays bounded regardless of dataset size.
 
-x17_evts = evts[evts["event_type"] == 0]
-ipc_evts  = evts[evts["event_type"] == 1]
+```bash
+# Quick test on a few files
+python3 scripts/analyze_pairs.py \
+    /eos/user/d/dneff/mx17_geant_sim_results/pairs/x17_ipc_pairs_job00*.root \
+    --max-files 5 -o quick_test.pdf
+
+# Full run across all 100 jobs
+python3 scripts/analyze_pairs.py \
+    /eos/user/d/dneff/mx17_geant_sim_results/pairs/ \
+    -o pair_analysis.pdf
 ```
+
+The script answers five questions about the simulation:
+
+| Question | What it measures |
+|----------|-----------------|
+| Q1 Acceptance | Fraction of events where e± reach each detector layer; double-trigger rate |
+| Q2 Calorimetry | Truth Mee distribution + LS-edep invariant mass reconstruction |
+| Q3 Asymmetry | Double-trigger acceptance vs energy asymmetry (low-KE particle stopping) |
+| Q4 Pointing | MM track DCA to true vertex vs particle KE (multiple-scattering budget) |
+| Q5 Angle reco | Reconstructed vs truth opening angle; RMS(Δθ) vs truth angle |
+
+Output is a multi-page PDF. The `event_type` branch separates X17 signal
+(type 0) and IPC background (type 1) throughout.
 
 ---
 
@@ -412,6 +439,8 @@ MX17_Full_Geant/
     ├── setup_lxplus.sh        Load GCC 13 + Geant4 + ROOT from CVMFS
     ├── build.sh               CMake configure + make
     ├── submit_pairs.py        HTCondor submission for X17+IPC pair run (10M events)
+    ├── check_output.py        Sanity check a single ROOT output file (pass/fail + PDF)
+    ├── analyze_pairs.py       Physics analysis across all jobs → multi-page PDF (Q1–Q5)
     └── plot_geometry.py       2D + 3D detector geometry plots (pyvista)
 ```
 
@@ -429,8 +458,8 @@ MX17_Full_Geant/
    (log-uniform, 2mₑ → transition energy).
 
 3. **Thread safety**: each worker thread fills its own `EventData` vector and
-   writes its own ROOT file. No locks needed. Merge with `hadd` after all
-   threads complete.
+   writes its own ROOT file. No locks needed. Analysis scripts read the
+   individual files directly — no merging step is required.
 
 4. **LS optical photons**: LAB is defined for dE/dx transport only. Scintillation
    photon propagation requires adding optical material properties and registering
