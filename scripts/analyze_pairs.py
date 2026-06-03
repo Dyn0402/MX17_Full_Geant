@@ -212,6 +212,9 @@ class Accumulator:
         self.h_delta_open  = {0: np.zeros((60, 120)), 1: np.zeros((60, 120))}
         self.open_rms_sum  = {0: np.zeros(60), 1: np.zeros(60)}
         self.open_rms_n    = {0: np.zeros(60), 1: np.zeros(60)}
+        # 2D truth vs reco opening angle (2° bins, 0-180°)
+        self.open2d_bins = np.linspace(0, 180, 91)
+        self.h_open_2d   = {0: np.zeros((90, 90)), 1: np.zeros((90, 90))}
 
     def merge(self, other):
         """Add another Accumulator into this one (used after parallel processing)."""
@@ -229,6 +232,7 @@ class Accumulator:
                 "h_stop_reach_ep", "h_stop_stop_ep",
                 "h_asym_all", "h_asym_mm", "h_asym_single", "h_asym_double",
                 "h_dca", "h_dca_fine", "h_delta_open", "open_rms_sum", "open_rms_n",
+                "h_open_2d",
             ]:
                 getattr(self, attr)[et] += getattr(other, attr)[et]
 
@@ -389,6 +393,10 @@ class Accumulator:
                     np.add.at(self.h_delta_open[et], (truth_idx, delta_idx), 1)
                     np.add.at(self.open_rms_sum[et], truth_idx, delta**2)
                     np.add.at(self.open_rms_n[et],   truth_idx, 1)
+                    # 2D truth vs reco
+                    ti2 = np.clip(np.digitize(theta_truth, self.open2d_bins) - 1, 0, 89)
+                    ri2 = np.clip(np.digitize(theta_reco,  self.open2d_bins) - 1, 0, 89)
+                    np.add.at(self.h_open_2d[et], (ti2, ri2), 1)
 
 
 # ── Per-file processing ───────────────────────────────────────────────────────
@@ -765,6 +773,31 @@ def plot_pointing(pdf, acc):
     fig2.tight_layout(); pdf.savefig(fig2); plt.close(fig2)
 
 
+def plot_angle_truth_vs_reco(pdf, acc):
+    """2D truth vs reconstructed opening angle, one panel per event type."""
+    cen = 0.5 * (acc.open2d_bins[:-1] + acc.open2d_bins[1:])
+
+    fig, axes = plt.subplots(1, 2, figsize=(13, 5.5), sharey=True)
+    for col, et in enumerate([0, 1]):
+        ax = axes[col]
+        h = acc.h_open_2d[et]
+        # Normalise each truth row: P(reco | truth)
+        row_sums = h.sum(axis=1, keepdims=True).clip(1)
+        h_norm = h / row_sums
+        im = ax.pcolormesh(cen, cen, h_norm.T, cmap="plasma", vmin=0)
+        ax.plot([0, 180], [0, 180], "w--", lw=1.2, label="perfect reco")
+        plt.colorbar(im, ax=ax, label="P(θ_reco | θ_truth)")
+        ax.set_xlabel("Truth opening angle  [deg]")
+        ax.set_title(ETYPE_LABEL[et])
+        ax.set_xlim(0, 180); ax.set_ylim(0, 180)
+        ax.legend(fontsize=8)
+
+    axes[0].set_ylabel("Reconstructed opening angle  [deg]")
+    fig.suptitle("Truth vs Reconstructed Opening Angle", fontsize=13)
+    fig.tight_layout()
+    pdf.savefig(fig); plt.close(fig)
+
+
 def plot_angle_reco(pdf, acc):
     open_cen  = 0.5 * (acc.open_bins[:-1]  + acc.open_bins[1:])
     delta_cen = 0.5 * (acc.delta_bins[:-1] + acc.delta_bins[1:])
@@ -944,6 +977,8 @@ def main():
         plot_asymmetry(pdf, accum)
         print("  MM pointing ...")
         plot_pointing(pdf, accum)
+        print("  Angle truth vs reco ...")
+        plot_angle_truth_vs_reco(pdf, accum)
         print("  Angle reconstruction ...")
         plot_angle_reco(pdf, accum)
 
