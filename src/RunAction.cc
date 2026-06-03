@@ -147,14 +147,22 @@ void RunAction::EndOfRunAction(const G4Run* run) {
 #endif
     }
 
+    // Worker threads print their own per-thread summary.
+    // Master prints the G4Run total (which aggregates across all workers in MT).
+    if (!fIsMaster) {
+#ifdef USE_ROOT
+        if (fTotalEvents > 0)
+            G4cout << "G4WT" << G4Threading::G4GetThreadId()
+                   << " > Wrote " << fTotalEvents << " events, "
+                   << fTotalHits  << " hits"
+                   << "  (<hits/event>=" << G4double(fTotalHits)/G4double(fTotalEvents) << ")\n";
+#endif
+    }
+
     if (fIsMaster || !G4Threading::IsMultithreadedApplication()) {
         G4int nev = run->GetNumberOfEvent();
         G4cout << "\n========= Run Summary =========\n";
-        G4cout << "  Events : " << nev          << "\n";
-        G4cout << "  Hits   : " << fTotalHits    << "\n";
-        if (fTotalEvents > 0)
-            G4cout << "  <hits/event> : "
-                   << G4double(fTotalHits) / G4double(fTotalEvents) << "\n";
+        G4cout << "  Events : " << nev << "\n";
         G4cout << "================================\n";
     }
 }
