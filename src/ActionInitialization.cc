@@ -19,7 +19,7 @@ void ActionInitialization::Build() const {
     auto* runAction   = new RunAction(fConfig, false);
     auto* eventAction = new EventAction(fConfig, runAction);
 
-    SetUserAction(new X17PrimaryGenerator(fConfig, eventAction));
+    SetUserAction(new X17PrimaryGenerator(fConfig));
     SetUserAction(runAction);
     SetUserAction(eventAction);
     SetUserAction(new SteppingAction(fConfig, eventAction,

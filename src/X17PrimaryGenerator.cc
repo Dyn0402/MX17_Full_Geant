@@ -21,7 +21,6 @@
 // where E_parent ≈ transition_energy (nuclear recoil is negligible for 4He).
 
 #include "X17PrimaryGenerator.hh"
-#include "EventAction.hh"
 #include "EventData.hh"
 
 #include "G4Event.hh"
@@ -35,11 +34,9 @@
 
 #include <cmath>
 
-X17PrimaryGenerator::X17PrimaryGenerator(const SimConfig& cfg,
-                                          EventAction* eventAction)
+X17PrimaryGenerator::X17PrimaryGenerator(const SimConfig& cfg)
     : G4VUserPrimaryGeneratorAction(),
-      fConfig(cfg), fEventAction(eventAction),
-      fGun(std::make_unique<G4ParticleGun>(1))
+      fConfig(cfg), fGun(std::make_unique<G4ParticleGun>(1))
 {
     G4ParticleTable* pt = G4ParticleTable::GetParticleTable();
     fElectron = pt->FindParticle("e-");
@@ -48,17 +45,23 @@ X17PrimaryGenerator::X17PrimaryGenerator(const SimConfig& cfg,
 
 // ─────────────────────────────────────────────────────────────────────────────
 void X17PrimaryGenerator::GeneratePrimaries(G4Event* event) {
-    EventData& ed = fEventAction->GetEventData();
+    // EventTypeInfo is carried on the G4Event so EndOfEventAction can read it
+    // without depending on a cross-action pointer (fragile in Geant4 MT).
+    auto* info = new EventTypeInfo();
+
     if (fConfig.singleParticle) {
-        ed.event_type = -1;
+        info->event_type = -1;
         GenerateSingle(event);
     } else if (G4UniformRand() < fConfig.ipc_fraction) {
-        ed.event_type = 1;
-        GenerateIPC(event);
+        info->event_type   = 1;
+        info->inv_mass_MeV = GenerateIPC(event);
     } else {
-        ed.event_type = 0;
+        info->event_type   = 0;
+        info->inv_mass_MeV = fConfig.x17Mass_MeV;
         GeneratePair(event);
     }
+
+    event->SetUserInformation(info);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -82,15 +85,15 @@ static G4ThreeVector IsotropicDirection() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Core kinematics shared by both X17 and IPC:
-//   parent mass m_parent, parent energy E_parent (both in Geant4 internal units).
-// Fills EventData, fires both particles from the given vertex.
+// Core kinematics shared by both X17 and IPC.
+// Fires e- (vertex 0) and e+ (vertex 1) from the given vertex.
+// Truth is NOT stored in EventData here — EndOfEventAction reads it back from
+// the G4Event's primary vertices, which is MT-safe.
 static void GeneratePairFromParent(G4double m_parent, G4double E_parent,
                                    const G4ThreeVector& vertex,
                                    G4ParticleDefinition* electron,
                                    G4ParticleDefinition* positron,
                                    G4ParticleGun* gun,
-                                   EventData& ed,
                                    G4Event* event)
 {
     const G4double me = electron->GetPDGMass();
@@ -116,21 +119,7 @@ static void GeneratePairFromParent(G4double m_parent, G4double E_parent,
     G4double ke_em = std::max(0.0, p4em.e() - me);
     G4double ke_ep = std::max(0.0, p4ep.e() - me);
 
-    G4double cosOpen = momDir_em.dot(momDir_ep);
-    G4double openDeg = std::acos(std::max(-1.0, std::min(1.0, cosOpen))) / deg;
-
-    // ── Store truth ───────────────────────────────────────────────────────
-    ed.kin.vx  = vertex.x() / mm;
-    ed.kin.vy  = vertex.y() / mm;
-    ed.kin.vz  = vertex.z() / mm;
-    ed.kin.em_ke = ke_em / MeV;
-    ed.kin.ep_ke = ke_ep / MeV;
-    ed.kin.em_px = momDir_em.x(); ed.kin.em_py = momDir_em.y(); ed.kin.em_pz = momDir_em.z();
-    ed.kin.ep_px = momDir_ep.x(); ed.kin.ep_py = momDir_ep.y(); ed.kin.ep_pz = momDir_ep.z();
-    ed.kin.openingAngle_deg = openDeg;
-    ed.kin.inv_mass_MeV     = m_parent / MeV;
-
-    // ── Fire particles ────────────────────────────────────────────────────
+    // ── Fire e- (vertex 0) then e+ (vertex 1) ────────────────────────────
     gun->SetParticlePosition(vertex);
 
     gun->SetParticleDefinition(electron);
@@ -149,24 +138,23 @@ void X17PrimaryGenerator::GeneratePair(G4Event* event) {
     G4double m_x17    = fConfig.x17Mass_MeV          * MeV;
     G4double E_parent = fConfig.transition_energy_MeV * MeV;
     G4ThreeVector vertex = SampleHe3Vertex(fConfig);
-    EventData& ed = fEventAction->GetEventData();
     GeneratePairFromParent(m_x17, E_parent, vertex,
-                           fElectron, fPositron, fGun.get(), ed, event);
+                           fElectron, fPositron, fGun.get(), event);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-void X17PrimaryGenerator::GenerateIPC(G4Event* event) {
+// Returns the sampled invariant mass [MeV/c²] (stored in EventTypeInfo).
+G4double X17PrimaryGenerator::GenerateIPC(G4Event* event) {
     const G4double me     = fElectron->GetPDGMass();
     G4double E_transition = fConfig.transition_energy_MeV * MeV;
 
-    // ── Sample virtual photon invariant mass from dN/dMee ∝ 1/Mee ────────
-    // Inverse CDF of 1/Mee on [2me, E_transition]: Mee = 2me * (E_t/2me)^U
+    // Inverse CDF of dN/dMee ∝ 1/Mee on [2me, E_transition]
     G4double Mee = 2.0 * me * std::pow(E_transition / (2.0 * me), G4UniformRand());
 
     G4ThreeVector vertex = SampleHe3Vertex(fConfig);
-    EventData& ed = fEventAction->GetEventData();
     GeneratePairFromParent(Mee, E_transition, vertex,
-                           fElectron, fPositron, fGun.get(), ed, event);
+                           fElectron, fPositron, fGun.get(), event);
+    return Mee / MeV;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -186,10 +174,4 @@ void X17PrimaryGenerator::GenerateSingle(G4Event* event) {
     fGun->SetParticleEnergy(fConfig.singleParticleEnergy_MeV * MeV);
     fGun->SetParticleMomentumDirection(momDir);
     fGun->GeneratePrimaryVertex(event);
-
-    EventData& ed = fEventAction->GetEventData();
-    ed.kin.vx = ed.kin.vy = ed.kin.vz = 0.0;
-    ed.kin.em_ke = fConfig.singleParticleEnergy_MeV;
-    ed.kin.em_px = momDir.x(); ed.kin.em_py = momDir.y(); ed.kin.em_pz = momDir.z();
-    ed.kin.inv_mass_MeV = 0.0;
 }

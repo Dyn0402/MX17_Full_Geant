@@ -11,22 +11,20 @@
 
 class G4Event;
 class G4ParticleDefinition;
-class EventAction;
 
 class X17PrimaryGenerator : public G4VUserPrimaryGeneratorAction {
 public:
-    X17PrimaryGenerator(const SimConfig& cfg, EventAction* eventAction);
+    explicit X17PrimaryGenerator(const SimConfig& cfg);
     ~X17PrimaryGenerator() override = default;
 
     void GeneratePrimaries(G4Event* event) override;
 
 private:
-    void GeneratePair(G4Event* event);    // X17 → e+e-
-    void GenerateIPC(G4Event* event);     // IPC γ* → e+e- (virtual photon, sampled Mee)
-    void GenerateSingle(G4Event* event);  // single particle (cross-check mode)
+    void     GeneratePair(G4Event* event);   // X17 → e+e-
+    G4double GenerateIPC(G4Event* event);    // IPC γ* → e+e-, returns Mee [MeV]
+    void     GenerateSingle(G4Event* event); // single particle (cross-check mode)
 
     const SimConfig&          fConfig;
-    EventAction*              fEventAction;
     std::unique_ptr<G4ParticleGun> fGun;
 
     G4ParticleDefinition* fElectron = nullptr;

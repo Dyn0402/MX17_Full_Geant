@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # build.sh
-# Builds the mm_sim executable.
+# Builds the mx17_full_sim executable.
 # Must run AFTER sourcing setup_lxplus.sh (or setup_local.sh).
 #
 # Usage:

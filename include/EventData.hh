@@ -2,7 +2,16 @@
 // EventData.hh — per-event data container shared between generator, stepping, and output
 
 #include "HitData.hh"
+#include "G4VUserEventInformation.hh"
 #include <vector>
+
+// Carried on the G4Event so generator → EventAction communication is MT-safe.
+// (Raw pointers between user actions are fragile in Geant4 MT.)
+struct EventTypeInfo : public G4VUserEventInformation {
+    int    event_type    = 0;    // 0=X17, 1=IPC, -1=single
+    double inv_mass_MeV  = 0.0;  // m_X17 or sampled Mee
+    void Print() const override {}
+};
 
 struct PairKinematics {
     // Vertex (production point in He-3 gas) [mm]
