@@ -196,14 +196,13 @@ class Accumulator:
 
             # Q1: layer acceptance
             # After left-merge, events with no HitTree entry get NaN for all
-            # hit-summary columns; fillna(False) before any boolean indexing.
-            double_mask = (m.get("double_trig",
-                                 pd.Series(False, index=m.index))
-                           .infer_objects(copy=False).fillna(False).astype(bool))
-            self.n_double_trig[et] += int(double_mask.sum())
+            # hit-summary columns.  .eq(True) returns a proper bool Series
+            # where NaN → False with no fillna/downcasting warnings.
             def _bool_col(df, col):
-                s = df.get(col, pd.Series(False, index=df.index))
-                return s.infer_objects(copy=False).fillna(False).astype(bool)
+                return df.get(col, pd.Series(False, index=df.index)).eq(True)
+
+            double_mask = _bool_col(m, "double_trig")
+            self.n_double_trig[et] += int(double_mask.sum())
 
             mm_mask = _bool_col(m, "em_in_DriftGas") | _bool_col(m, "ep_in_DriftGas")
             self.n_any_mm[et] += int(mm_mask.sum())
