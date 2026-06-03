@@ -191,20 +191,21 @@ class Accumulator:
         # Energy asymmetry
         self.asym_bins     = np.linspace(0, 1, 51)
         self.h_asym_all    = {0: np.zeros(50), 1: np.zeros(50)}
+        self.h_asym_mm     = {0: np.zeros(50), 1: np.zeros(50)}
         self.h_asym_single = {0: np.zeros(50), 1: np.zeros(50)}
         self.h_asym_double = {0: np.zeros(50), 1: np.zeros(50)}
 
         # DCA of back-projected MM track to true vertex, binned by KE
         self.ke_bins  = np.array([0, 1, 2, 3, 4, 5, 6, 8, 10, 15])
-        self.dca_bins = np.linspace(0, 250, 101)
+        self.dca_bins = np.linspace(0, 200, 101)
         n_ke = len(self.ke_bins) - 1
         self.h_dca = {0: np.zeros((n_ke, 100)),
                       1: np.zeros((n_ke, 100))}
 
         # Opening angle resolution
         self.open_bins  = np.linspace(60, 180, 61)
-        self.delta_bins = np.linspace(-15, 15, 101)
-        self.h_delta_open  = {0: np.zeros((60, 100)), 1: np.zeros((60, 100))}
+        self.delta_bins = np.linspace(-60, 60, 121)
+        self.h_delta_open  = {0: np.zeros((60, 120)), 1: np.zeros((60, 120))}
         self.open_rms_sum  = {0: np.zeros(60), 1: np.zeros(60)}
         self.open_rms_n    = {0: np.zeros(60), 1: np.zeros(60)}
 
@@ -222,7 +223,7 @@ class Accumulator:
                 "h_qa_ls_em", "h_qa_ls_ep", "h_qa_all_em", "h_qa_all_ep",
                 "h_stop_reach_em", "h_stop_stop_em",
                 "h_stop_reach_ep", "h_stop_stop_ep",
-                "h_asym_all", "h_asym_single", "h_asym_double",
+                "h_asym_all", "h_asym_mm", "h_asym_single", "h_asym_double",
                 "h_dca", "h_delta_open", "open_rms_sum", "open_rms_n",
             ]:
                 getattr(self, attr)[et] += getattr(other, attr)[et]
@@ -320,6 +321,8 @@ class Accumulator:
             idx_all = np.clip(np.digitize(asym.values, self.asym_bins) - 1,
                               0, len(self.asym_bins) - 2)
             np.add.at(self.h_asym_all[et], idx_all, 1)
+            if mm_mask.any():
+                np.add.at(self.h_asym_mm[et],     idx_all[mm_mask.values],     1)
             if single_mask.any():
                 np.add.at(self.h_asym_single[et], idx_all[single_mask.values], 1)
             if double_mask.any():
@@ -615,6 +618,41 @@ def plot_calorimeter_qa(pdf, acc):
     pdf.savefig(fig); plt.close(fig)
 
 
+def plot_trigger_vs_asymmetry(pdf, acc):
+    """Trigger acceptance vs energy asymmetry — one panel per event type."""
+    bins = acc.asym_bins
+    cen  = 0.5 * (bins[:-1] + bins[1:])
+
+    fig, axes = plt.subplots(1, 2, figsize=(13, 5), sharey=True)
+
+    trig_defs = [
+        (acc.h_asym_mm,     "Any MM hit",           "#2ca02c", "-"),
+        (acc.h_asym_single, "Single trigger (≥1 arm)", "#ff7f0e", "--"),
+        (acc.h_asym_double, "Double trigger (≥2 arms)", "#1f77b4", ":"),
+    ]
+
+    for col, et in enumerate([0, 1]):
+        ax = axes[col]
+        tot = acc.h_asym_all[et]
+        for h_dict, label, color, ls in trig_defs:
+            trig = h_dict[et]
+            safe = tot > 5
+            frac = np.where(safe, trig / tot.clip(1), np.nan)
+            ax.plot(cen[safe], frac[safe],
+                    color=color, lw=2, ls=ls, marker="o", ms=3, label=label)
+        ax.set_xlabel("Energy asymmetry  |KE⁻ − KE⁺| / (KE⁻ + KE⁺)")
+        ax.set_title(ETYPE_LABEL[et])
+        ax.set_ylim(-0.05, 1.05)
+        ax.axhline(1, color="grey", lw=0.6, ls=":")
+        ax.legend(fontsize=9)
+        ax.grid(True, alpha=0.3)
+
+    axes[0].set_ylabel("Trigger acceptance")
+    fig.suptitle("Trigger acceptance vs energy asymmetry", fontsize=13)
+    fig.tight_layout()
+    pdf.savefig(fig); plt.close(fig)
+
+
 def plot_asymmetry(pdf, acc):
     fig, axes = plt.subplots(1, 2, figsize=(13, 5))
     bins = acc.asym_bins
@@ -875,6 +913,8 @@ def main():
         plot_summary_page(pdf, accum)
         print("  Acceptance ...")
         plot_acceptance(pdf, accum)
+        print("  Trigger vs asymmetry ...")
+        plot_trigger_vs_asymmetry(pdf, accum)
         print("  Invariant mass ...")
         plot_invariant_mass(pdf, accum)
         print("  Calorimeter QA ...")
