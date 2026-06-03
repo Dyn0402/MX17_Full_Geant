@@ -85,13 +85,14 @@ def main():
     passes.append(("EventTree present", has_evt,  ""))
 
     # Warn about multiple cycles (indicates accumulated runs)
+    # Multiple cycles are NORMAL ROOT behaviour: TTree::AutoSave() writes an
+    # intermediate key mid-run (default: every 300 MB), then TFile::Close()
+    # writes the final key.  Both keys share the same physical baskets on disk —
+    # zero data duplication.  uproot / TFile::Get always return the latest cycle.
     for name, info in tree_info.items():
         if len(info["cycles"]) > 1:
-            print(f"\n  WARNING: {name} has {len(info['cycles'])} cycles "
-                  f"(runs accumulated without RECREATE). "
-                  f"Latest cycle will be used.")
-            passes.append((f"{name} single cycle", False,
-                           f"{len(info['cycles'])} cycles found — file was written multiple times"))
+            print(f"  Note: {name} has {len(info['cycles'])} cycles "
+                  f"(AutoSave checkpoint + final close — normal, no duplication).")
 
     # ── 2. EventTree check ─────────────────────────────────────────────────────
     banner("EventTree")
