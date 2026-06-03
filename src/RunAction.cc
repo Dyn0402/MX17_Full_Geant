@@ -12,6 +12,7 @@
 #include <iostream>
 #include <iomanip>
 #include <sstream>
+#include <cstdio>
 
 #ifdef USE_ROOT
 #include "TFile.h"
@@ -65,6 +66,9 @@ void RunAction::BeginOfRunAction(const G4Run*) {
 
 #ifdef USE_ROOT
     std::string fname = ss.str() + ".root";
+    // Delete any existing file first — ROOT's RECREATE may not truncate properly
+    // over EOS FUSE or other networked filesystems, causing stale cycles to persist.
+    std::remove(fname.c_str());
     fImpl->rootFile = TFile::Open(fname.c_str(), "RECREATE");
     if (!fImpl->rootFile || fImpl->rootFile->IsZombie()) {
         G4cerr << "ERROR: Cannot open ROOT file " << fname << G4endl;
