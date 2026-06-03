@@ -44,6 +44,9 @@ void SteppingAction::UserSteppingAction(const G4Step* step) {
     const std::string volName = pv->GetLogicalVolume()->GetName();
     if (kScoredVolumes.find(volName) == kScoredVolumes.end()) return;
 
+    const G4Track* track = step->GetTrack();
+    const G4StepPoint* pre = step->GetPreStepPoint();
+
     // For most volumes the arm copy number is on the physical volume itself.
     // BackScintL/R are nested: BackScint → BackScintAl → BackScintTape[arm copy]
     // Their own copy number is always 0 (wrong for arms 1-3), so we must walk
@@ -56,9 +59,6 @@ void SteppingAction::UserSteppingAction(const G4Step* step) {
         armID = pv->GetCopyNo();
     }
     if (armID < 0 || armID > 3) return;
-
-    const G4Track* track = step->GetTrack();
-    const G4StepPoint* pre = step->GetPreStepPoint();
 
     // Global hit position (midpoint of step)
     G4ThreeVector gpos = 0.5 * (pre->GetPosition() +
