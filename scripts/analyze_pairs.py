@@ -22,7 +22,9 @@ Usage:
 import argparse
 import gc
 import glob
+import os
 import sys
+from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
 
 import numpy as np
@@ -206,6 +208,25 @@ class Accumulator:
         self.open_rms_sum  = {0: np.zeros(60), 1: np.zeros(60)}
         self.open_rms_n    = {0: np.zeros(60), 1: np.zeros(60)}
 
+    def merge(self, other):
+        """Add another Accumulator into this one (used after parallel processing)."""
+        for et in [0, 1]:
+            self.n_total[et]       += other.n_total[et]
+            self.n_single_trig[et] += other.n_single_trig[et]
+            self.n_double_trig[et] += other.n_double_trig[et]
+            self.n_any_mm[et]      += other.n_any_mm[et]
+            for layer in SCORED_LAYERS:
+                self.layer_accept[et][layer] += other.layer_accept[et][layer]
+            for attr in [
+                "h_mass_truth", "h_mass_reco", "h_mass_reco_stopped",
+                "h_qa_ls_em", "h_qa_ls_ep", "h_qa_all_em", "h_qa_all_ep",
+                "h_stop_reach_em", "h_stop_stop_em",
+                "h_stop_reach_ep", "h_stop_stop_ep",
+                "h_asym_all", "h_asym_single", "h_asym_double",
+                "h_dca", "h_delta_open", "open_rms_sum", "open_rms_n",
+            ]:
+                getattr(self, attr)[et] += getattr(other, attr)[et]
+
     def update(self, merged):
         """Update accumulators from a merged (EventTree + hit summary) DataFrame."""
         for et in [0, 1]:
@@ -361,8 +382,9 @@ class Accumulator:
 
 # ── Per-file processing ───────────────────────────────────────────────────────
 
-def process_file(filepath, accum, chunk_size=300_000):
-    """Process one ROOT file and update the Accumulator in place."""
+def process_file(filepath, chunk_size=300_000):
+    """Process one ROOT file; returns a filled Accumulator (safe for multiprocessing)."""
+    accum = Accumulator()
     with uproot.open(filepath) as f:
         if "EventTree" not in f or "HitTree" not in f:
             print(f"  WARNING: missing trees in {filepath}", file=sys.stderr)
@@ -407,6 +429,7 @@ def process_file(filepath, accum, chunk_size=300_000):
         accum.update(merged)
         del merged
         gc.collect()
+    return accum
 
 
 # ── Plotting ──────────────────────────────────────────────────────────────────
@@ -782,6 +805,9 @@ def parse_args():
                    help="Cap number of files (useful for quick tests)")
     p.add_argument("--chunk-size", type=int, default=300_000,
                    help="HitTree rows per uproot chunk")
+    p.add_argument("--workers", type=int,
+                   default=min(4, os.cpu_count() or 1),
+                   help="Parallel worker processes")
     return p.parse_args()
 
 
@@ -819,16 +845,25 @@ def main():
     if args.max_files:
         files = files[:args.max_files]
 
+    n_workers = min(args.workers, len(files))
     print(f"Files to process : {len(files)}")
+    print(f"Workers          : {n_workers}")
     print(f"Output PDF       : {args.outfile}")
 
     accum = Accumulator()
 
-    for fpath in tqdm(files, desc="Processing", unit="file"):
-        try:
-            process_file(fpath, accum, chunk_size=args.chunk_size)
-        except Exception as e:
-            print(f"\nWARNING: {Path(fpath).name}: {e}", file=sys.stderr)
+    with ProcessPoolExecutor(max_workers=n_workers) as pool:
+        futures = {
+            pool.submit(process_file, f, args.chunk_size): f
+            for f in files
+        }
+        for future in tqdm(as_completed(futures), total=len(futures),
+                           desc="Processing", unit="file"):
+            fpath = futures[future]
+            try:
+                accum.merge(future.result())
+            except Exception as e:
+                print(f"\nWARNING: {Path(fpath).name}: {e}", file=sys.stderr)
 
     total_events = sum(accum.n_total.values())
     print(f"\nTotal events processed: {total_events:,}")
