@@ -196,11 +196,15 @@ class Accumulator:
         self.h_asym_double = {0: np.zeros(50), 1: np.zeros(50)}
 
         # DCA of back-projected MM track to true vertex, binned by KE
-        self.ke_bins  = np.array([0, 1, 2, 3, 4, 5, 6, 8, 10, 15])
-        self.dca_bins = np.linspace(0, 200, 101)
-        n_ke = len(self.ke_bins) - 1
-        self.h_dca = {0: np.zeros((n_ke, 100)),
-                      1: np.zeros((n_ke, 100))}
+        # DCA stored in cm; coarse bins for the per-KE distribution plot,
+        # fine bins for the smooth median-vs-KE curve
+        self.dca_bins      = np.linspace(0, 10, 101)          # 0-10 cm, 0.1 cm/bin
+        self.ke_bins       = np.array([0,1,2,3,4,5,6,8,10,15])  # coarse — colours in dist plot
+        self.ke_fine_bins  = np.linspace(0, 20, 81)           # 0.25 MeV/bin — median curve
+        n_ke_c = len(self.ke_bins) - 1
+        n_ke_f = len(self.ke_fine_bins) - 1
+        self.h_dca      = {0: np.zeros((n_ke_c, 100)), 1: np.zeros((n_ke_c, 100))}
+        self.h_dca_fine = {0: np.zeros((n_ke_f, 100)), 1: np.zeros((n_ke_f, 100))}
 
         # Opening angle resolution
         self.open_bins  = np.linspace(60, 180, 61)
@@ -224,7 +228,7 @@ class Accumulator:
                 "h_stop_reach_em", "h_stop_stop_em",
                 "h_stop_reach_ep", "h_stop_stop_ep",
                 "h_asym_all", "h_asym_mm", "h_asym_single", "h_asym_double",
-                "h_dca", "h_delta_open", "open_rms_sum", "open_rms_n",
+                "h_dca", "h_dca_fine", "h_delta_open", "open_rms_sum", "open_rms_n",
             ]:
                 getattr(self, attr)[et] += getattr(other, attr)[et]
 
@@ -355,12 +359,16 @@ class Accumulator:
                         VP  = P - V
                         t   = (VP * d).sum(axis=1, keepdims=True)
                         dca = np.linalg.norm(VP - t * d, axis=1)
-                        ke_this = qv[ke_col].values
-                        ke_idx  = np.clip(np.digitize(ke_this, self.ke_bins) - 1,
-                                          0, len(self.ke_bins) - 2)
-                        dca_idx = np.clip(np.digitize(dca, self.dca_bins) - 1,
-                                          0, len(self.dca_bins) - 2)
-                        np.add.at(self.h_dca[et], (ke_idx, dca_idx), 1)
+                        ke_this  = qv[ke_col].values
+                        dca_cm   = dca / 10.0  # mm → cm
+                        dca_idx  = np.clip(np.digitize(dca_cm, self.dca_bins) - 1,
+                                           0, len(self.dca_bins) - 2)
+                        ke_idx_c = np.clip(np.digitize(ke_this, self.ke_bins) - 1,
+                                           0, len(self.ke_bins) - 2)
+                        ke_idx_f = np.clip(np.digitize(ke_this, self.ke_fine_bins) - 1,
+                                           0, len(self.ke_fine_bins) - 2)
+                        np.add.at(self.h_dca[et],      (ke_idx_c, dca_idx), 1)
+                        np.add.at(self.h_dca_fine[et], (ke_idx_f, dca_idx), 1)
 
             # ── Opening angle ─────────────────────────────────────────────
             has_mm_q5 = has_mm_both and all(c in m.columns
@@ -546,18 +554,23 @@ def plot_invariant_mass(pdf, acc):
     pdf.savefig(fig); plt.close(fig)
 
 
-def plot_calorimeter_qa(pdf, acc):
-    """LS energy containment QA."""
+def _calo_qa_page(pdf, acc, et_sel, title_suffix):
+    """One calorimeter QA page. et_sel=None → combined, 0=X17, 1=IPC."""
     ke_cen   = 0.5 * (acc.qa_ke_bins[:-1]   + acc.qa_ke_bins[1:])
     edep_cen = 0.5 * (acc.qa_edep_bins[:-1] + acc.qa_edep_bins[1:])
 
-    fig, axes = plt.subplots(2, 2, figsize=(14, 10))
-    fig.suptitle("Calorimeter QA: LS energy containment  (X17 + IPC combined)", fontsize=12)
+    def _get(d):
+        """Sum over requested event types."""
+        if et_sel is None:
+            return sum(d.values())
+        return d[et_sel].copy()
 
-    # Top row: 2D LS edep vs true KE for e- and e+
+    fig, axes = plt.subplots(2, 2, figsize=(14, 10))
+    fig.suptitle(f"Calorimeter QA: LS energy containment  — {title_suffix}", fontsize=12)
+
     for col, (particle, h_ls) in enumerate([
-        ("e⁻", sum(acc.h_qa_ls_em.values())),
-        ("e⁺", sum(acc.h_qa_ls_ep.values())),
+        ("e⁻", _get(acc.h_qa_ls_em)),
+        ("e⁺", _get(acc.h_qa_ls_ep)),
     ]):
         ax = axes[0, col]
         row_sums = h_ls.sum(axis=1, keepdims=True).clip(1)
@@ -578,9 +591,8 @@ def plot_calorimeter_qa(pdf, acc):
         ax.set_title(f"{particle}: LS edep vs true KE  (LiqScint_1 + LiqScint_2 only)")
         ax.legend(fontsize=8)
 
-    # Bottom-left: total edep (all scored layers) vs true KE
     ax = axes[1, 0]
-    h_tot = sum(acc.h_qa_all_em.values()) + sum(acc.h_qa_all_ep.values())
+    h_tot = _get(acc.h_qa_all_em) + _get(acc.h_qa_all_ep)
     row_sums = h_tot.sum(axis=1, keepdims=True).clip(1)
     h_norm = h_tot / row_sums
     im = ax.pcolormesh(ke_cen, edep_cen, h_norm.T, cmap="viridis", vmin=0)
@@ -598,11 +610,10 @@ def plot_calorimeter_qa(pdf, acc):
     ax.set_title("e⁻ + e⁺: total edep in all scored layers vs true KE")
     ax.legend(fontsize=8)
 
-    # Bottom-right: LS stopping fraction vs true KE
     ax = axes[1, 1]
     for particle, h_reach, h_stop, color in [
-        ("e⁻", sum(acc.h_stop_reach_em.values()), sum(acc.h_stop_stop_em.values()), "#4a90d9"),
-        ("e⁺", sum(acc.h_stop_reach_ep.values()), sum(acc.h_stop_stop_ep.values()), "#e84040"),
+        ("e⁻", _get(acc.h_stop_reach_em), _get(acc.h_stop_stop_em), "#4a90d9"),
+        ("e⁺", _get(acc.h_stop_reach_ep), _get(acc.h_stop_stop_ep), "#e84040"),
     ]:
         safe = h_reach > 5
         frac = np.where(safe, h_stop / h_reach.clip(1), np.nan)
@@ -616,6 +627,13 @@ def plot_calorimeter_qa(pdf, acc):
 
     fig.tight_layout()
     pdf.savefig(fig); plt.close(fig)
+
+
+def plot_calorimeter_qa(pdf, acc):
+    """Three QA pages: combined, X17-only, IPC-only."""
+    _calo_qa_page(pdf, acc, None, "X17 + IPC combined")
+    _calo_qa_page(pdf, acc, 0,    "X17 signal only")
+    _calo_qa_page(pdf, acc, 1,    "IPC background only")
 
 
 def plot_trigger_vs_asymmetry(pdf, acc):
@@ -699,8 +717,9 @@ def plot_asymmetry(pdf, acc):
 def plot_pointing(pdf, acc):
     ke_bins = acc.ke_bins
     ke_cen  = 0.5 * (ke_bins[:-1] + ke_bins[1:])
-    dca_cen = 0.5 * (acc.dca_bins[:-1] + acc.dca_bins[1:])
+    dca_cen = 0.5 * (acc.dca_bins[:-1] + acc.dca_bins[1:])  # cm
 
+    # Distribution plot: one colour per coarse KE bin
     fig, axes = plt.subplots(1, 2, figsize=(13, 5))
     colors = plt.cm.viridis(np.linspace(0.1, 0.9, len(ke_cen)))
 
@@ -711,36 +730,38 @@ def plot_pointing(pdf, acc):
             row = h[ki]; n = row.sum()
             if n < 10: continue
             cdf = np.cumsum(row) / n
-            med_dca = dca_cen[min(np.searchsorted(cdf, 0.5), len(dca_cen)-1)]
+            med = dca_cen[min(np.searchsorted(cdf, 0.5), len(dca_cen)-1)]
             ax.plot(dca_cen, row / n, color=colors[ki], lw=1.5,
                     label=f"KE {ke_bins[ki]:.0f}–{ke_bins[ki+1]:.0f} MeV"
-                          f"  (med={med_dca:.1f} mm)")
-        ax.set_xlabel("Track DCA to true vertex  [mm]")
+                          f"  (med={med:.2f} cm)")
+        ax.set_xlabel("Track DCA to true vertex  [cm]")
         ax.set_ylabel("Normalised counts / bin")
         ax.set_title(f"MM track pointing — {ETYPE_LABEL[et]}")
         ax.legend(fontsize=7, ncol=2); ax.grid(True, alpha=0.3)
         ax.set_xlim(0, acc.dca_bins[-1])
 
+    fig.suptitle("MM Track Pointing Resolution", fontsize=13)
+    fig.tight_layout(); pdf.savefig(fig); plt.close(fig)
+
+    # Median DCA vs KE — fine binning for smooth curve
+    ke_fine_cen = 0.5 * (acc.ke_fine_bins[:-1] + acc.ke_fine_bins[1:])
     fig2, ax2 = plt.subplots(figsize=(8, 5))
     for et in [0, 1]:
-        h = acc.h_dca[et]; med = []
-        for ki in range(len(ke_cen)):
+        h = acc.h_dca_fine[et]; med = []
+        for ki in range(len(ke_fine_cen)):
             row = h[ki]; n = row.sum()
             if n < 10: med.append(np.nan); continue
             cdf = np.cumsum(row) / n
             med.append(dca_cen[min(np.searchsorted(cdf, 0.5), len(dca_cen)-1)])
         valid = ~np.isnan(med)
-        ax2.plot(ke_cen[valid], np.array(med)[valid],
+        ax2.plot(ke_fine_cen[valid], np.array(med)[valid],
                  color=ETYPE_COLOR[et], lw=2, ls=ETYPE_LS[et],
-                 marker="o", ms=5, label=ETYPE_LABEL[et])
+                 label=ETYPE_LABEL[et])
     ax2.set_xlabel("Particle KE  [MeV]")
-    ax2.set_ylabel("Median DCA to true vertex  [mm]")
+    ax2.set_ylabel("Median DCA to true vertex  [cm]")
     ax2.set_title("Track-to-vertex DCA vs energy\n"
                   "(dominated by multiple scattering in upstream material)")
     ax2.legend(); ax2.grid(True, alpha=0.3); ax2.set_ylim(bottom=0)
-
-    fig.suptitle("MM Track Pointing Resolution", fontsize=13)
-    fig.tight_layout(); pdf.savefig(fig); plt.close(fig)
     fig2.tight_layout(); pdf.savefig(fig2); plt.close(fig2)
 
 
