@@ -195,17 +195,21 @@ class Accumulator:
             self.n_total[et] += n
 
             # Q1: layer acceptance
-            double_mask = m.get("double_trig", pd.Series(False, index=m.index))
+            # After left-merge, events with no HitTree entry get NaN for all
+            # hit-summary columns; fillna(False) before any boolean indexing.
+            double_mask = (m.get("double_trig",
+                                 pd.Series(False, index=m.index))
+                           .infer_objects(copy=False).fillna(False).astype(bool))
             self.n_double_trig[et] += int(double_mask.sum())
-            mm_mask = (m.get("em_in_DriftGas", False) | m.get("ep_in_DriftGas", False))
+            def _bool_col(df, col):
+                s = df.get(col, pd.Series(False, index=df.index))
+                return s.infer_objects(copy=False).fillna(False).astype(bool)
+
+            mm_mask = _bool_col(m, "em_in_DriftGas") | _bool_col(m, "ep_in_DriftGas")
             self.n_any_mm[et] += int(mm_mask.sum())
 
             for layer in SCORED_LAYERS:
-                em_col = f"em_in_{layer}"
-                ep_col = f"ep_in_{layer}"
-                em_hit = m.get(em_col, pd.Series(False, index=m.index))
-                ep_hit = m.get(ep_col, pd.Series(False, index=m.index))
-                both   = (em_hit | ep_hit)
+                both = _bool_col(m, f"em_in_{layer}") | _bool_col(m, f"ep_in_{layer}")
                 self.layer_accept[et][layer] += int(both.sum())
 
             # Q2: invariant mass reconstruction
@@ -328,6 +332,13 @@ def process_file(filepath, accum, chunk_size=300_000):
         hit_chunks = []
 
         for chunk in f["HitTree"].iterate(HIT_COLS, step_size=chunk_size, library="pd"):
+            # uproot returns Char[32]/C branches as AwkwardExtensionArray.
+            # pd.concat([awk, awk]) falls back to element-wise Python iteration
+            # and takes ~90 s per chunk.  Convert to plain numpy object arrays
+            # immediately so all subsequent concats and comparisons are O(ms).
+            chunk["detType"]  = np.asarray(chunk["detType"])
+            chunk["particle"] = np.asarray(chunk["particle"])
+
             if leftover is not None:
                 chunk = pd.concat([leftover, chunk], ignore_index=True)
             last_eid = chunk["eventID"].iloc[-1]
@@ -716,15 +727,15 @@ def main():
     print(f"Output PDF       : {args.outfile}")
 
     accum = Accumulator()
-    total_events = 0
 
     for fpath in tqdm(files, desc="Processing", unit="file"):
         try:
-            n = process_file(fpath, accum, chunk_size=args.chunk_size)
-            total_events += n
+            process_file(fpath, accum, chunk_size=args.chunk_size)
         except Exception as e:
             print(f"\nWARNING: {Path(fpath).name}: {e}", file=sys.stderr)
 
+    # Read totals from the accumulator — reliable even if a file raised an exception.
+    total_events = sum(accum.n_total.values())
     print(f"\nTotal events processed: {total_events:,}")
     for et in [0, 1]:
         print(f"  {ETYPE_LABEL[et]:<20}: {accum.n_total[et]:>10,}")
