@@ -35,21 +35,28 @@ SteppingAction::SteppingAction(const SimConfig& cfg, EventAction* eventAction,
       fEventAction(eventAction), fArmAxes(armAxes) {}
 
 void SteppingAction::UserSteppingAction(const G4Step* step) {
-    // ── Neutron-capture recording (neutron mode) ──────────────────────────
-    // Record where the PRIMARY neutron is captured: volume name + position.
-    // Used for the capture budget and to build the gamma-source library.
+    // ── Neutron terminal-interaction recording (neutron mode) ────────────
+    // Record where the PRIMARY neutron track ENDS via a hadronic interaction:
+    // volume, position, and process name.  NOTE: ³He(n,p)t is filed under
+    // "neutronInelastic" by the HP package — "nCapture" is radiative capture
+    // only — so we must catch any process that kills the track.
+    // Used for the capture budget and to build the gamma-source library
+    // (library wants nCapture in Al/CFRP; budget wants everything).
     if (fConfig.neutronMode) {
         const G4Track* trk = step->GetTrack();
         if (trk->GetTrackID() == 1 &&
+            trk->GetTrackStatus() == fStopAndKill &&
             trk->GetDefinition()->GetParticleName() == "neutron") {
             const G4StepPoint* post = step->GetPostStepPoint();
             const G4VProcess*  proc = post->GetProcessDefinedStep();
-            if (proc && proc->GetProcessName() == "nCapture") {
+            const G4String procName = proc ? proc->GetProcessName() : "unknown";
+            if (procName != "Transportation") {     // ignore world-boundary exit
                 EventData& ed = fEventAction->GetEventData();
                 const G4VPhysicalVolume* cpv = post->GetPhysicalVolume()
                     ? post->GetPhysicalVolume()
                     : step->GetPreStepPoint()->GetPhysicalVolume();
                 if (cpv) ed.capture_vol = cpv->GetLogicalVolume()->GetName();
+                ed.capture_proc = procName;
                 G4ThreeVector cp = post->GetPosition();
                 ed.cap_x = cp.x() / mm;
                 ed.cap_y = cp.y() / mm;

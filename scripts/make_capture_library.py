@@ -61,28 +61,32 @@ def main():
     decade_counts = Counter()
     lib_rows = []   # (vol, x, y, z)
 
+    def _clean(arr):
+        return np.array([v.rstrip("\x00") if isinstance(v, str)
+                         else v.rstrip(b"\x00").decode() for v in arr])
+
     for fp in files:
         with uproot.open(fp) as f:
             if "EventTree" not in f:
                 continue
             t = f["EventTree"].arrays(
-                ["event_type", "neutron_E_eV", "capture_vol",
+                ["event_type", "neutron_E_eV", "capture_vol", "capture_proc",
                  "cap_x", "cap_y", "cap_z"], library="np")
         is_n = t["event_type"] == 2
         n_total += int(is_n.sum())
-        vols = t["capture_vol"][is_n]
-        vols = np.array([v.rstrip("\x00") if isinstance(v, str)
-                         else v.rstrip(b"\x00").decode() for v in vols])
+        vols  = _clean(t["capture_vol"][is_n])
+        procs = _clean(t["capture_proc"][is_n])
         e_ev = t["neutron_E_eV"][is_n]
         with np.errstate(divide="ignore"):
             dec = np.floor(np.log10(np.clip(e_ev, 1e-30, None))).astype(int)
 
-        for v, d in zip(vols, dec):
+        for v, p, d in zip(vols, procs, dec):
             if v:
-                vol_counts[v] += 1
+                vol_counts[f"{v} [{p}]"] += 1
                 decade_counts[(v, int(d))] += 1
 
-        wall = np.isin(vols, WALL_VOLS)
+        # Library: RADIATIVE captures in the walls (those emit the γ cascade)
+        wall = np.isin(vols, WALL_VOLS) & (procs == "nCapture")
         for v, x, y, z in zip(vols[wall], t["cap_x"][is_n][wall],
                               t["cap_y"][is_n][wall], t["cap_z"][is_n][wall]):
             lib_rows.append((v, x, y, z))

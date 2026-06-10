@@ -34,11 +34,12 @@ struct EventData {
     PairKinematics   kin;
     std::vector<HitData> hits;
 
-    // Neutron mode (event_type = 2): primary energy + first-capture record
-    // (filled by SteppingAction when the primary neutron undergoes nCapture).
+    // Neutron mode (event_type = 2): primary energy + terminal interaction.
+    // capture_proc: "nCapture" = radiative; "neutronInelastic" = (n,p) etc.
     double      neutron_E_eV = 0.0;
-    std::string capture_vol;                       // empty = no capture / escaped
-    double      cap_x = 0.0, cap_y = 0.0, cap_z = 0.0;   // capture position [mm]
+    std::string capture_vol;                       // empty = escaped world
+    std::string capture_proc;
+    double      cap_x = 0.0, cap_y = 0.0, cap_z = 0.0;   // position [mm]
 
     void Reset() {
         eventID    = -1;
@@ -47,6 +48,7 @@ struct EventData {
         hits.clear();
         neutron_E_eV = 0.0;
         capture_vol.clear();
+        capture_proc.clear();
         cap_x = cap_y = cap_z = 0.0;
     }
 };

@@ -44,8 +44,9 @@ struct RunAction::Impl {
     Double_t e_openingAngle;
     // Neutron mode (event_type = 2)
     Double_t e_neutron_E_eV;                // primary neutron energy [eV]
-    Char_t   e_capture_vol[32];             // logical volume of first capture ("" = none)
-    Double_t e_cap_x, e_cap_y, e_cap_z;     // capture position [mm]
+    Char_t   e_capture_vol[32];             // volume of terminal interaction ("" = escaped)
+    Char_t   e_capture_proc[32];            // "nCapture" | "neutronInelastic" | ...
+    Double_t e_cap_x, e_cap_y, e_cap_z;     // interaction position [mm]
 #else
     std::ofstream hitFile;
     std::ofstream evtFile;
@@ -118,7 +119,8 @@ void RunAction::BeginOfRunAction(const G4Run*) {
     fImpl->evtTree->Branch("ep_pz",        &fImpl->e_ep_pz);
     fImpl->evtTree->Branch("openingAngle", &fImpl->e_openingAngle);
     fImpl->evtTree->Branch("neutron_E_eV", &fImpl->e_neutron_E_eV);
-    fImpl->evtTree->Branch("capture_vol",  fImpl->e_capture_vol, "capture_vol[32]/C");
+    fImpl->evtTree->Branch("capture_vol",  fImpl->e_capture_vol,  "capture_vol[32]/C");
+    fImpl->evtTree->Branch("capture_proc", fImpl->e_capture_proc, "capture_proc[32]/C");
     fImpl->evtTree->Branch("cap_x",        &fImpl->e_cap_x);     // mm
     fImpl->evtTree->Branch("cap_y",        &fImpl->e_cap_y);
     fImpl->evtTree->Branch("cap_z",        &fImpl->e_cap_z);
@@ -199,6 +201,8 @@ void RunAction::RecordEvent(const EventData& data) {
     fImpl->e_neutron_E_eV = data.neutron_E_eV;
     std::strncpy(fImpl->e_capture_vol, data.capture_vol.c_str(), 31);
     fImpl->e_capture_vol[31] = '\0';
+    std::strncpy(fImpl->e_capture_proc, data.capture_proc.c_str(), 31);
+    fImpl->e_capture_proc[31] = '\0';
     fImpl->e_cap_x = data.cap_x;
     fImpl->e_cap_y = data.cap_y;
     fImpl->e_cap_z = data.cap_z;
