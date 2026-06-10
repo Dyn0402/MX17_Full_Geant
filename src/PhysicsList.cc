@@ -17,7 +17,6 @@
 #include "G4RadioactiveDecayPhysics.hh"
 #include "G4HadronElasticPhysicsHP.hh"
 #include "G4HadronPhysicsFTFP_BERT_HP.hh"
-#include "G4NeutronTrackingCut.hh"
 #include "G4DecayPhysics.hh"
 #include "G4SystemOfUnits.hh"
 
@@ -46,8 +45,11 @@ PhysicsList::PhysicsList() : G4VModularPhysicsList() {
     // Step limiter (respects G4UserLimits set in detector volumes)
     RegisterPhysics(new G4StepLimiterPhysics());
 
-    // Kill neutrons below 1 eV after tracking to avoid infinite loops
-    RegisterPhysics(new G4NeutronTrackingCut(0));
+    // NOTE: no G4NeutronTrackingCut. Its default 10 µs time limit kills slow
+    // neutrons mid-flight (a 0.4 eV neutron needs ~20 µs to cross 20 cm),
+    // silently removing nearly all sub-eV beam transport — fatal for the
+    // thermal-capture physics this experiment depends on.  HP physics is
+    // designed to track neutrons to thermalisation; let it.
 }
 
 void PhysicsList::SetCuts() {
