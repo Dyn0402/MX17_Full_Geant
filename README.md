@@ -43,18 +43,18 @@ Pressurised cylinder with axis along **Y** (beam direction).
 
 | Component         | Material                   | Radius / thickness  |
 |-------------------|----------------------------|---------------------|
-| He-3 gas          | ³He at 300 bar, 37.6 mg/cm³ | r = 1.5 cm         |
+| He-3 gas          | ³He at 500 bar, 62.7 mg/cm³ | r = 1.5 cm         |
 | Al wall           | Aluminium                  | 0.5 mm              |
-| CFRP outer shell  | C-fibre/epoxy, 1.55 g/cm³  | 0.9 mm              |
+| CFRP outer shell  | C-fibre/epoxy, 1.55 g/cm³  | 1.2 mm              |
 
-Cylinder length: **8 cm** along Y. Production vertex sampled **uniformly inside
+Cylinder length: **5 cm** along Y. Production vertex sampled **uniformly inside
 the gas volume** (uniform disk in r, uniform in Y) for each event.
 
 ---
 
 ## Detector stack per arm
 
-The front face of the MM window is at `mm_distance` (default **22 cm**) from
+The front face of the MM window is at `mm_distance` (default **25 cm**) from
 the origin. All depths below are measured from that front face.
 
 ### Micromegas
@@ -193,6 +193,24 @@ the pools should be reweighted in analysis, not baked into the simulation.
 **Single-particle mode** (`--single`): fires one particle at a fixed energy and
 angle from the origin, useful for efficiency cross-checks.
 
+**Neutron-beam mode** (`--neutron <flux.root> <lambda2d.root>`, `event_type = 2`):
+fires neutrons along +Y from y = −20 cm with energy sampled from the EAR2 Ph3
+evaluated flux (`data/fluxEAR2-Ph3_in_different_units.root`,
+histogram `flux_n_pulse_NOisolet_100bpd`, restricted to `--emin/--emax`,
+default < 1 keV) and transverse position from the energy-dependent radial
+profile (`data/lamda2DvsEn_EAR2.root`, `Lambda2D`). The first `nCapture` of
+the primary neutron is recorded in the EventTree (`capture_vol`, `cap_x/y/z`,
+`neutron_E_eV`) for the capture budget and the gamma-source library.
+Normalisation: **7.31×10⁶ neutrons/pulse below 1 keV** (from the flux file).
+NOTE: Geant4 does not simulate internal pair conversion — this mode covers
+capture-γ *external* conversion and singles; He-3 IPC/X17 remain explicit modes.
+
+**Gamma-source mode** (`--gamma-source <capture_lib.csv>`, `event_type = 3`):
+biased wall-background generator. Re-emits capture-cascade γs (IAEA-PGAA line
+tables for ²⁸Al / ¹³C / ²H baked in) from a capture-vertex library produced by
+`scripts/make_capture_library.py` from a neutron run. Event weight =
+(wall captures/neutron) × (Σ Iγ) / N_generated. Eγ is stored in `inv_mass`.
+
 ---
 
 ## Building on lxplus
@@ -246,6 +264,9 @@ build/mx17_full_sim -n 1000 -v -o /tmp/test
 | `--ipc <frac>` | 0.5 | Fraction of events generated as IPC (0 = all X17, 1 = all IPC) |
 | `--dist <cm>` | 22.0 | Arm distance (MM front face to origin) |
 | `--single <name> <E> <θ> <φ>` | off | Single-particle mode: `e-`, `e+`, etc. |
+| `--neutron <flux> <profile>` | off | Neutron-beam mode (EAR2 flux + Lambda2D ROOT files) |
+| `--emin / --emax <eV>` | 1e-3 / 1000 | Neutron sampling window |
+| `--gamma-source <lib.csv>` | off | Biased wall-background γ mode (capture library) |
 
 ---
 
@@ -284,7 +305,7 @@ In MT mode each thread writes `<outfile>_t<N>.root`; merge with `hadd`.
 | `ep_px/py/pz` | Double | — | e⁺ momentum unit vector |
 | `openingAngle` | Double | deg | True opening angle between e⁻ and e⁺ |
 
-The vertex is sampled uniformly within the He-3 cylinder (radius 1.5 cm, ±4 cm along Y).
+The vertex is sampled uniformly within the He-3 cylinder (radius 1.5 cm, ±2.5 cm along Y).
 Momentum unit vector + kinetic energy fully specify the 4-momentum of each lepton.
 In single-particle mode the vertex is always (0, 0, 0).
 
@@ -316,6 +337,29 @@ with uproot.open(files[0]) as f:
 ---
 
 ## HTCondor submission (lxplus)
+
+### Background campaign (see PLAN_NEUTRON_CAMPAIGN.md)
+
+```bash
+# Run B — neutron beam, 1e9 neutrons (100 × 10M), E < 1 keV
+python3 scripts/submit_neutrons.py [--dry-run]
+
+# Build the capture-vertex library from run B output
+python3 scripts/make_capture_library.py \
+    /eos/user/d/dneff/mx17_geant_sim_results/neutrons/ -o capture_lib.csv
+
+# Run C — biased wall-background gammas from the library
+python3 scripts/submit_neutrons.py --gamma-source capture_lib.csv
+```
+
+Consistency check to perform on run B: He3-IPC pairs/pulse implied by
+(captures/pulse × 1.0e-8 radiative branch × 3.6e-3 IPC) vs Alberto's
+1.12e-2/0.3 — the flux file gives 7.31e6 n/pulse < 1 keV, which implies
+~2.6e-4 IPC/pulse, ~140× below Alberto's number. Resolve before quoting
+absolute background rates (different flux assumption, energy range, or
+channel definition).
+
+### Pair production
 
 `submit_pairs.py` runs the X17+IPC pair simulation at scale. Default: 100 jobs
 × 100k events = **10M events total**, 50% X17 / 50% IPC, output to EOS.
@@ -387,9 +431,30 @@ The script answers five questions about the simulation:
 | Q3 Asymmetry | Double-trigger acceptance vs energy asymmetry (low-KE particle stopping) |
 | Q4 Pointing | MM track DCA to true vertex vs particle KE (multiple-scattering budget) |
 | Q5 Angle reco | Reconstructed vs truth opening angle; RMS(Δθ) vs truth angle |
+| Q6 MS budget | Analytic Highland x/X₀ budget per material layer vs measured upstream direction error |
+| Q7 Direction errors | Per-particle ψ(estimator, truth) vs KE: upstream MS / drift-gas MS / PCA-fit error decomposition |
+| Q8 Scatter localization | Effective scatter distance s_eff = t − δ/tanψ — localizes where the direction is destroyed |
+| Q9 Method comparison | Opening-angle residuals for 7 estimators: first-MM-hit dir, PCA drift fit (±hit smearing), vertex-constrained lines (true vtx / target centre / drift centroid), trigger-scint pointing |
 
 Output is a multi-page PDF. The `event_type` branch separates X17 signal
 (type 0) and IPC background (type 1) throughout.
+
+### Detector-response export for the Python fast-MC
+
+```bash
+python3 scripts/analyze_pairs.py /path/to/pairs/ \
+    -o pair_analysis.pdf \
+    --export-response geant4_response.json
+```
+
+Writes a JSON summary consumed by `nTof_x17/MX17_Simulation/geant4_response.py`:
+P(ψ | KE) direction-error tables for several estimators (multiple-scattering
+smearing), P(edep | E_total) calorimeter tables with upstream-loss correction
+fits (invariant-mass response), and σ68/bias-vs-energy validation curves.
+The fast-MC enables it via `SimConfig.g4_response_path` (see
+`MX17_Simulation/detector_config.py`). Regenerate after any geometry change —
+the tables bake in the target wall, arm distance, and gas of the run that
+produced them.
 
 ---
 

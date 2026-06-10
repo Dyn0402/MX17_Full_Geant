@@ -27,15 +27,34 @@ struct SimConfig {
     double      singleParticleTheta_deg   = 90.0;
     double      singleParticlePhi_deg     = 0.0;
 
+    // ── Neutron-beam mode (event_type = 2) ──────────────────
+    // Fires neutrons along +Y from y = neutronGunY_cm with energy sampled
+    // from the EAR2 evaluated flux and transverse position from the
+    // energy-dependent radial profile (both ROOT files in data/).
+    bool        neutronMode    = false;
+    std::string neutronFluxFile;     // fluxEAR2-Ph3_in_different_units.root
+    std::string neutronProfileFile;  // lamda2DvsEn_EAR2.root
+    double      neutronEmin_eV = 1e-3;    // sampling window
+    double      neutronEmax_eV = 1000.0;  // default: < 1 keV (X17 ROI)
+    double      neutronGunY_cm = -20.0;   // start position upstream of vessel tip
+
+    // ── Gamma-source mode (event_type = 3, biased wall-background) ──
+    // Re-emits capture-cascade gammas from a capture-vertex library CSV
+    // (produced by scripts/make_capture_library.py from a neutron run).
+    // CSV columns: volume,x_mm,y_mm,z_mm   (volume ∈ He3Cap_Al, He3Cap_CFRP)
+    bool        gammaSourceMode = false;
+    std::string captureLibFile;
+
     // ── Gas mixture ─────────────────────────────────────────
     std::string gas = "ArIso";
 
-    // ── He-3 target dimensions ──────────────────────────────
-    double he3_radius_cm      = 1.5;   // gas cylinder radius [cm]  (diameter = 3 cm)
-    double he3_half_length_cm = 4.0;   // half-length along Y [cm]  (total = 8 cm)
+    // ── He-3 target dimensions (from STEP file: MASTINU X17 HPRV 00 01) ──
+    // Gas bore: cylinder r=10 mm + r=10 mm hemispherical end caps (capsule shape)
+    double he3_radius_cm      = 1.0;   // bore radius [cm]  (D=20 mm per STEP)
+    double he3_half_length_cm = 2.0;   // half-length of cylinder section [cm]  (L=40 mm per STEP)
 
     // ── MM + trigger scint wall geometry ────────────────────
-    double mm_distance_cm  = 22.0;   // MM window front face from origin [cm]
+    double mm_distance_cm  = 25.0;   // MM window front face from origin [cm]
     double mm_size_u_cm    = 38.0;   // MM active area: u [cm]
     double mm_size_v_cm    = 34.0;   // MM active area: v (along beam) [cm]
     double scint_size_u_cm = 48.0;   // Trigger plastic scint: u [cm]
@@ -62,5 +81,5 @@ struct SimConfig {
     // ── Clearances (air gaps) ──────────────────────────────
     double gap_pcb_to_scint_mm   = 20.0;  // PCB → trigger scint [mm]
     double gap_scint_to_ls_mm    = 20.0;  // trigger scint → LS stack [mm]
-    double gap_ls_to_backscint_mm = 10.0; // LS stack → back plastic scints [mm]
+    double gap_ls_to_backscint_mm = 1.0;  // LS stack → back plastic scints [mm]
 };

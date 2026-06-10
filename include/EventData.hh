@@ -3,13 +3,15 @@
 
 #include "HitData.hh"
 #include "G4VUserEventInformation.hh"
+#include <string>
 #include <vector>
 
 // Carried on the G4Event so generator → EventAction communication is MT-safe.
 // (Raw pointers between user actions are fragile in Geant4 MT.)
 struct EventTypeInfo : public G4VUserEventInformation {
-    int    event_type    = 0;    // 0=X17, 1=IPC, -1=single
-    double inv_mass_MeV  = 0.0;  // m_X17 or sampled Mee
+    int    event_type    = 0;    // 0=X17, 1=IPC, -1=single, 2=neutron, 3=gamma-source
+    double inv_mass_MeV  = 0.0;  // m_X17 or sampled Mee (modes 0/1); Eγ [MeV] (mode 3)
+    double neutron_E_eV  = 0.0;  // primary neutron energy (mode 2)
     void Print() const override {}
 };
 
@@ -28,14 +30,23 @@ struct PairKinematics {
 
 struct EventData {
     int              eventID    = -1;
-    int              event_type = 0;  // 0 = X17, 1 = IPC, -1 = single particle
+    int              event_type = 0;  // 0=X17, 1=IPC, -1=single, 2=neutron, 3=gamma-source
     PairKinematics   kin;
     std::vector<HitData> hits;
+
+    // Neutron mode (event_type = 2): primary energy + first-capture record
+    // (filled by SteppingAction when the primary neutron undergoes nCapture).
+    double      neutron_E_eV = 0.0;
+    std::string capture_vol;                       // empty = no capture / escaped
+    double      cap_x = 0.0, cap_y = 0.0, cap_z = 0.0;   // capture position [mm]
 
     void Reset() {
         eventID    = -1;
         event_type = 0;
         kin        = {};
         hits.clear();
+        neutron_E_eV = 0.0;
+        capture_vol.clear();
+        cap_x = cap_y = cap_z = 0.0;
     }
 };

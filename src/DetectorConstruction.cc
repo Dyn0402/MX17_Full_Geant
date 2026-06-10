@@ -24,6 +24,7 @@
 #include "G4Isotope.hh"
 #include "G4Box.hh"
 #include "G4Tubs.hh"
+#include "G4Polycone.hh"
 #include "G4LogicalVolume.hh"
 #include "G4PVPlacement.hh"
 #include "G4RotationMatrix.hh"
@@ -109,13 +110,13 @@ void DetectorConstruction::DefineMaterials() {
     fMats["PureIso"]   = isobutane;
     fMats["PureCO2"]   = CO2;
 
-    // ── He-3 gas at 300 bar ──────────────────────────────────
+    // ── He-3 gas at 500 bar ──────────────────────────────────
     {
         auto* isoHe3 = new G4Isotope("He3_iso", 2, 3, 3.0160293*g/mole);
         auto* elHe3  = new G4Element("Helium3_elem", "3He", 1);
         elHe3->AddIsotope(isoHe3, 1.0);
-        auto* m = new G4Material("He3Gas_300bar", 37.6e-3*g/cm3, 1,
-                                  kStateGas, 293.15*kelvin, 300*atmosphere);
+        auto* m = new G4Material("He3Gas_500bar", 62.7e-3*g/cm3, 1,
+                                  kStateGas, 293.15*kelvin, 500*atmosphere);
         m->AddElement(elHe3, 1);
         fMats["He3Gas"] = m;
     }
@@ -262,39 +263,88 @@ G4VPhysicalVolume* DetectorConstruction::Construct() {
                                         "World", nullptr, false, 0, true);
 
     // ── He-3 pressurised capsule at origin ───────────────────
-    // Cylinder axis along Y (beam): rotateX(-90°) maps local Z → world Y
-    G4double he3R      = fConfig.he3_radius_cm      * cm;
-    G4double he3HalfL  = fConfig.he3_half_length_cm * cm;
-    G4double alWallT   = 0.5  * mm;
-    G4double cfrpWallT = 0.9  * mm;
-    G4double alR       = he3R + alWallT;
-    G4double cfrpR     = alR  + cfrpWallT;
-    G4double alHalfL   = he3HalfL + alWallT;
-    G4double cfrpHalfL = alHalfL  + cfrpWallT;
+    // Source geometry: STEP file "MASTINU X17 HPRV 00 01 (Cylinder D20 L40 mm)"
+    // Polycone axis = local Z; rotateX(-90°) maps local Z → world Y (beam axis).
+    //
+    // Gas bore:   capsule — cylinder r=10 mm, ±20 mm, with r=10 mm hemispheres
+    // Al vessel:  STEP-derived outer profile, z=−35 mm (tip) to z=+50.98 mm (valve top)
+    //             Bottom cap: NURBS-evaluated from STEP B-spline
+    //             Top cap (z=+20→+26.77): parabolic fit tangent to outer cylinder
+    //             Neck (z=+26.77→+40.9) and valve port (z=+40.9→+50.98): from STEP vertices
+    // CFRP wrap:  900 µm over the Al outer surface
 
     auto* capRot = new G4RotationMatrix();
     capRot->rotateX(-90.*deg);
 
-    auto* cfrpSolid = new G4Tubs("He3Cap_CFRP",  0, cfrpR, cfrpHalfL, 0, 360.*deg);
-    auto* cfrpLV    = new G4LogicalVolume(cfrpSolid, GetMat("CFRP"), "He3Cap_CFRP");
-    cfrpLV->SetVisAttributes(new G4VisAttributes(G4Color(0.15, 0.15, 0.15, 0.9)));
-    new G4PVPlacement(capRot, G4ThreeVector(), cfrpLV, "He3Cap_CFRP", worldLV, false, 0, true);
+    // ── Gas capsule polycone ─────────────────────────────────
+    // r at hemisphere planes: sqrt(10²−(|z|−20)²) for |z| ∈ [20,30]
+    static const G4int nGas = 12;
+    static const G4double zGas[nGas] = {
+        -30.*mm, -28.*mm, -26.*mm, -24.*mm, -22.*mm, -20.*mm,
+         20.*mm,  22.*mm,  24.*mm,  26.*mm,  28.*mm,  30.*mm
+    };
+    static const G4double roGas[nGas] = {
+        0.001*mm,  6.0*mm,  8.0*mm,  9.165*mm,  9.798*mm, 10.0*mm,
+        10.0*mm,   9.798*mm,  9.165*mm,  8.0*mm,  6.0*mm,  0.001*mm
+    };
+    static const G4double riGas[nGas] = {0.,0.,0.,0.,0.,0.,0.,0.,0.,0.,0.,0.};
 
-    auto* alSolid = new G4Tubs("He3Cap_Al", 0, alR, alHalfL, 0, 360.*deg);
-    auto* alLV    = new G4LogicalVolume(alSolid, matAl, "He3Cap_Al");
-    alLV->SetVisAttributes(new G4VisAttributes(G4Color(0.7, 0.7, 0.7, 0.8)));
-    new G4PVPlacement(nullptr, G4ThreeVector(), alLV, "He3Cap_Al", cfrpLV, false, 0, true);
-
-    auto* he3Solid = new G4Tubs("He3Gas", 0, he3R, he3HalfL, 0, 360.*deg);
+    auto* he3Solid = new G4Polycone("He3Gas", 0, 360.*deg, nGas, zGas, riGas, roGas);
     auto* he3LV    = new G4LogicalVolume(he3Solid, GetMat("He3Gas"), "He3Gas");
     he3LV->SetVisAttributes(new G4VisAttributes(G4Color(0.6, 0.9, 1.0, 0.4)));
-    new G4PVPlacement(nullptr, G4ThreeVector(), he3LV, "He3Gas", alLV, false, 0, true);
     he3LV->SetUserLimits(new G4UserLimits(1.0*mm));
+
+    // ── Aluminium vessel polycone (STEP profile) ─────────────
+    static const G4int nAl = 19;
+    static const G4double zVessel[nAl] = {
+        -35.000*mm, -34.635*mm, -33.947*mm, -32.880*mm, -31.447*mm,
+        -29.693*mm, -27.688*mm, -25.521*mm, -23.288*mm, -21.075*mm,
+        -20.000*mm,  20.000*mm,
+         22.000*mm,  24.000*mm,  26.000*mm,  26.770*mm,
+         31.370*mm,  40.900*mm,  50.980*mm
+    };
+    static const G4double roAl[nAl] = {
+          0.000*mm,   2.323*mm,   3.902*mm,   5.433*mm,   6.850*mm,
+          8.090*mm,   9.102*mm,   9.856*mm,  10.342*mm,  10.573*mm,
+         10.600*mm,  10.600*mm,
+         10.317*mm,   9.469*mm,   8.054*mm,   7.360*mm,
+          6.912*mm,   3.500*mm,   3.500*mm
+    };
+    static const G4double riAl[nAl] = {
+        0.,0.,0.,0.,0.,0.,0.,0.,0.,0.,
+        0.,0.,0.,0.,0.,0.,0.,0.,0.
+    };
+
+    auto* alSolid = new G4Polycone("He3Cap_Al", 0, 360.*deg, nAl, zVessel, riAl, roAl);
+    auto* alLV    = new G4LogicalVolume(alSolid, matAl, "He3Cap_Al");
+    alLV->SetVisAttributes(new G4VisAttributes(G4Color(0.7, 0.7, 0.7, 0.8)));
+
+    // ── CFRP wrap polycone (Al outer + 0.9 mm) ───────────────
+    static const G4double roCFRP[nAl] = {
+          0.000*mm,   3.223*mm,   4.802*mm,   6.333*mm,   7.750*mm,
+          8.990*mm,  10.002*mm,  10.756*mm,  11.242*mm,  11.473*mm,
+         11.500*mm,  11.500*mm,
+         11.217*mm,  10.369*mm,   8.954*mm,   8.260*mm,
+          7.812*mm,   4.400*mm,   4.400*mm
+    };
+    static const G4double riCFRP[nAl] = {
+        0.,0.,0.,0.,0.,0.,0.,0.,0.,0.,
+        0.,0.,0.,0.,0.,0.,0.,0.,0.
+    };
+
+    auto* cfrpSolid = new G4Polycone("He3Cap_CFRP", 0, 360.*deg, nAl, zVessel, riCFRP, roCFRP);
+    auto* cfrpLV    = new G4LogicalVolume(cfrpSolid, GetMat("CFRP"), "He3Cap_CFRP");
+    cfrpLV->SetVisAttributes(new G4VisAttributes(G4Color(0.15, 0.15, 0.15, 0.9)));
+
+    // Place: CFRP in world, Al inside CFRP, gas inside Al
+    new G4PVPlacement(capRot, G4ThreeVector(), cfrpLV, "He3Cap_CFRP", worldLV, false, 0, true);
+    new G4PVPlacement(nullptr, G4ThreeVector(), alLV,  "He3Cap_Al",   cfrpLV,  false, 0, true);
+    new G4PVPlacement(nullptr, G4ThreeVector(), he3LV, "He3Gas",      alLV,    false, 0, true);
 
     G4cout << "\n=== X17 Full-Experiment Geometry ===" << G4endl;
     G4cout << "  Beam axis    : +Y" << G4endl;
-    G4cout << "  He-3 target  : r=" << he3R/cm << " cm, L=" << 2*he3HalfL/cm
-           << " cm along Y, 300 bar" << G4endl;
+    G4cout << "  He-3 target  : capsule r=10 mm, cyl L=40 mm + r=10 mm hemispheres, 500 bar" << G4endl;
+    G4cout << "  Al vessel    : STEP profile, z=-35 to +51 mm (tip to valve)" << G4endl;
     G4cout << "  Gas mixture  : " << fConfig.gas
            << "  (rho=" << matGas->GetDensity()/(mg/cm3) << " mg/cm3)" << G4endl;
     G4cout << "  Stack depth  : " << stackDepth/cm << " cm" << G4endl;

@@ -29,6 +29,15 @@ static void PrintUsage() {
               << "  -v               Verbose output\n"
               << "  --single <name> <E_MeV> <theta_deg> <phi_deg>\n"
               << "                   Single-particle mode (e.g. --single e- 8 90 0)\n"
+              << "  --neutron <flux.root> <lambda2d.root>\n"
+              << "                   Neutron-beam mode: EAR2 flux + radial profile\n"
+              << "                   (data/fluxEAR2-Ph3_in_different_units.root,\n"
+              << "                    data/lamda2DvsEn_EAR2.root)\n"
+              << "  --emin <eV>      Neutron sampling window minimum (default: 1e-3)\n"
+              << "  --emax <eV>      Neutron sampling window maximum (default: 1000)\n"
+              << "  --gamma-source <capture_lib.csv>\n"
+              << "                   Biased wall-background mode: capture-cascade gammas\n"
+              << "                   from a capture-vertex library (make_capture_library.py)\n"
               << "  --mass <MeV>     X17 mass (default: 16.8)\n"
               << "  --energy <MeV>   4He* transition energy for both X17 and IPC (default: 20.58)\n"
               << "  --ipc <frac>     IPC fraction 0..1 (0=all X17, 1=all IPC, default: 0.5)\n"
@@ -61,6 +70,17 @@ int main(int argc, char** argv) {
             config.singleParticleTheta_deg  = std::stod(argv[++i]);
             config.singleParticlePhi_deg    = std::stod(argv[++i]);
         }
+        else if (a == "--neutron" && i+2<argc) {
+            config.neutronMode        = true;
+            config.neutronFluxFile    = argv[++i];
+            config.neutronProfileFile = argv[++i];
+        }
+        else if (a == "--emin" && i+1<argc) config.neutronEmin_eV = std::stod(argv[++i]);
+        else if (a == "--emax" && i+1<argc) config.neutronEmax_eV = std::stod(argv[++i]);
+        else if (a == "--gamma-source" && i+1<argc) {
+            config.gammaSourceMode = true;
+            config.captureLibFile  = argv[++i];
+        }
         else if (a[0] != '-') macroFile = a;
         else { std::cerr << "Unknown option: " << a << "\n"; PrintUsage(); return 1; }
     }
@@ -75,7 +95,15 @@ int main(int argc, char** argv) {
               << "  Output   : " << config.outFile << "\n"
               << "  Seed     : " << config.seed << "\n"
               << "  Threads  : " << config.nThreads << "\n";
-    if (config.singleParticle)
+    if (config.neutronMode)
+        std::cout << "  Mode     : neutron beam  E=[" << config.neutronEmin_eV
+                  << ", " << config.neutronEmax_eV << "] eV\n"
+                  << "  Flux     : " << config.neutronFluxFile << "\n"
+                  << "  Profile  : " << config.neutronProfileFile << "\n";
+    else if (config.gammaSourceMode)
+        std::cout << "  Mode     : gamma-source (biased wall background)\n"
+                  << "  Library  : " << config.captureLibFile << "\n";
+    else if (config.singleParticle)
         std::cout << "  Mode     : single-particle " << config.singleParticleName
                   << " " << config.singleParticleEnergy_MeV << " MeV\n";
     else

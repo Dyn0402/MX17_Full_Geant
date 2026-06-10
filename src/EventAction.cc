@@ -28,7 +28,11 @@ void EventAction::EndOfEventAction(const G4Event* event) {
     // GeneratePrimaries and EndOfEventAction receive the same G4Event*.
     auto* info = static_cast<EventTypeInfo*>(event->GetUserInformation());
     if (info) {
-        fData.event_type = info->event_type;
+        fData.event_type   = info->event_type;
+        fData.neutron_E_eV = info->neutron_E_eV;
+        // Gamma-source mode: record Eγ in inv_mass (no pair kinematics)
+        if (info->event_type == 3)
+            fData.kin.inv_mass_MeV = info->inv_mass_MeV;
     }
 
     // ── Read truth kinematics from primary vertices ───────────────────────

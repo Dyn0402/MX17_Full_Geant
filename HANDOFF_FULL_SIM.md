@@ -122,7 +122,7 @@ LiqScint_4  15 mm   }
 LS_CFRP_5   1.5 mm  }
 ```
 
-All material definitions (He-3 at 300 bar, CFRP, FR4, Rohacell 51, LAB, resistive
+All material definitions (He-3 at 500 bar, CFRP, FR4, Rohacell 51, LAB, resistive
 paste, PVC tape) are in `MX17_Geant/src/DetectorConstruction.cc` `DefineMaterials()`.
 Copy that function verbatim.
 
@@ -188,9 +188,9 @@ angle) for efficiency-vs-energy cross-checks against the single-arm sim.
 ## He-3 Target
 
 The He-3 pressurised cylinder is already modelled in the single-arm sim:
-- **Cylinder**: 5 cm diameter, 15 cm long, axis along Y (perpendicular to the arms)
-- 300 bar, 37.6 mg/cm³, pure ³He (G4Isotope)
-- Outer walls: 0.5 mm Al + 0.9 mm CFRP
+- **Cylinder**: 3 cm diameter, 5 cm long, axis along Y (beam direction)
+- 500 bar, 62.7 mg/cm³, pure ³He (G4Isotope)
+- Outer walls: 0.5 mm Al + 1.2 mm CFRP
 - The **gun fires from the centre** of the He-3 gas volume
 
 Copy the He-3 cylinder geometry directly from

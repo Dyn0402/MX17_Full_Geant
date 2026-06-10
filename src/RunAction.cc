@@ -35,13 +35,17 @@ struct RunAction::Impl {
 
     // EventTree branches
     Int_t    e_eventID;
-    Int_t    e_event_type;                  // 0=X17, 1=IPC, -1=single
+    Int_t    e_event_type;                  // 0=X17, 1=IPC, -1=single, 2=neutron, 3=gamma
     Double_t e_vtx_x, e_vtx_y, e_vtx_z;   // production vertex [mm]
-    Double_t e_inv_mass;                    // pair invariant mass [MeV]: m_X17 or Mee
+    Double_t e_inv_mass;                    // pair invariant mass [MeV]: m_X17 or Mee; Eγ (mode 3)
     Double_t e_em_ke, e_ep_ke;
     Double_t e_em_px, e_em_py, e_em_pz;
     Double_t e_ep_px, e_ep_py, e_ep_pz;
     Double_t e_openingAngle;
+    // Neutron mode (event_type = 2)
+    Double_t e_neutron_E_eV;                // primary neutron energy [eV]
+    Char_t   e_capture_vol[32];             // logical volume of first capture ("" = none)
+    Double_t e_cap_x, e_cap_y, e_cap_z;     // capture position [mm]
 #else
     std::ofstream hitFile;
     std::ofstream evtFile;
@@ -113,6 +117,11 @@ void RunAction::BeginOfRunAction(const G4Run*) {
     fImpl->evtTree->Branch("ep_py",        &fImpl->e_ep_py);
     fImpl->evtTree->Branch("ep_pz",        &fImpl->e_ep_pz);
     fImpl->evtTree->Branch("openingAngle", &fImpl->e_openingAngle);
+    fImpl->evtTree->Branch("neutron_E_eV", &fImpl->e_neutron_E_eV);
+    fImpl->evtTree->Branch("capture_vol",  fImpl->e_capture_vol, "capture_vol[32]/C");
+    fImpl->evtTree->Branch("cap_x",        &fImpl->e_cap_x);     // mm
+    fImpl->evtTree->Branch("cap_y",        &fImpl->e_cap_y);
+    fImpl->evtTree->Branch("cap_z",        &fImpl->e_cap_z);
 
     G4cout << "RunAction: Opened " << fname << G4endl;
 
@@ -187,6 +196,12 @@ void RunAction::RecordEvent(const EventData& data) {
     fImpl->e_em_px        = data.kin.em_px; fImpl->e_em_py = data.kin.em_py; fImpl->e_em_pz = data.kin.em_pz;
     fImpl->e_ep_px        = data.kin.ep_px; fImpl->e_ep_py = data.kin.ep_py; fImpl->e_ep_pz = data.kin.ep_pz;
     fImpl->e_openingAngle = data.kin.openingAngle_deg;
+    fImpl->e_neutron_E_eV = data.neutron_E_eV;
+    std::strncpy(fImpl->e_capture_vol, data.capture_vol.c_str(), 31);
+    fImpl->e_capture_vol[31] = '\0';
+    fImpl->e_cap_x = data.cap_x;
+    fImpl->e_cap_y = data.cap_y;
+    fImpl->e_cap_z = data.cap_z;
     fImpl->evtTree->Fill();
 
     // HitTree

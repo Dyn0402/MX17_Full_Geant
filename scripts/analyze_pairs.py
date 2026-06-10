@@ -64,6 +64,78 @@ ETYPE_LABEL = {0: "X17 signal", 1: "IPC background"}
 ETYPE_COLOR = {0: "#e84040",    1: "#4a90d9"}
 ETYPE_LS    = {0: "-",          1: "--"}
 
+# ── Angle-reconstruction study constants ─────────────────────────────────────
+# Proxy for MM cluster position resolution applied to drift hit positions
+# before the smeared PCA fit (per-step smearing, crude digitization stand-in).
+MM_HIT_SMEAR_MM = 0.5
+# Trigger-scintillator position resolution: ~10 cm segmentation → σ ≈ 10/√12 cm
+SCINT_SMEAR_MM  = 30.0
+
+# Per-particle direction estimators: ψ = space angle between two directions.
+# All are compared to the TRUTH direction at the vertex unless noted.
+PSI_ESTIMATORS = ["first", "last", "drift", "fit", "fit_vs_first",
+                  "vline", "vcen", "nomline", "scint"]
+PSI_LABEL = {
+    "first":        "dir @ 1st MM hit (best measurable)",
+    "last":         "dir @ last MM hit",
+    "drift":        "1st vs last MM dir (drift-gas MS)",
+    "fit":          "PCA fit of drift hits",
+    "fit_vs_first": "PCA fit vs 1st-hit dir (fit error only)",
+    "vline":        "true vtx → 1st MM hit",
+    "vcen":         "true vtx → drift edep centroid",
+    "nomline":      "target centre → 1st MM hit",
+    "scint":        f"true vtx → trig-scint hit (σ={SCINT_SMEAR_MM/10:.0f} cm)",
+}
+PSI_COLOR = {
+    "first":        "#000000",
+    "last":         "#7f7f7f",
+    "drift":        "#8c564b",
+    "fit":          "#2ca02c",
+    "fit_vs_first": "#98df8a",
+    "vline":        "#1f77b4",
+    "vcen":         "#17becf",
+    "nomline":      "#9467bd",
+    "scint":        "#ff7f0e",
+}
+
+# Opening-angle reconstruction methods (need both particles)
+OPEN_METHODS = ["first", "fit", "fits", "vline", "vcen", "nomline", "scint"]
+METH_LABEL = {
+    "first":   "current: dir @ 1st MM hit",
+    "fit":     "PCA drift-track fit",
+    "fits":    f"PCA fit, {MM_HIT_SMEAR_MM:.1f} mm hit smear",
+    "vline":   "true vtx → 1st MM hit",
+    "vcen":    "true vtx → drift centroid",
+    "nomline": "target centre → 1st MM hit",
+    "scint":   f"true vtx → scint hit (σ={SCINT_SMEAR_MM/10:.0f} cm)",
+}
+METH_COLOR = {
+    "first":   "#000000",
+    "fit":     "#2ca02c",
+    "fits":    "#98df8a",
+    "vline":   "#1f77b4",
+    "vcen":    "#17becf",
+    "nomline": "#9467bd",
+    "scint":   "#ff7f0e",
+}
+
+
+def _angle_deg(A, B):
+    """Space angle [deg] between row vectors of A and B (need not be unit).
+    NaN rows propagate to NaN."""
+    na = np.linalg.norm(A, axis=1)
+    nb = np.linalg.norm(B, axis=1)
+    with np.errstate(invalid="ignore", divide="ignore"):
+        c = (A * B).sum(axis=1) / (na * nb)
+        return np.degrees(np.arccos(np.clip(c, -1.0, 1.0)))
+
+
+def _arr(m, cols):
+    """Extract columns as float array; all-NaN if any column is missing."""
+    if all(c in m.columns for c in cols):
+        return m[list(cols)].values.astype(float)
+    return np.full((len(m), len(cols)), np.nan)
+
 HIT_COLS = ["eventID", "trackID", "parentID", "armID",
             "detType", "particle", "edep", "ke",
             "gx", "gy", "gz", "px", "py", "pz"]
@@ -102,6 +174,56 @@ def _decode_col(series):
 
 # ── Hit processing (per chunk) ────────────────────────────────────────────────
 
+def _drift_track_quantities(mm, rng):
+    """Per-event drift-track quantities from one primary's DriftGas hits
+    (restricted to a single arm by the caller).
+
+    Returns a DataFrame indexed by eventID with columns:
+      n               number of drift hits
+      l_px,l_py,l_pz  momentum direction at the LAST drift hit
+      c_gx,c_gy,c_gz  edep-weighted centroid of the drift hit positions
+      f_px,f_py,f_pz  PCA straight-line fit direction (NaN if n < 3)
+      s_px,s_py,s_pz  PCA fit after smearing positions by MM_HIT_SMEAR_MM
+    PCA directions are oriented along the first-hit momentum direction.
+    The covariance/eigenvector computation is batched over all events with
+    np.bincount + np.linalg.eigh, so cost is O(hits), not O(events·hits).
+    """
+    g = mm.groupby("eventID")
+    out = pd.DataFrame(index=g.size().index)
+    out["n"] = g.size().astype(float)
+    out[["l_px", "l_py", "l_pz"]] = g.last()[["px", "py", "pz"]]
+
+    eids, inv = np.unique(mm["eventID"].values, return_inverse=True)
+    X = mm[["gx", "gy", "gz"]].values.astype(float)
+    n = np.bincount(inv).astype(float)
+
+    # edep-weighted centroid
+    w = mm["edep"].values.astype(float)
+    wsum = np.bincount(inv, w).clip(1e-30)
+    cen = np.stack([np.bincount(inv, w * X[:, k]) for k in range(3)], axis=1)
+    out[["c_gx", "c_gy", "c_gz"]] = cen / wsum[:, None]
+
+    d_first = g.first()[["px", "py", "pz"]].values.astype(float)
+    for tag, Xu in [("f", X),
+                    ("s", X + rng.normal(0.0, MM_HIT_SMEAR_MM, X.shape))]:
+        mean = np.stack([np.bincount(inv, Xu[:, k]) for k in range(3)],
+                        axis=1) / n[:, None]
+        Xc = Xu - mean[inv]
+        M = np.empty((len(eids), 3, 3))
+        for a in range(3):
+            for b in range(a, 3):
+                M[:, a, b] = np.bincount(inv, Xc[:, a] * Xc[:, b])
+                M[:, b, a] = M[:, a, b]
+        _, vecs = np.linalg.eigh(M)
+        dirs = vecs[:, :, 2]                      # largest-eigenvalue axis
+        sgn = np.sign((dirs * d_first).sum(axis=1))
+        sgn[sgn == 0] = 1.0
+        dirs = dirs * sgn[:, None]
+        dirs[n < 3] = np.nan
+        out[[f"{tag}_px", f"{tag}_py", f"{tag}_pz"]] = dirs
+    return out
+
+
 def _process_hits(df):
     """
     Convert a complete-events hits DataFrame into a per-event summary.
@@ -120,6 +242,8 @@ def _process_hits(df):
     """
     for col in ["detType", "particle"]:
         df[col] = _decode_col(df[col])
+
+    rng = np.random.default_rng(9973 * (int(df["eventID"].iloc[0]) + 1) % (2**31))
 
     prim = df[df["parentID"] == 0]
     em   = prim[prim["particle"] == "e-"]
@@ -153,6 +277,20 @@ def _process_hits(df):
             first_mm.columns = [f"{prefix}_mm_{c}"
                                  for c in ["gx","gy","gz","px","py","pz","arm"]]
             out = out.join(first_mm)
+
+            # Drift-track quantities (last-hit dir, centroid, PCA fits),
+            # restricted to the arm of the first DriftGas hit
+            arm_first = mm.groupby("eventID")["armID"].transform("first")
+            trk = _drift_track_quantities(mm[mm["armID"] == arm_first], rng)
+            trk.columns = [f"{prefix}_trk_{c}" for c in trk.columns]
+            out = out.join(trk)
+
+        # First trigger-scintillator hit per event (for scint-based pointing)
+        ps = p[p["detType"] == "PlasticScint"]
+        if not ps.empty:
+            first_ps = ps.groupby("eventID").first()[["gx","gy","gz","armID"]]
+            first_ps.columns = [f"{prefix}_ps_{c}" for c in ["gx","gy","gz","arm"]]
+            out = out.join(first_ps)
 
         # Stopping detection: find the hit with minimum KE for each event.
         # The detType of that hit is the deepest scored volume the particle reached.
@@ -365,6 +503,38 @@ class Accumulator:
         self.open2d_bins = np.linspace(0, 180, 91)
         self.h_open_2d   = {0: np.zeros((90, 90)), 1: np.zeros((90, 90))}
 
+        # ── Per-particle direction-error estimators ────────────────────────
+        # ψ = space angle between estimator direction and truth-at-vertex
+        # (or between two estimators, see PSI_LABEL), binned vs particle KE
+        n_ke_f2 = len(self.ke_fine_bins) - 1
+        self.psi_bins = np.linspace(0, 45, 181)           # 0.25°/bin
+        n_psi = len(self.psi_bins) - 1
+        self.h_psi = {nm: {0: np.zeros((n_ke_f2, n_psi)),
+                           1: np.zeros((n_ke_f2, n_psi))}
+                      for nm in PSI_ESTIMATORS}
+
+        # ── Scattering localization ────────────────────────────────────────
+        # Effective scatter distance from vertex along the truth direction:
+        #   s_eff = t − δ/tan(ψ)   with t = (P−V)·d̂, δ = perp displacement of
+        # the first MM hit from the truth ray, ψ = upstream direction error.
+        # Single-scatter exact; for distributed MS it is an effective lever arm.
+        self.seff_bins = np.linspace(-150, 350, 126)      # mm, 4 mm/bin
+        self.h_seff = {0: np.zeros((n_ke_f2, 125)), 1: np.zeros((n_ke_f2, 125))}
+
+        # ── Opening-angle method comparison ────────────────────────────────
+        self.mopen_bins = np.linspace(0, 180, 61)         # 3° truth bins
+        n_mo, n_dl = len(self.mopen_bins) - 1, len(self.delta_bins) - 1
+        self.h_mopen_delta = {mth: {0: np.zeros(n_dl), 1: np.zeros(n_dl)}
+                              for mth in OPEN_METHODS}
+        self.mopen_rms_sum = {mth: {0: np.zeros(n_mo), 1: np.zeros(n_mo)}
+                              for mth in OPEN_METHODS}
+        self.mopen_rms_n   = {mth: {0: np.zeros(n_mo), 1: np.zeros(n_mo)}
+                              for mth in OPEN_METHODS}
+        # Δθ vs min(KE⁻, KE⁺) — resolution gain from energy selection
+        self.h_mopen_minke = {mth: {0: np.zeros((n_ke_f2, n_dl)),
+                                    1: np.zeros((n_ke_f2, n_dl))}
+                              for mth in OPEN_METHODS}
+
     def merge(self, other):
         """Add another Accumulator into this one (used after parallel processing)."""
         for et in [0, 1]:
@@ -405,9 +575,14 @@ class Accumulator:
                 "h_asym_diff_arm", "h_asym_diff_arm_double",
                 "h_asym_diff_arm_singonly", "h_asym_diff_arm_notrig",
                 "h_dca", "h_dca_fine", "h_delta_open", "open_rms_sum", "open_rms_n",
-                "h_open_2d",
+                "h_open_2d", "h_seff",
             ]:
                 getattr(self, attr)[et] += getattr(other, attr)[et]
+            for attr in ["h_psi", "h_mopen_delta", "mopen_rms_sum",
+                         "mopen_rms_n", "h_mopen_minke"]:
+                a, b = getattr(self, attr), getattr(other, attr)
+                for key in a:
+                    a[key][et] += b[key][et]
 
     def update(self, merged):
         """Update accumulators from a merged (EventTree + hit summary) DataFrame."""
@@ -723,6 +898,98 @@ class Accumulator:
                     ti2 = np.clip(np.digitize(theta_truth, self.open2d_bins) - 1, 0, 89)
                     ri2 = np.clip(np.digitize(theta_reco,  self.open2d_bins) - 1, 0, 89)
                     np.add.at(self.h_open_2d[et], (ti2, ri2), 1)
+
+            # ── Direction-error decomposition + method comparison ─────────
+            rng_u = np.random.default_rng(
+                104729 * (int(m["eventID"].iloc[0]) + 1 + et) % (2**31))
+            V = m[["vtx_x", "vtx_y", "vtx_z"]].values.astype(float)
+            est_dirs = {}   # est_dirs[prefix][method] → (N,3) direction array
+            for prefix, ke_col in [("em", "em_ke"), ("ep", "ep_ke")]:
+                d_tr  = _arr(m, [f"{prefix}_{c}"       for c in ("px", "py", "pz")])
+                d_f   = _arr(m, [f"{prefix}_mm_{c}"    for c in ("px", "py", "pz")])
+                P     = _arr(m, [f"{prefix}_mm_{c}"    for c in ("gx", "gy", "gz")])
+                d_l   = _arr(m, [f"{prefix}_trk_l_{c}" for c in ("px", "py", "pz")])
+                d_pca = _arr(m, [f"{prefix}_trk_f_{c}" for c in ("px", "py", "pz")])
+                d_pcs = _arr(m, [f"{prefix}_trk_s_{c}" for c in ("px", "py", "pz")])
+                C     = _arr(m, [f"{prefix}_trk_c_{c}" for c in ("gx", "gy", "gz")])
+                PS    = _arr(m, [f"{prefix}_ps_{c}"    for c in ("gx", "gy", "gz")])
+                ps_arm = (m.get(f"{prefix}_ps_arm", pd.Series(np.nan, index=m.index))
+                          .fillna(-1).values.astype(int))
+                ke = m[ke_col].values
+                ki = np.clip(np.digitize(ke, self.ke_fine_bins) - 1,
+                             0, len(self.ke_fine_bins) - 2)
+
+                # Smear trigger-scint hit in the two transverse directions of
+                # its arm (arms 0,1: normal=X → smear y,z; arms 2,3: smear x,y)
+                PS_sm = PS.copy()
+                noise = rng_u.normal(0.0, SCINT_SMEAR_MM, PS.shape)
+                on_x = (ps_arm == 0) | (ps_arm == 1)
+                on_z = (ps_arm == 2) | (ps_arm == 3)
+                PS_sm[on_x, 1] += noise[on_x, 1]; PS_sm[on_x, 2] += noise[on_x, 2]
+                PS_sm[on_z, 0] += noise[on_z, 0]; PS_sm[on_z, 1] += noise[on_z, 1]
+
+                est_dirs[prefix] = {
+                    "first":   d_f,
+                    "fit":     d_pca,
+                    "fits":    d_pcs,
+                    "vline":   P - V,
+                    "vcen":    C - V,
+                    "nomline": P,
+                    "scint":   PS_sm - V,
+                }
+
+                # ψ fills (per-particle direction errors)
+                for name, A, B in [
+                    ("first",        d_tr, d_f),
+                    ("last",         d_tr, d_l),
+                    ("drift",        d_f,  d_l),
+                    ("fit",          d_tr, d_pca),
+                    ("fit_vs_first", d_f,  d_pca),
+                    ("vline",        d_tr, P - V),
+                    ("vcen",         d_tr, C - V),
+                    ("nomline",      d_tr, P),
+                    ("scint",        d_tr, PS_sm - V),
+                ]:
+                    psi = _angle_deg(A, B)
+                    ok  = np.isfinite(psi)
+                    if not ok.any():
+                        continue
+                    pi = np.clip(np.digitize(psi[ok], self.psi_bins) - 1,
+                                 0, len(self.psi_bins) - 2)
+                    np.add.at(self.h_psi[name][et], (ki[ok], pi), 1)
+
+                # Scattering localization from first-MM-hit kinematics
+                psi_up = _angle_deg(d_tr, d_f)
+                t_par  = ((P - V) * d_tr).sum(axis=1)
+                d_perp = np.linalg.norm((P - V) - t_par[:, None] * d_tr, axis=1)
+                ok = np.isfinite(psi_up) & (psi_up > 1.5)
+                if ok.any():
+                    s_eff = t_par[ok] - d_perp[ok] / np.tan(np.radians(psi_up[ok]))
+                    # drop under/overflows rather than piling them in edge bins
+                    inr = (s_eff >= self.seff_bins[0]) & (s_eff < self.seff_bins[-1])
+                    si = np.digitize(s_eff[inr], self.seff_bins) - 1
+                    np.add.at(self.h_seff[et], (ki[ok][inr], si), 1)
+
+            # Opening-angle reconstruction methods
+            theta_truth_all = m["openingAngle"].values
+            min_ke = np.minimum(m["em_ke"].values, m["ep_ke"].values)
+            kmi = np.clip(np.digitize(min_ke, self.ke_fine_bins) - 1,
+                          0, len(self.ke_fine_bins) - 2)
+            for mth in OPEN_METHODS:
+                A, B = est_dirs["em"][mth], est_dirs["ep"][mth]
+                th_reco = _angle_deg(A, B)
+                ok = np.isfinite(th_reco)
+                if not ok.any():
+                    continue
+                delta = th_reco[ok] - theta_truth_all[ok]
+                di = np.clip(np.digitize(delta, self.delta_bins) - 1,
+                             0, len(self.delta_bins) - 2)
+                np.add.at(self.h_mopen_delta[mth][et], di, 1)
+                ti = np.clip(np.digitize(theta_truth_all[ok], self.mopen_bins) - 1,
+                             0, len(self.mopen_bins) - 2)
+                np.add.at(self.mopen_rms_sum[mth][et], ti, delta**2)
+                np.add.at(self.mopen_rms_n[mth][et],   ti, 1)
+                np.add.at(self.h_mopen_minke[mth][et], (kmi[ok], di), 1)
 
 
 # ── Per-file processing ───────────────────────────────────────────────────────
@@ -1850,6 +2117,520 @@ def plot_mm_topology(pdf, acc):
     fig.tight_layout(); pdf.savefig(fig); plt.close(fig)
 
 
+def _hist1d_quantile(h, cen, q):
+    """q-th quantile (0-1) of a 1D histogram; NaN if < 5 counts."""
+    n = h.sum()
+    if n < 5:
+        return np.nan
+    cdf = np.cumsum(h) / n
+    return cen[min(np.searchsorted(cdf, q), len(cen) - 1)]
+
+
+def plot_direction_errors(pdf, acc):
+    """Per-particle direction-error decomposition (e⁻ + e⁺ combined).
+
+    ψ = space angle between an estimator direction and the truth direction at
+    the vertex (except 'drift' and 'fit error', which compare two estimators).
+    This separates irreducible upstream multiple scattering from drift-volume
+    scattering and from reconstruction-method error.
+    """
+    ke_cen  = 0.5 * (acc.ke_fine_bins[:-1] + acc.ke_fine_bins[1:])
+    psi_cen = 0.5 * (acc.psi_bins[:-1] + acc.psi_bins[1:])
+
+    def _h(name):
+        return acc.h_psi[name][0] + acc.h_psi[name][1]   # X17 + IPC combined
+
+    # ── Page 1: median ψ vs KE ────────────────────────────────────────────
+    fig, axes = plt.subplots(1, 2, figsize=(14, 5.5))
+
+    ax = axes[0]
+    for name in ["first", "fit", "vline", "vcen", "nomline", "scint"]:
+        med = _compute_medians(_h(name), psi_cen)
+        v = ~np.isnan(med)
+        if not v.any():
+            continue
+        ax.plot(ke_cen[v], med[v], color=PSI_COLOR[name], lw=2,
+                marker="o", ms=3, label=PSI_LABEL[name])
+    ax.set_xlabel("True particle KE  [MeV]")
+    ax.set_ylabel("Median ψ vs truth-at-vertex  [deg]")
+    ax.set_title("Direction estimators vs truth\n(lower = better measurement "
+                 "of the direction at the vertex)")
+    ax.set_ylim(bottom=0); ax.legend(fontsize=8); ax.grid(True, alpha=0.3)
+
+    ax = axes[1]
+    for name in ["first", "last", "drift", "fit_vs_first"]:
+        med = _compute_medians(_h(name), psi_cen)
+        v = ~np.isnan(med)
+        if not v.any():
+            continue
+        ax.plot(ke_cen[v], med[v], color=PSI_COLOR[name], lw=2,
+                marker="o", ms=3, label=PSI_LABEL[name])
+    ax.set_xlabel("True particle KE  [MeV]")
+    ax.set_ylabel("Median ψ  [deg]")
+    ax.set_yscale("log")
+    ax.set_title("Error budget decomposition\n"
+                 "upstream MS (black)  vs  drift-gas MS  vs  PCA fit error")
+    ax.legend(fontsize=8); ax.grid(True, alpha=0.3, which="both")
+
+    fig.suptitle("Per-Particle Direction Errors  (e⁻ + e⁺, X17 + IPC)",
+                 fontsize=13)
+    fig.tight_layout(); pdf.savefig(fig); plt.close(fig)
+
+    # ── Page 2: ψ distributions ──────────────────────────────────────────
+    fig, axes = plt.subplots(1, 2, figsize=(14, 5.5), sharey=True)
+    for ax, ke_min, title in [
+        (axes[0], None, "all KE"),
+        (axes[1], 8.0,  "KE > 8 MeV"),
+    ]:
+        for name in ["first", "fit", "vline", "vcen", "nomline", "scint"]:
+            h2 = _h(name)
+            rows = h2 if ke_min is None else h2[ke_cen > ke_min]
+            h = rows.sum(axis=0)
+            n = h.sum()
+            if n < 10:
+                continue
+            med = _hist1d_quantile(h, psi_cen, 0.5)
+            ax.step(psi_cen, h / n, where="mid", color=PSI_COLOR[name],
+                    lw=1.8, label=f"{PSI_LABEL[name]}  (med={med:.1f}°)")
+        ax.set_xlabel("ψ vs truth-at-vertex  [deg]")
+        ax.set_title(title)
+        ax.legend(fontsize=8); ax.grid(True, alpha=0.3)
+    axes[0].set_ylabel("Normalised counts / 0.5°")
+    fig.suptitle("Direction-Error Distributions  (e⁻ + e⁺, X17 + IPC)",
+                 fontsize=13)
+    fig.tight_layout(); pdf.savefig(fig); plt.close(fig)
+
+
+def plot_scatter_localization(pdf, acc):
+    """Where along the path does the direction get destroyed?
+
+    For each particle with a first MM hit:  t = distance from vertex to the
+    hit along the truth direction, δ = perpendicular miss distance, ψ = total
+    upstream direction error.  A single scatter at distance s from the vertex
+    gives δ = (t − s)·tanψ, so s_eff = t − δ/tanψ localizes the scattering.
+    Material positions: target wall r ≈ 15–16.4 mm, MM window at ~220 mm.
+    """
+    ke_cen  = 0.5 * (acc.ke_fine_bins[:-1] + acc.ke_fine_bins[1:])
+    s_cen   = 0.5 * (acc.seff_bins[:-1] + acc.seff_bins[1:])
+    h2 = acc.h_seff[0] + acc.h_seff[1]
+
+    fig, axes = plt.subplots(1, 2, figsize=(14, 5.5))
+
+    ax = axes[0]
+    rs = h2.sum(axis=1, keepdims=True).clip(1)
+    im = ax.pcolormesh(ke_cen, s_cen, (h2 / rs).T, cmap="viridis", vmin=0)
+    plt.colorbar(im, ax=ax, label="P(s_eff | KE)")
+    med = _compute_medians(h2, s_cen)
+    v = ~np.isnan(med)
+    ax.plot(ke_cen[v], med[v], "r-o", ms=3, lw=1.5, label="median")
+    for y, lbl in [(16, "target wall (r≈15–16 mm)"), (220, "MM window (220 mm)")]:
+        ax.axhline(y, color="white", lw=1.1, ls="--")
+        ax.text(0.3, y + 8, lbl, color="white", fontsize=8)
+    ax.set_xlabel("True particle KE  [MeV]")
+    ax.set_ylabel("Effective scatter distance s_eff  [mm]")
+    ax.set_title("Scattering localization vs KE")
+    ax.legend(fontsize=8, loc="upper right")
+
+    ax = axes[1]
+    for rows, lbl, color in [
+        (h2,                 "all KE",     "#1f77b4"),
+        (h2[ke_cen > 8.0],   "KE > 8 MeV", "#e84040"),
+    ]:
+        h = rows.sum(axis=0)
+        n = h.sum()
+        if n < 10:
+            continue
+        med = _hist1d_quantile(h, s_cen, 0.5)
+        ax.step(s_cen, h / n, where="mid", color=color, lw=2,
+                label=f"{lbl}  (median = {med:.0f} mm)")
+    ax.axvspan(15, 16.4, color="grey", alpha=0.4)
+    ax.text(20, ax.get_ylim()[1] * 0.0, "", fontsize=8)
+    for x, lbl in [(16, "target wall"), (220, "MM window")]:
+        ax.axvline(x, color="grey", lw=1.0, ls="--")
+    ax.annotate("target wall", xy=(16, 0), xytext=(30, 0.9),
+                textcoords=("data", "axes fraction"), fontsize=9, color="grey")
+    ax.annotate("MM window", xy=(220, 0), xytext=(230, 0.9),
+                textcoords=("data", "axes fraction"), fontsize=9, color="grey")
+    ax.set_xlabel("Effective scatter distance s_eff  [mm]")
+    ax.set_ylabel("Normalised counts / 4 mm")
+    ax.set_title("Effective scatter location\n"
+                 "(single-scatter equivalent; distributed MS smears this)")
+    ax.legend(fontsize=9); ax.grid(True, alpha=0.3)
+
+    fig.suptitle("Scattering Localization  (s_eff = t − δ/tanψ;  requires ψ > 1.5°)",
+                 fontsize=13)
+    fig.tight_layout(); pdf.savefig(fig); plt.close(fig)
+
+
+# Material budget of the OLD-data geometry (what produced the analysed files):
+# He-3 @ 300 bar (ρ=37.6 mg/cm³), Al wall 0.5 mm, CFRP 0.9 mm, MM face at
+# 220 mm, ArIso drift gas.  (thickness [cm], X0 [cm], label)
+_MS_LAYERS = [
+    ("He-3 gas (300 bar, ~15 mm path)", 1.5,    94.32 / 37.6e-3,   "#4a90d9"),
+    ("Al target wall 0.5 mm",           0.05,   8.897,             "#d62728"),
+    ("CFRP target wall 0.9 mm",         0.09,   42.70 / 1.55,      "#ff7f0e"),
+    ("Air gap ~20 cm",                  20.3,   36.62 / 1.205e-3,  "#2ca02c"),
+    ("Mylar window 40 µm",              0.004,  28.54,             "#9467bd"),
+    ("Kapton cathode 50 µm",            0.005,  28.58,             "#8c564b"),
+    ("Cu cathode 9 µm",                 0.0009, 1.436,             "#e377c2"),
+    ("Drift gas ArIso 30 mm",           3.0,    19.55 / 1.66e-3,   "#7f7f7f"),
+]
+
+
+def _highland(p_mev, x_over_x0):
+    """Highland plane-projected θ0 [rad] for electrons (β from p)."""
+    x = max(x_over_x0, 1e-12)
+    e = np.sqrt(p_mev**2 + ME_MEV**2)
+    beta = p_mev / e
+    return (13.6 / (beta * p_mev)) * np.sqrt(x) * (1 + 0.038 * np.log(x))
+
+
+def plot_ms_budget(pdf, acc):
+    """Analytic Highland multiple-scattering budget vs measured upstream error.
+
+    Layers use the OLD-data geometry (300 bar He-3, 0.9 mm CFRP, 22 cm arm
+    distance) at normal incidence; oblique crossings add ~10–30%.  Measured
+    points: median space angle between truth-at-vertex and the direction at
+    the first DriftGas hit (upstream MS only — no reconstruction error).
+    Median space angle for Gaussian MS = √(2 ln 2)·θ0 ≈ 1.177·θ0.
+    """
+    ke_cen  = 0.5 * (acc.ke_fine_bins[:-1] + acc.ke_fine_bins[1:])
+    psi_cen = 0.5 * (acc.psi_bins[:-1] + acc.psi_bins[1:])
+
+    fig, axes = plt.subplots(1, 2, figsize=(14, 5.5))
+
+    # ── Panel 0: x/X0 budget bars ─────────────────────────────────────────
+    ax = axes[0]
+    names  = [l[0] for l in _MS_LAYERS]
+    xfrac  = [l[1] / l[2] for l in _MS_LAYERS]
+    colors = [l[3] for l in _MS_LAYERS]
+    y = np.arange(len(names))
+    ax.barh(y, np.array(xfrac) * 100, color=colors, edgecolor="k", lw=0.4)
+    p_ref = 10.0
+    for yi, xf in zip(y, xfrac):
+        th = np.degrees(_highland(p_ref, xf))
+        ax.text(xf * 100 * 1.1, yi, f"θ₀={th:.2f}°", va="center", fontsize=8)
+    ax.set_yticks(y); ax.set_yticklabels(names, fontsize=8)
+    ax.invert_yaxis()
+    ax.set_xscale("log")
+    ax.set_xlabel("x / X₀  [%]")
+    tot = sum(xfrac)
+    ax.set_title(f"Material budget (old-data geometry)\n"
+                 f"total x/X₀ = {tot*100:.2f}%   "
+                 f"(θ₀ = {np.degrees(_highland(p_ref, tot)):.2f}° at p = {p_ref:.0f} MeV)")
+    ax.grid(True, axis="x", alpha=0.3)
+
+    # ── Panel 1: predicted vs measured vs KE ──────────────────────────────
+    ax = axes[1]
+    kes = np.linspace(0.5, 20, 100)
+    ps  = np.sqrt((kes + ME_MEV)**2 - ME_MEV**2)
+    for (lbl, t, x0, color) in _MS_LAYERS:
+        th = np.degrees([_highland(p, t / x0) for p in ps])
+        ax.plot(kes, th, color=color, lw=1.2, alpha=0.8, label=lbl)
+    # Upstream total excludes the drift gas: the measured reference direction
+    # is taken at the FIRST DriftGas hit, before traversing the drift volume.
+    tot_up = sum(t / x0 for (lbl, t, x0, _c) in _MS_LAYERS
+                 if not lbl.startswith("Drift gas"))
+    th_tot = np.degrees([_highland(p, tot_up) for p in ps])
+    ax.plot(kes, 1.177 * np.array(th_tot), "k-", lw=2.5,
+            label="upstream total: median space angle (1.177·θ₀, no drift gas)")
+
+    h_meas = acc.h_psi["first"][0] + acc.h_psi["first"][1]
+    med = _compute_medians(h_meas, psi_cen)
+    v = ~np.isnan(med)
+    ax.plot(ke_cen[v], med[v], "r*", ms=9,
+            label="measured: median ψ(truth, 1st-MM-hit dir)")
+    ax.set_xlabel("Particle KE  [MeV]")
+    ax.set_ylabel("Scattering angle  [deg]")
+    ax.set_yscale("log")
+    ax.set_ylim(1e-2, 1e2)
+    ax.set_title("Highland prediction per layer vs measured upstream error\n"
+                 "(thin: per-layer plane-projected θ₀;  thick: total median space angle)")
+    ax.legend(fontsize=7, ncol=1, loc="lower left")
+    ax.grid(True, alpha=0.3, which="both")
+
+    fig.suptitle("Multiple-Scattering Budget — where the angular resolution is lost",
+                 fontsize=13)
+    fig.tight_layout(); pdf.savefig(fig); plt.close(fig)
+
+
+def plot_angle_method_comparison(pdf, acc):
+    """Opening-angle reconstruction: method comparison.
+
+    Page 1: Δθ residual distributions per method (X17 | IPC).
+    Page 2: RMS(Δθ) vs truth opening angle per method (X17 | IPC).
+    Page 3: σ68(Δθ) and median Δθ vs min(KE⁻, KE⁺)  (X17 + IPC combined).
+    """
+    delta_cen = 0.5 * (acc.delta_bins[:-1] + acc.delta_bins[1:])
+    mo_cen    = 0.5 * (acc.mopen_bins[:-1] + acc.mopen_bins[1:])
+    ke_cen    = 0.5 * (acc.ke_fine_bins[:-1] + acc.ke_fine_bins[1:])
+
+    # ── Page 1: residual distributions ───────────────────────────────────
+    fig, axes = plt.subplots(1, 2, figsize=(14, 5.5), sharey=True)
+    for ax, et in zip(axes, [0, 1]):
+        for mth in OPEN_METHODS:
+            h = acc.h_mopen_delta[mth][et]
+            n = h.sum()
+            if n < 10:
+                continue
+            q16 = _hist1d_quantile(h, delta_cen, 0.16)
+            q84 = _hist1d_quantile(h, delta_cen, 0.84)
+            s68 = 0.5 * (q84 - q16)
+            ax.step(delta_cen, h / n, where="mid", color=METH_COLOR[mth],
+                    lw=1.8, label=f"{METH_LABEL[mth]}  (σ68={s68:.1f}°)")
+        ax.axvline(0, color="grey", lw=0.8, ls="--")
+        ax.set_xlabel("Δθ = θ_reco − θ_truth  [deg]")
+        ax.set_title(ETYPE_LABEL[et])
+        ax.legend(fontsize=7.5); ax.grid(True, alpha=0.3)
+    axes[0].set_ylabel("Normalised counts / 1°")
+    fig.suptitle("Opening-Angle Residuals by Reconstruction Method", fontsize=13)
+    fig.tight_layout(); pdf.savefig(fig); plt.close(fig)
+
+    # ── Page 2: RMS vs truth angle ───────────────────────────────────────
+    fig, axes = plt.subplots(1, 2, figsize=(14, 5.5), sharey=True)
+    for ax, et in zip(axes, [0, 1]):
+        for mth in OPEN_METHODS:
+            n   = acc.mopen_rms_n[mth][et]
+            rms = np.sqrt(acc.mopen_rms_sum[mth][et] / n.clip(1))
+            v   = n > 20
+            if not v.any():
+                continue
+            ax.plot(mo_cen[v], rms[v], color=METH_COLOR[mth], lw=1.8,
+                    marker="o", ms=3, label=METH_LABEL[mth])
+        ax.set_xlabel("Truth opening angle  [deg]")
+        ax.set_title(ETYPE_LABEL[et])
+        ax.set_ylim(bottom=0)
+        ax.legend(fontsize=7.5); ax.grid(True, alpha=0.3)
+    axes[0].set_ylabel("RMS(Δθ)  [deg]")
+    fig.suptitle("Opening-Angle Resolution vs Truth Angle by Method", fontsize=13)
+    fig.tight_layout(); pdf.savefig(fig); plt.close(fig)
+
+    # ── Page 3: resolution vs min pair KE ────────────────────────────────
+    fig, axes = plt.subplots(1, 2, figsize=(14, 5.5))
+    for mth in OPEN_METHODS:
+        h2 = acc.h_mopen_minke[mth][0] + acc.h_mopen_minke[mth][1]
+        s68, bias = np.full(len(ke_cen), np.nan), np.full(len(ke_cen), np.nan)
+        for ki in range(len(ke_cen)):
+            row = h2[ki]
+            if row.sum() < 30:
+                continue
+            q16 = _hist1d_quantile(row, delta_cen, 0.16)
+            q84 = _hist1d_quantile(row, delta_cen, 0.84)
+            s68[ki]  = 0.5 * (q84 - q16)
+            bias[ki] = _hist1d_quantile(row, delta_cen, 0.5)
+        v = ~np.isnan(s68)
+        if not v.any():
+            continue
+        axes[0].plot(ke_cen[v], s68[v], color=METH_COLOR[mth], lw=1.8,
+                     marker="o", ms=3, label=METH_LABEL[mth])
+        axes[1].plot(ke_cen[v], bias[v], color=METH_COLOR[mth], lw=1.8,
+                     marker="o", ms=3, label=METH_LABEL[mth])
+    axes[0].set_ylabel("σ68(Δθ)  [deg]")
+    axes[0].set_title("Resolution vs min pair energy")
+    axes[0].set_ylim(bottom=0)
+    axes[1].set_ylabel("Median Δθ (bias)  [deg]")
+    axes[1].set_title("Bias vs min pair energy")
+    axes[1].axhline(0, color="grey", lw=0.8, ls="--")
+    for ax in axes:
+        ax.set_xlabel("min(KE⁻, KE⁺)  [MeV]")
+        ax.legend(fontsize=7.5); ax.grid(True, alpha=0.3)
+    fig.suptitle("Opening-Angle Performance vs Pair Energy  (X17 + IPC combined)\n"
+                 "→ an energy cut directly buys angular resolution", fontsize=12)
+    fig.tight_layout(); pdf.savefig(fig); plt.close(fig)
+
+
+def plot_angle_energy_explanation(pdf, acc):
+    """Why is σ68(Δθ) ≈ 13° when the per-particle MS budget says θ₀ ≈ 7°?
+
+    Three multiplicative effects:
+      1. TWO particles contribute: each adds its in-decay-plane scattering
+         component (one plane projection, width θ₀) → quadrature sum.
+      2. For X17, KE⁻ + KE⁺ = E_trans − 2mₑ ≈ 19.6 MeV, so one particle is
+         always below ~9.8 MeV and θ₀ ∝ 1/p amplifies the soft one.
+      3. The quoted 6.9° is θ₀ at p = 10 MeV; the population average runs
+         over the full spectrum, weighted toward lower momenta.
+    """
+    KE_SUM = 20.58 - 2 * ME_MEV   # X17: total pair KE [MeV]
+    delta_cen = 0.5 * (acc.delta_bins[:-1] + acc.delta_bins[1:])
+    ke_cen    = 0.5 * (acc.ke_fine_bins[:-1] + acc.ke_fine_bins[1:])
+    tot_up = sum(t / x0 for (lbl, t, x0, _c) in _MS_LAYERS
+                 if not lbl.startswith("Drift gas"))
+
+    def _th0_deg(ke):
+        p = np.sqrt((ke + ME_MEV)**2 - ME_MEV**2)
+        return np.degrees(_highland(p, tot_up))
+
+    h2 = acc.h_mopen_minke["first"][0]          # X17 signal, current method
+    s68  = np.full(len(ke_cen), np.nan)
+    rms  = np.full(len(ke_cen), np.nan)
+    nrow = h2.sum(axis=1)
+    for ki in range(len(ke_cen)):
+        if nrow[ki] < 30:
+            continue
+        q16 = _hist1d_quantile(h2[ki], delta_cen, 0.16)
+        q84 = _hist1d_quantile(h2[ki], delta_cen, 0.84)
+        s68[ki] = 0.5 * (q84 - q16)
+        rms[ki] = np.sqrt((h2[ki] * delta_cen**2).sum() / nrow[ki])
+
+    # Highland prediction: quadrature of both particles' in-plane projections
+    kes  = np.linspace(0.5, KE_SUM / 2, 200)
+    pred = np.sqrt(_th0_deg(kes)**2 + _th0_deg(np.maximum(KE_SUM - kes, 0.1))**2)
+
+    # Spectrum-averaged prediction, weighted by the accepted min-KE spectrum
+    w  = nrow / max(nrow.sum(), 1)
+    ok = (ke_cen > 0.5) & (ke_cen < KE_SUM / 2) & (w > 0)
+    pred_at_bins = np.sqrt(_th0_deg(ke_cen)**2 +
+                           _th0_deg(np.maximum(KE_SUM - ke_cen, 0.1))**2)
+    pred_avg = np.sqrt((w[ok] * pred_at_bins[ok]**2).sum() / w[ok].sum())
+
+    h_all = acc.h_mopen_delta["first"][0]
+    q16 = _hist1d_quantile(h_all, delta_cen, 0.16)
+    q84 = _hist1d_quantile(h_all, delta_cen, 0.84)
+    s68_overall = 0.5 * (q84 - q16)
+
+    fig, axes = plt.subplots(1, 2, figsize=(14, 5.5))
+
+    ax = axes[0]
+    v = ~np.isnan(s68)
+    ax.plot(ke_cen[v], s68[v], "ko-", ms=4, lw=2, label="measured σ68(Δθ)")
+    ax.plot(ke_cen[v], rms[v], "o-", ms=3, lw=1.5, color="#7f7f7f",
+            label="measured RMS(Δθ)")
+    ax.plot(kes, pred, "r--", lw=2,
+            label=r"Highland: $\sqrt{\theta_0^2(KE_{min}) + \theta_0^2(KE_{sum}-KE_{min})}$")
+    ax.axhline(s68_overall, color="k", lw=1, ls=":",
+               label=f"spectrum-averaged σ68 = {s68_overall:.1f}°")
+    ax.set_xlabel("min(KE⁻, KE⁺)  [MeV]")
+    ax.set_ylabel("Opening-angle error  [deg]")
+    ax.set_xlim(0, KE_SUM / 2 + 0.5)
+    ax.set_ylim(0, 45)
+    ax.set_title("X17: opening-angle residual vs pair energy\n"
+                 "(current method: dir @ 1st MM hit)")
+    ax.legend(fontsize=8); ax.grid(True, alpha=0.3)
+
+    ax = axes[1]
+    ax.bar(ke_cen, w, width=np.diff(acc.ke_fine_bins), color="#4a90d9",
+           alpha=0.6, edgecolor="none", label="accepted min-KE spectrum (X17)")
+    ax.set_xlabel("min(KE⁻, KE⁺)  [MeV]")
+    ax.set_ylabel("Fraction of accepted pairs")
+    ax.set_xlim(0, KE_SUM / 2 + 0.5)
+    txt = (
+        "Per-particle budget → pair residual:\n"
+        f"  θ₀(plane) at p = 10 MeV       :  {_th0_deg(10.0 - ME_MEV):.1f}°\n"
+        f"  × two particles (quadrature)  :  "
+        f"{np.sqrt(2) * _th0_deg(10.0 - ME_MEV):.1f}°  (at KE 9.8 + 9.8 MeV)\n"
+        f"  × 1/p spectrum weighting      :  {pred_avg:.1f}°  (predicted avg)\n"
+        f"  measured spectrum-avg σ68     :  {s68_overall:.1f}°\n"
+        "Remainder: non-Gaussian MS tails, oblique\n"
+        "wall crossings, out-of-plane 2nd-order bias"
+    )
+    ax.text(0.97, 0.96, txt, transform=ax.transAxes, va="top", ha="right",
+            fontsize=9, fontfamily="monospace",
+            bbox=dict(boxstyle="round", facecolor="lightyellow", alpha=0.9))
+    ax.legend(fontsize=8, loc="upper left"); ax.grid(True, alpha=0.3)
+    ax.set_title("Why 13° from a 7° budget: energy spectrum weighting")
+
+    fig.suptitle("Opening-Angle Residual vs Energy — budget reconciliation (X17)",
+                 fontsize=13)
+    fig.tight_layout(); pdf.savefig(fig); plt.close(fig)
+
+
+# ── Detector-response export for the Python fast-MC ──────────────────────────
+
+def export_response(acc, path, src_info=""):
+    """Write a JSON detector-response summary for MX17_Simulation.
+
+    Contents (all histogram tables are raw counts; consumers normalise):
+      direction_error : P(ψ | KE) tables for several direction estimators,
+                        ψ = space angle between estimator and truth-at-vertex.
+                        Sampling a ψ from the KE row + a uniform azimuth around
+                        the true direction reproduces both the opening-angle
+                        resolution AND its positive bias.
+      energy_response : P(edep | E_total) tables (LS-only and all-scint, e∓)
+                        for particles that deposited in the LS, plus linear
+                        upstream-loss fits  loss = a·E_total + b  →
+                        E_est = (edep + b)/(1 − a).
+      validation      : σ68/bias of Δθ vs min pair KE measured in Geant4,
+                        to compare against the fast-MC after smearing.
+    """
+    import json
+    from datetime import date
+
+    def _i(h):
+        return np.asarray(h, dtype=np.int64).tolist()
+
+    def _fit_loss(h_ul, e_cen, l_cen):
+        med   = _compute_medians(h_ul, l_cen)
+        valid = (~np.isnan(med)) & (e_cen > 0.5)
+        if valid.sum() < 4:
+            return None
+        a, b = np.polyfit(e_cen[valid], med[valid], 1)
+        return [float(a), float(b)]
+
+    e_cen = 0.5 * (acc.qa_ke_bins[:-1] + acc.qa_ke_bins[1:])
+    l_cen = 0.5 * (acc.ul_loss_bins[:-1] + acc.ul_loss_bins[1:])
+    delta_cen = 0.5 * (acc.delta_bins[:-1] + acc.delta_bins[1:])
+    ke_cen    = 0.5 * (acc.ke_fine_bins[:-1] + acc.ke_fine_bins[1:])
+
+    # Validation: σ68 + bias vs min pair KE (X17+IPC combined) per method
+    validation = {"minke_bin_edges": acc.ke_fine_bins.tolist(), "methods": {}}
+    for mth in ["first", "vline", "fit"]:
+        h2 = acc.h_mopen_minke[mth][0] + acc.h_mopen_minke[mth][1]
+        s68, bias = [], []
+        for row in h2:
+            if row.sum() < 30:
+                s68.append(None); bias.append(None)
+                continue
+            q16 = _hist1d_quantile(row, delta_cen, 0.16)
+            q84 = _hist1d_quantile(row, delta_cen, 0.84)
+            s68.append(float(0.5 * (q84 - q16)))
+            bias.append(float(_hist1d_quantile(row, delta_cen, 0.5)))
+        validation["methods"][mth] = {"sigma68_deg": s68, "bias_deg": bias}
+
+    out = {
+        "meta": {
+            "created": str(date.today()),
+            "source": src_info,
+            "geometry": ("OLD-data geometry: He-3 300 bar, Al 0.5 mm + CFRP 0.9 mm "
+                         "target walls, MM front face 220 mm, ArIso drift gas"),
+            "n_events": {ETYPE_LABEL[et]: int(acc.n_total[et]) for et in (0, 1)},
+            "units": {"ke": "MeV", "psi": "deg", "edep": "MeV"},
+            "notes": ("direction_error tables: rows = true particle KE bins, "
+                      "cols = psi bins, values = counts (X17+IPC combined, e- and "
+                      "e+ combined). energy_response tables: rows = true E_total "
+                      "bins (KE + me), cols = deposited-energy bins."),
+        },
+        "direction_error": {
+            "ke_bin_edges":  acc.ke_fine_bins.tolist(),
+            "psi_bin_edges": acc.psi_bins.tolist(),
+            "estimators": {
+                nm: {"label": PSI_LABEL[nm],
+                     "counts": _i(acc.h_psi[nm][0] + acc.h_psi[nm][1])}
+                for nm in ["first", "fit", "vline", "nomline"]
+            },
+        },
+        "energy_response": {
+            "e_total_bin_edges": acc.qa_ke_bins.tolist(),
+            "edep_bin_edges":    acc.qa_edep_bins.tolist(),
+            "tables": {
+                "ls_em":  _i(acc.h_qa_ls_em[0]  + acc.h_qa_ls_em[1]),
+                "ls_ep":  _i(acc.h_qa_ls_ep[0]  + acc.h_qa_ls_ep[1]),
+                "all_em": _i(acc.h_qa_all_em[0] + acc.h_qa_all_em[1]),
+                "all_ep": _i(acc.h_qa_all_ep[0] + acc.h_qa_all_ep[1]),
+            },
+            "loss_fit_a_b": {
+                "ls_em":  _fit_loss(acc.h_ul_ls_em[0]  + acc.h_ul_ls_em[1],  e_cen, l_cen),
+                "ls_ep":  _fit_loss(acc.h_ul_ls_ep[0]  + acc.h_ul_ls_ep[1],  e_cen, l_cen),
+                "all_em": _fit_loss(acc.h_ul_all_em[0] + acc.h_ul_all_em[1], e_cen, l_cen),
+                "all_ep": _fit_loss(acc.h_ul_all_ep[0] + acc.h_ul_all_ep[1], e_cen, l_cen),
+            },
+        },
+        "validation": validation,
+    }
+    with open(path, "w") as fp:
+        json.dump(out, fp)
+    print(f"Detector response written → {path}")
+
+
 def plot_summary_page(pdf, acc):
     fig, ax = plt.subplots(figsize=(10, 7))
     ax.axis("off")
@@ -1905,6 +2686,9 @@ def parse_args():
     p.add_argument("--workers", type=int,
                    default=min(4, os.cpu_count() or 1),
                    help="Parallel worker processes")
+    p.add_argument("--export-response", default=None, metavar="JSON",
+                   help="Write detector-response summary (direction-error + "
+                        "energy tables) for the Python fast-MC to this path")
     return p.parse_args()
 
 
@@ -1992,6 +2776,20 @@ def main():
         plot_angle_truth_vs_reco(pdf, accum)
         print("  Angle reconstruction ...")
         plot_angle_reco(pdf, accum)
+        print("  MS budget ...")
+        plot_ms_budget(pdf, accum)
+        print("  Direction errors ...")
+        plot_direction_errors(pdf, accum)
+        print("  Scattering localization ...")
+        plot_scatter_localization(pdf, accum)
+        print("  Angle method comparison ...")
+        plot_angle_method_comparison(pdf, accum)
+        print("  Angle vs energy explanation ...")
+        plot_angle_energy_explanation(pdf, accum)
+
+    if args.export_response:
+        export_response(accum, args.export_response,
+                        src_info=f"{len(files)} files: {files[0]} ...")
 
     print(f"Done → {args.outfile}")
 
