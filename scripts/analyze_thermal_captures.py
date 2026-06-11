@@ -43,7 +43,7 @@ import uproot
 N_PER_PULSE_DEFAULT = 7.31e6      # EAR2 neutrons/pulse below 1 keV (flux file)
 SIGMA_RATIO         = 54e-6 / 5333.0   # s_ng / s_np at thermal = 1.013e-8
 ALPHA_IPC_DEFAULT   = 2.1e-3      # IPC per radiative capture (Alberto's table)
-BR_X17_DEFAULT      = 0.025       # assumed X17 per radiative capture
+BR_X17_DEFAULT      = 0.025       # assumed X17 per IPC pair (NOT per capture)
 
 # log10(E/eV) binning: 1 meV - 1 keV, 10 bins/decade
 LOGE_MIN, LOGE_MAX, NBINS = -3.0, 3.0, 60
@@ -238,8 +238,8 @@ def print_summary(acc, args):
     rad_pp = n_np * SIGMA_RATIO * w
     print(f"  -> IPC / pulse     : {rad_pp*args.alpha_ipc:.3e}  "
           f"(alpha_IPC={args.alpha_ipc})")
-    print(f"  -> X17 / pulse     : {rad_pp*args.br_x17:.3e}  "
-          f"(BR={args.br_x17})")
+    print(f"  -> X17 / pulse     : {rad_pp*args.alpha_ipc*args.br_x17:.3e}  "
+          f"(BR={args.br_x17} per IPC)")
     print(f"  [thin-target table : 1.21e-2 IPC/pulse; "
           f"self-shielding note: 1.9e-4]")
 
@@ -292,7 +292,7 @@ def save_results(acc, args):
         "ipc_per_pulse": float(acc["h_gas_np"].sum() * SIGMA_RATIO * w
                                * args.alpha_ipc),
         "x17_per_pulse": float(acc["h_gas_np"].sum() * SIGMA_RATIO * w
-                               * args.br_x17),
+                               * args.alpha_ipc * args.br_x17),
         "decades": decade_table(acc, w),
         "budget": {f"{v}|{p}": int(c) for (v, p), c in
                    acc["budget"].most_common()},
@@ -382,7 +382,8 @@ def make_plots(npz_path, out_pdf, alpha_ipc, br_x17):
         tot = np_dec.sum() * SIGMA_RATIO * w
         ax.set_title("$^3$He(n,$\\gamma$)$^4$He per pulse — X17 production channel\n"
                      f"total: {tot:.2e} rad.capt/pulse  →  "
-                     f"{tot*alpha_ipc:.2e} IPC/pulse, {tot*br_x17:.2e} X17/pulse")
+                     f"{tot*alpha_ipc:.2e} IPC/pulse, "
+                     f"{tot*alpha_ipc*br_x17:.2e} X17/pulse")
         ax.legend(loc="best", fontsize=9)
         ax.grid(alpha=0.3, which="both")
         pdf.savefig(fig); plt.close(fig)

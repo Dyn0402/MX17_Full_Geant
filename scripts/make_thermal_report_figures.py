@@ -452,8 +452,9 @@ def fig_ladder(d, out):
         ("internal e$^+$e$^-$ pairs (IPC)",
          f"$\\times\\ 2.1\\times10^{{-3}}$  $\\to$  "
          f"{rad_pp*2.1e-3:.1e} /pulse", "#fbeee6"),
-        ("X17 (assumed 2.5%)",
-         f"$\\times\\ 0.025$  $\\to$  {rad_pp*0.025:.1e} /pulse", "#fff3cc"),
+        ("X17 (assumed 2.5% of IPC)",
+         f"$\\times\\ 0.025$  $\\to$  {rad_pp*2.1e-3*0.025:.1e} /pulse",
+         "#fff3cc"),
     ]
     fig, ax = plt.subplots(figsize=(7.2, 6.6))
     ax.axis("off"); ax.set_xlim(0, 10); ax.set_ylim(-0.5, 10.4)
