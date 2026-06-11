@@ -67,19 +67,32 @@ position, energy) was recorded.
 \noindent The full simulation (blue curve, with the fifteen directly
 observed radiative captures as red points) lands on the opaque-gas ceiling
 (green) and confirms the rate table (orange) is too optimistic by
-$\times$8--200 per decade. Folding in the beam spectrum:
+$\times$8--200 per decade. Folding in the beam spectrum and the n\_TOF duty
+cycle ($1.929\times10^{4}$ pulses/day at $7\times10^{12}$ protons/pulse,
+from \texttt{results\_3He}), all integrated over
+$E_n = 1\,\text{meV}$--$1\,\text{keV}$:
 
 \begin{center}
-\begin{tabular}{lcc}
+\begin{tabular}{lcc|cc}
 \hline
- & rate table & full simulation \\
+ & \multicolumn{2}{c|}{per pulse} & \multicolumn{2}{c}{per day} \\
+$E_n = 1$\,meV--1\,keV & rate table & simulation & rate table & simulation \\
 \hline
-radiative captures / pulse ($E_n<1$\,keV) & $5.8$ & $(0.5\text{--}1.1)\times10^{-1}$ \\
-IPC / pulse                               & $1.21\times10^{-2}$ & $(1.1\text{--}2.3)\times10^{-4}$ \\
-X17 / pulse (assumed 2.5\% of IPC)        & ---                & $(2.9\text{--}5.7)\times10^{-6}$ \\
+radiative captures & $5.8$ & $(0.5\text{--}1.1)\times10^{-1}$
+                   & $1.1\times10^{5}$ & $(1.0\text{--}2.1)\times10^{3}$ \\
+IPC pairs          & $1.21\times10^{-2}$ & $(1.1\text{--}2.3)\times10^{-4}$
+                   & $233$ & $2.2\text{--}4.4$ \\
+X17 (2.5\% of IPC) & --- & $(2.9\text{--}5.7)\times10^{-6}$
+                   & $(5.8)$ & $0.06\text{--}0.11$ \\
 \hline
 \end{tabular}
 \end{center}
+
+\noindent\textbf{The bottom line is the lower-right cell: about one X17
+produced every 9--18 days} --- before any detector acceptance, trigger or
+analysis efficiency. A 30-day sub-keV run would produce 2--3 X17 decays in
+total. The measurement is simply not feasible in this energy window,
+independent of any background consideration.
 
 \noindent\textbf{The sub-keV statistics are a factor 50--100 below the
 table.} (The range spans two estimators: the thermal branching-ratio floor
