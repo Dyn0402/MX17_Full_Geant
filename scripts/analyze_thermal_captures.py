@@ -158,6 +158,8 @@ def scan_file(args):
             for i, (elo, ehi) in enumerate(DEPTH_SLICES):
                 m = gas_np & (E >= elo) & (E < ehi)
                 acc["h_depth"][i] += np.histogram(capy[m], CAPY_EDGES)[0]
+    print(f"[done] {Path(path).name}  ({acc['n_events']:,} events, "
+          f"{len(acc['rad_events'])} radiative)", flush=True)
     return acc
 
 
