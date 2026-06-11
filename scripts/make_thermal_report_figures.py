@@ -331,6 +331,73 @@ def fig_footprint(out, lambda2d_path):
     plt.close(fig)
 
 
+# ── fig 5b: measured absorption positions inside the capsule ─────────────────
+# The "cartoon, but real": 2D map of where beam neutrons are absorbed in the
+# gas, thermal slice vs keV slice, drawn inside the true capsule profile.
+GAS_Z  = np.array([-30., -28., -26., -24., -22., -20.,
+                    20.,  22.,  24.,  26.,  28.,  30.])          # mm
+GAS_RO = np.array([1e-3, 6.0, 8.0, 9.165, 9.798, 10.0,
+                   10.0, 9.798, 9.165, 8.0, 6.0, 1e-3])
+AL_Z   = np.array([-35.000, -34.635, -33.947, -32.880, -31.447,
+                   -29.693, -27.688, -25.521, -23.288, -21.075,
+                   -20.000,  20.000,  22.000,  24.000,  26.000,
+                    26.770,  31.370,  40.900,  50.980])
+AL_RO  = np.array([0.000, 2.323, 3.902, 5.433, 6.850,
+                   8.090, 9.102, 9.856, 10.342, 10.573,
+                   10.600, 10.600, 10.317, 9.469, 8.054,
+                   7.360, 6.912, 3.500, 3.500])
+
+
+def _capsule_outline(ax):
+    for z, ro, lw, c in [(AL_Z, AL_RO, 1.3, "0.25"),
+                         (GAS_Z, GAS_RO, 0.9, "0.45")]:
+        ax.plot(np.concatenate([ro, -ro[::-1], [ro[0]]]),
+                np.concatenate([z, z[::-1], [z[0]]]), color=c, lw=lw,
+                zorder=6)
+
+
+def fig_gas_absorption(out, root_file):
+    import uproot
+    slices = [("thermal:  $E_n$ < 0.1 eV", 0.0, 0.1),
+              ("0.1–1 keV", 100.0, 1000.0)]
+    xs = [[] for _ in slices]; ys = [[] for _ in slices]
+    with uproot.open(root_file) as f:
+        for chunk in f["EventTree"].iterate(
+                ["neutron_E_eV", "capture_vol", "capture_proc",
+                 "cap_x", "cap_y"],
+                step_size=2_000_000, library="np"):
+            vol  = np.asarray(chunk["capture_vol"],  dtype=object)
+            proc = np.asarray(chunk["capture_proc"], dtype=object)
+            gas = (vol == "He3Gas") & (proc == "neutronInelastic")
+            E = chunk["neutron_E_eV"]
+            for i, (_, elo, ehi) in enumerate(slices):
+                m = gas & (E >= elo) & (E < ehi)
+                xs[i].append(chunk["cap_x"][m])
+                ys[i].append(chunk["cap_y"][m])
+
+    fig, axes = plt.subplots(1, 2, figsize=(10.5, 6.2), sharey=True)
+    for i, (ax, (lab, _, _)) in enumerate(zip(axes, slices)):
+        x = np.concatenate(xs[i]); y = np.concatenate(ys[i])
+        hb = ax.hexbin(x, y, gridsize=110,
+                       extent=(-12, 12, -36, 36), bins="log",
+                       cmap="inferno", mincnt=1)
+        _capsule_outline(ax)
+        ax.add_patch(FancyArrowPatch((0, -52), (0, -38), arrowstyle="-|>",
+                                     mutation_scale=14, color="C0", lw=1.8))
+        ax.text(2.5, -47, "beam", color="C0", fontsize=10)
+        ax.set_xlim(-14, 14); ax.set_ylim(-55, 38)
+        ax.set_aspect("equal")
+        ax.set_xlabel("x [mm]")
+        ax.set_title(f"{lab}\n({len(x):,} absorptions)", fontsize=11)
+        ax.grid(False)
+        fig.colorbar(hb, ax=ax, shrink=0.8, label="absorptions (log)")
+    axes[0].set_ylabel("y along beam [mm]")
+    fig.suptitle("Where beam neutrons are actually absorbed in the gas "
+                 "(simulation, one job file)", fontsize=12.5)
+    fig.savefig(out / "fig_gas_absorption.pdf", bbox_inches="tight")
+    plt.close(fig)
+
+
 # ── fig 6b: where scintillator-captured neutrons end up (from one run-B file) ─
 def fig_scint_origin(out, root_file):
     import uproot
@@ -426,6 +493,7 @@ def main():
     fig_footprint(out, args.lambda2d)
     fig_ladder(d, out)
     if args.scint_events:
+        fig_gas_absorption(out, args.scint_events)
         fig_scint_origin(out, args.scint_events)
     print(f"Figures written to {out}/")
 
