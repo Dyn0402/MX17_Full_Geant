@@ -12,16 +12,13 @@
 
 \title{\vspace{-1.2cm}
   {\Large\bfseries Thermal-neutron statistics for X17 production at n\_TOF EAR2}\\[2mm]
-  {\large What $4\times10^{8}$ fully simulated neutrons say about the
+  {\large What $10^{9}$ fully simulated neutrons say about the
    sub-keV rate tables}}
 \author{Dylan Neff}
 \date{11 June 2026 \\[2mm]
   {\small\itshape Internal note --- informal. Drafted by Claude (Anthropic AI
   assistant) under D.~Neff's direction; \\ simulation, numbers and text
-  reviewed by D.~Neff.}\\[1mm]
-  {\small\color{red!60!black} PRELIMINARY: based on 40 of 100 run-B jobs
-  ($4\times10^{8}$ of $10^{9}$ neutrons); \\ remaining statistics in
-  production, no qualitative change expected.}}
+  reviewed by D.~Neff.}}
 
 \begin{document}
 \maketitle
@@ -40,23 +37,24 @@ $1.2\times10^{-2}$~IPC/pulse from neutrons below 1\,keV --- the number that
 anchored the $3.0\sigma$/30-day sensitivity projection.
 
 \subsection*{The problem}
-That table computes the radiative-capture probability as
-(target thickness)\,$\times$\,(cross-section), which silently assumes neutrons
-fly through the gas undisturbed. They do not. At thermal energy the
-competing \He{3}(n,p)t reaction gives a neutron a mean free path of
-$\sim$0.15\,mm, against 60\,mm of gas along the beam axis (on-axis optical
-depth $\sim$400): \textbf{the gas is opaque}. Every
-sub-keV neutron is absorbed regardless of the gas thickness, so the rare
-radiative branch cannot exceed its share of the total,
-$\sng/\snp = 1.0\times10^{-8}$ per absorbed neutron --- no matter how much
-gas is added. The thin-target formula overshoots this ceiling by a factor
-equal to the gas opacity: $\times$8 to $\times$200 depending on energy.
+When a sub-keV neutron is absorbed by \He{3}, two reactions compete:
+breakup, \He{3}(n,p)t ($\snp = 5333$\,b at thermal), and radiative capture
+($\sng = 54\,\mu$b). \textbf{Breakup wins about $10^{8}$ times more often,
+and it is so strong that it consumes the entire beam} --- a thermal neutron
+survives only $\sim$0.15\,mm into the 60\,mm gas column. Once every neutron
+is absorbed, the number of radiative captures is set by the competition
+alone: per beam neutron it can never exceed
+$\sng/\snp \approx 1.0\times10^{-8}$, no matter how much gas sits behind the
+entrance face. The rate table instead multiplies $\sng$ by the \emph{full}
+gas column --- counting radiative-capture opportunities in centimetres of
+gas that the (n,p) reaction never lets the neutrons reach. That overshoots
+the ceiling by a factor $\times$8 to $\times$200 depending on energy.
 
 \subsection*{What we did}
-Run~B of the Geant4 campaign fired $10^{9}$ neutrons (this draft: the first
-validated $4\times10^{8}$) at the full STEP-derived capsule geometry, with
-energies drawn from the evaluated EAR2 flux and transverse positions from the
-energy-dependent beam profile, using high-precision neutron data (G4NDL).
+Run~B of the Geant4 campaign fired $10^{9}$ neutrons at the full
+STEP-derived capsule geometry, with energies drawn from the evaluated EAR2
+flux and transverse positions from the energy-dependent beam profile, using
+high-precision neutron data (G4NDL).
 Self-shielding, scattering, beam halo and geometry are then automatic --- no
 analytic assumption. Every neutron's terminal interaction (volume, process,
 position, energy) was recorded.
@@ -66,28 +64,32 @@ position, energy) was recorded.
 \includegraphics[width=0.92\textwidth]{fig_money.pdf}
 \end{center}
 
-\noindent The full simulation (blue curve, with the four directly observed
-radiative captures as red points) lands on the opaque-gas ceiling (green) and
-confirms the rate table (orange) is too optimistic by $\times$8--200 per
-decade. Folding in the beam spectrum:
+\noindent The full simulation (blue curve, with the fifteen directly
+observed radiative captures as red points) lands on the opaque-gas ceiling
+(green) and confirms the rate table (orange) is too optimistic by
+$\times$8--200 per decade. Folding in the beam spectrum:
 
 \begin{center}
 \begin{tabular}{lcc}
 \hline
  & rate table & full simulation \\
 \hline
-radiative captures / pulse ($E_n<1$\,keV) & $5.8$ & $5.4\times10^{-2}$ \\
-IPC / pulse                               & $1.21\times10^{-2}$ & $1.14\times10^{-4}$ \\
-X17 / pulse (2.5\% assumed)               & ---                & $1.4\times10^{-3}$ \\
+radiative captures / pulse ($E_n<1$\,keV) & $5.8$ & $(0.5\text{--}1.1)\times10^{-1}$ \\
+IPC / pulse                               & $1.21\times10^{-2}$ & $(1.1\text{--}2.3)\times10^{-4}$ \\
+X17 / pulse (2.5\% assumed)               & ---                & $(1.4\text{--}2.7)\times10^{-3}$ \\
 \hline
 \end{tabular}
 \end{center}
 
-\noindent\textbf{The sub-keV statistics are a factor $\sim$106 below the
-table.} If the sensitivity projection is anchored to the sub-keV rows, the
-$3.0\sigma$/30\,d becomes $\sim$0.3$\sigma$/30\,d. The physical rate is not
-gone, however: above $\sim$100\,keV the gas really is thin and the table is
-valid there; those rows carry $\sim$98\% of the total radiative captures.
+\noindent\textbf{The sub-keV statistics are a factor 50--100 below the
+table.} (The range spans two estimators: the thermal branching-ratio floor
+gives $\times$106; the direct \He{3}(n,$\gamma$) count --- which includes
+the rise of $\sng/\snp$ toward 1\,keV, Sec.~1 --- gives
+$\times53\pm14$.) If the sensitivity projection is anchored to the sub-keV
+rows, the $3.0\sigma$/30\,d becomes $\sim$0.3--0.4$\sigma$/30\,d. The
+physical rate is not gone, however: above $\sim$100\,keV the gas really is
+thin and the table is valid there; those rows carry $\sim$98\% of the total
+radiative captures.
 The likely conclusion is that \textbf{the analysis region of interest must
 move to the 0.1--10\,MeV region}, which changes the generator kinematics and
 the gamma-flash/TOF situation --- to be discussed with Alberto (run B-full,
@@ -113,15 +115,21 @@ counting these rare radiative captures.
 \end{center}
 
 The two relevant cross-sections at thermal energy (25\,meV):
-breakup $\snp = 5333$\,b, radiative $\sng = 54\,\mu$b. Both fall as
-$1/v$ with neutron speed, so their ratio,
+breakup $\snp = 5333$\,b, radiative $\sng = 54\,\mu$b
+(Fig.~below, ENDF/B-VIII.0). At thermal their ratio is
 \begin{equation}
   \frac{\sng}{\snp} = \frac{54\times10^{-6}}{5333}
-  = 1.0\times10^{-8},
+  = 1.0\times10^{-8}.
   \label{eq:ratio}
 \end{equation}
-is essentially constant across the whole sub-keV region. Keep this number in
-mind --- it is the punchline of the entire note.
+Both cross-sections fall as $1/v$ at low energy, so the ratio is constant
+below $\sim$1\,eV and rises only gently (to $\sim$2$\times10^{-8}$) toward
+1\,keV, where $\sng$ picks up a non-$1/v$ component --- visible in the lower
+panel. Keep this number in mind: it is the punchline of the entire note.
+
+\begin{center}
+\includegraphics[width=0.78\textwidth]{fig_he3_xs.pdf}
+\end{center}
 
 \section{What the beam delivers}
 
@@ -180,6 +188,12 @@ assumed --- for the table, a factor 150 at thermal, falling to $\sim$7 at
 further, gains nothing below 1\,keV: every neutron is already absorbed, and
 the radiative branch can only ever win its fixed share.
 
+To be clear about what matters here: the point is \emph{not} where in the
+gas the absorptions happen --- it is that the (n,p) reaction destroys the
+beam before the rest of the gas can contribute. The absorption positions
+are simply the visible proof of that destruction, which is why we show
+them next.
+
 The cartoon is not an exaggeration. Below is the same picture taken from
 the simulation itself: the measured absorption positions of beam neutrons
 in the gas, drawn inside the true capsule profile. At thermal energies the
@@ -206,7 +220,7 @@ elastic scattering can bounce neutrons around; and the four detector arms
 surround the capsule transversely at 22\,cm. Geant4 with high-precision
 neutron data (G4NDL) transports every neutron through the actual
 STEP-derived geometry and lets nature take its course. The simulation
-records, for each of the $4\times10^{8}$ neutrons in this draft, where its
+records, for each of the $10^{9}$ neutrons of run~B, where its
 track ended, by which process, and at what energy --- so the capture
 accounting is exact, including all geometry and transport effects.
 
@@ -232,31 +246,33 @@ exactly what the absorption-depth distribution shows:
 \end{center}
 
 \noindent Below 0.1\,eV the absorption depth is a sliver at the entrance; by
-0.1--1\,keV it spreads through the column. The four directly observed
-radiative captures (dashed lines) follow the same pattern: the two thermal
-ones sit within a millimetre of the entrance window, the two at
-$\sim$500\,eV are distributed through the gas.
+0.1--1\,keV it spreads through the column. The fifteen directly observed
+radiative captures follow the same pattern: the eleven below 100\,eV all
+sit within a few millimetres of the entrance window, while the four in the
+0.1--1\,keV decade are distributed through the gas
+(full list in Appendix~B).
 
 \subsection{The rate, measured three ways}
 The headline figure (Part I) compares, per energy decade:
 \begin{enumerate}
-  \item \textbf{Direct counts}: four \He{3}(n,$\gamma$) events in
-        $4\times10^{8}$ neutrons $\Rightarrow$
-        $(1.0^{+0.8}_{-0.5})\times10^{-8}$ per beam neutron.
-  \item \textbf{High-statistics proxy}: $2.94\times10^{8}$ observed (n,p)t
-        absorptions multiplied by the branching ratio of
-        Eq.~\eqref{eq:ratio} --- statistically exact in the opaque regime,
-        since every absorbed neutron had the same $10^{-8}$ chance of taking
-        the radiative exit instead.
+  \item \textbf{Direct counts}: fifteen \He{3}(n,$\gamma$) events in
+        $10^{9}$ neutrons $\Rightarrow$
+        $(1.5\pm0.4)\times10^{-8}$ per beam neutron.
+  \item \textbf{Branching-ratio floor}: $7.36\times10^{8}$ observed (n,p)t
+        absorptions multiplied by the \emph{thermal} branching ratio of
+        Eq.~\eqref{eq:ratio} --- exact below $\sim$1\,eV where the ratio is
+        flat, a mild underestimate above (the ratio roughly doubles by
+        1\,keV; Sec.~1).
   \item \textbf{The analytic ceiling}: Eq.~\eqref{eq:cap} times the beam.
 \end{enumerate}
-All three agree. The rate table exceeds them by $\times$207 (thermal decade)
-down to $\times$8 (100\,eV--1\,keV); the row-by-row comparison is in
-Appendix~A. As a by-product the agreement of (1) and (2) confirms that the
-G4NDL nuclear data contain the radiative branch at the right strength ---
-the ratio test gives
-$N_{n\gamma}/N_{np} = 1.4^{+1.1}_{-0.7}\times10^{-8}$ against the expected
-$1.0\times10^{-8}$.
+All three agree within the expected energy dependence; the rate table
+exceeds them by $\times$200 (thermal decade) down to $\times$2--8
+(100\,eV--1\,keV); the row-by-row comparison is in Appendix~A. As a
+by-product, the direct counts test the G4NDL nuclear data: the overall
+ratio $N_{n\gamma}/N_{np} = (2.0\pm0.5)\times10^{-8}$, with the thermal
+events alone consistent with $1.0\times10^{-8}$ and the eV--keV events
+sitting at the elevated ENDF ratio, exactly as the cross-section figure
+predicts.
 
 \subsection{From captures to X17 per pulse}
 \begin{center}
@@ -313,11 +329,11 @@ four-arm cross pattern around the capsule.
 \section{What this means for the experiment}
 
 \begin{itemize}
-  \item \textbf{Sub-keV ROI}: $1.1\times10^{-4}$ IPC/pulse and
-        $1.4\times10^{-3}$ X17/pulse (at the assumed 2.5\%) --- a factor
-        $\sim$106 below the table. A thermal-only analysis cannot reach
-        the projected significance; scaled naively, $3.0\sigma \to
-        0.3\sigma$ over 30 days.
+  \item \textbf{Sub-keV ROI}: $(1.1\text{--}2.3)\times10^{-4}$ IPC/pulse
+        and $(1.4\text{--}2.7)\times10^{-3}$ X17/pulse (at the assumed
+        2.5\%) --- a factor 50--100 below the table. A thermal-only
+        analysis cannot reach the projected significance; scaled naively,
+        $3.0\sigma \to 0.3\text{--}0.4\sigma$ over 30 days.
   \item \textbf{The MeV region}: above $\sim$100\,keV the gas opacity drops
         below 5\% and the thin-target rows of the table become valid; they
         carry $\sim$98\% of all radiative captures. The commented-out
@@ -335,12 +351,8 @@ four-arm cross pattern around the capsule.
 
 \section*{Caveats}
 \begin{itemize}
-  \item Statistics: this draft uses 40 of 100 run-B jobs; the remaining
-        60 are in production (quota-related corruption, resubmitted).
-        All conclusions rest on the $2.9\times10^{8}$-event (n,p) sample
-        and are insensitive to the final factor 2.5.
-  \item The G4NDL \He{3}(n,$\gamma$) strength is validated here only at the
-        $\sim$50\% level (4 events); the branching-ratio argument does not
+  \item The G4NDL \He{3}(n,$\gamma$) strength is validated here at the
+        $\sim$25\% level (15 events); the branching-ratio argument does not
         depend on it.
   \item Room-return neutrons and upstream beamline structures are not in
         the simulation; they affect backgrounds, not the signal-rate
@@ -358,53 +370,67 @@ four-arm cross pattern around the capsule.
 Radiative captures per \emph{beam} neutron, per energy decade. ``Table''
 reproduces \texttt{results\_3He} (thin-target); ``ceiling'' is
 Eq.~\eqref{eq:cap} corrected for the (n,p) opacity within the decade;
-``simulation'' is the (n,p)$\times$BR measurement from $4\times10^{8}$
-neutrons (statistical errors negligible); ``direct'' are the raw
-\He{3}(n,$\gamma$) counts.
+``floor'' is the (n,p)$\times$thermal-BR measurement from $10^{9}$
+neutrons (statistical errors negligible, but an underestimate above
+$\sim$1\,eV where the ENDF ratio rises); ``direct'' are the raw
+\He{3}(n,$\gamma$) measurements (Poisson errors).
 
 \begin{center}
-\begin{tabular}{lccccc}
+\begin{tabular}{lcccccc}
 \hline
-$E_n$ range & table & simulation & table/sim & ceiling & direct counts \\
+$E_n$ range & table & floor & direct & table/floor & table/direct & ceiling \\
 \hline
-1--10\,meV      & ---                 & $6.9\times10^{-9}$ & ---  & ---                & 0 \\
-10--100\,meV    & $1.41\times10^{-6}$ & $6.8\times10^{-9}$ & 207  & $1.01\times10^{-8}$ & 2 \\
-0.1--1\,eV      & $5.71\times10^{-7}$ & $7.7\times10^{-9}$ & 74   & $1.01\times10^{-8}$ & 0 \\
-1--10\,eV       & $1.68\times10^{-7}$ & $8.2\times10^{-9}$ & 21   & $1.01\times10^{-8}$ & 0 \\
-10--100\,eV     & $6.69\times10^{-8}$ & $8.1\times10^{-9}$ & 8.3  & $1.00\times10^{-8}$ & 0 \\
-0.1--1\,keV     & $5.90\times10^{-8}$ & $7.5\times10^{-9}$ & 7.9  & $7.9\times10^{-9}$  & 2 \\
+1--10\,meV   & ---                 & $6.9\times10^{-9}$ & 0 obs.              & ---  & --- & --- \\
+10--100\,meV & $1.41\times10^{-6}$ & $6.8\times10^{-9}$ & $1.1\times10^{-8}$ (4) & 207 & 126 & $1.01\times10^{-8}$ \\
+0.1--1\,eV   & $5.71\times10^{-7}$ & $7.7\times10^{-9}$ & $5.8\times10^{-9}$ (1) & 74  & 99  & $1.01\times10^{-8}$ \\
+1--10\,eV    & $1.68\times10^{-7}$ & $8.2\times10^{-9}$ & $2.2\times10^{-8}$ (3) & 21  & 7.5 & $1.01\times10^{-8}$ \\
+10--100\,eV  & $6.69\times10^{-8}$ & $8.1\times10^{-9}$ & $2.0\times10^{-8}$ (3) & 8.3 & 3.4 & $1.00\times10^{-8}$ \\
+0.1--1\,keV  & $5.90\times10^{-8}$ & $7.5\times10^{-9}$ & $2.4\times10^{-8}$ (4) & 7.9 & 2.5 & $7.9\times10^{-9}$ \\
 \hline
 \end{tabular}
 \end{center}
 
-\noindent The simulation sits 20--30\% \emph{below} the ceiling because the
+\noindent The floor sits 20--30\% \emph{below} the ceiling because the
 ceiling assumes every beam neutron is absorbed in the gas, while in reality
-67--81\% are (footprint tail and window transmission) --- visible in the
-(n,p) column of the per-decade scan output. Flux-weighted over the full
-sub-keV window the table gives $1.21\times10^{-2}$ IPC/pulse against the
-simulation's $1.14\times10^{-4}$: \textbf{factor 106}.
+67--81\% are (footprint tail and window transmission). The direct
+measurements exceed the floor above 1\,eV by the rising ENDF
+$\sng/\snp$ ratio (cross-section figure, Sec.~1) --- the table/direct
+factors at the top of the window are correspondingly milder. Flux-weighted
+over the full sub-keV window the table gives $1.21\times10^{-2}$ IPC/pulse
+against the simulation's $1.1\times10^{-4}$ (floor) to
+$2.3\times10^{-4}$ (direct): \textbf{factor 50--100}.
 
-\section{The four direct events, and provenance}
+\section{The fifteen direct events, and provenance}
 
 \begin{center}
-\begin{tabular}{cc}
+\begin{tabular}{cc|cc}
 \hline
-$E_n$ & absorption depth along beam axis \\
+$E_n$ & depth along beam & $E_n$ & depth along beam \\
 \hline
-12.4\,meV & $-29.2$\,mm (at the entrance face) \\
-13.5\,meV & $-29.3$\,mm (at the entrance face) \\
-478\,eV   & $+4.9$\,mm (mid-column) \\
-519\,eV   & $-22.9$\,mm \\
+12.4\,meV & $-29.2$\,mm & 8.11\,eV  & $-29.6$\,mm \\
+13.5\,meV & $-29.3$\,mm & 15.7\,eV  & $-28.8$\,mm \\
+41.9\,meV & $-29.3$\,mm & 17.3\,eV  & $-21.5$\,mm \\
+64.4\,meV & $-29.2$\,mm & 80.9\,eV  & $-26.1$\,mm \\
+0.735\,eV & $-28.3$\,mm & 479\,eV   & $+4.9$\,mm  \\
+3.27\,eV  & $-28.6$\,mm & 498\,eV   & $-14.4$\,mm \\
+4.14\,eV  & $-23.3$\,mm & 519\,eV   & $-22.9$\,mm \\
+          &             & 897\,eV   & $-8.7$\,mm  \\
 \hline
 \end{tabular}
 \end{center}
 
-\noindent Data: run B sub-keV, 40 validated jobs
-($4\times10^{8}$ neutrons), \\
+\noindent The gas entrance face is at $-30$\,mm: every event below
+100\,eV is absorbed within the first few millimetres; only the
+0.1--1\,keV events reach the interior.
+
+\medskip
+\noindent Data: run B sub-keV, 100 validated jobs
+($10^{9}$ neutrons), \\
 \texttt{/eos/experiment/ntof/data/x17/full\_sim/neutrons\_subkev/}. \\
 Scan: \texttt{scripts/analyze\_thermal\_captures.py} $\to$
-\texttt{thermal\_captures\_subkev\_prelim.npz/json}. \\
-Figures: \texttt{scripts/make\_thermal\_report\_figures.py}.
+\texttt{thermal\_captures\_subkev\_full.npz/json}. \\
+Figures: \texttt{scripts/make\_thermal\_report\_figures.py},
+\texttt{scripts/plot\_he3\_xs.py} (ENDF/B-VIII.0 via \texttt{data/He3.h5}).
 Repository: \texttt{MX17\_Full\_Geant}, branch \texttt{main}.
 
 \end{document}

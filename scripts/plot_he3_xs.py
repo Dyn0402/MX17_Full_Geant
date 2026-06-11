@@ -1,17 +1,30 @@
-"""Plot 3He(n,p)3H and 3He(n,g)4He cross sections + ratio from ENDF/B-VIII.0."""
+"""Plot 3He(n,p)3H and 3He(n,g)4He cross sections + ratio from ENDF/B-VIII.0.
+
+Default output: ../output/he3_cross_sections.png (standalone use).
+Pass an output path to write elsewhere (e.g. the report figs dir):
+    python3 scripts/plot_he3_xs.py docs/report/figs/fig_he3_xs.pdf
+"""
+import os
+import sys
+
 import h5py
 import numpy as np
+import matplotlib
+matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 # --- Global parameters ---
-H5_FILE = "/tmp/He3.h5"      # ENDF/B-VIII.0 (OpenMC/NNDC HDF5)
+_HERE = os.path.dirname(os.path.abspath(__file__))
+H5_FILE = os.path.join(_HERE, "../data/He3.h5")  # ENDF/B-VIII.0 (OpenMC/NNDC HDF5)
 TEMP = "294K"                  # use 0K grid (room temperature)
 E_MIN, E_MAX = 1e-9, 10.0    # MeV
 E_THERMAL = 2.53e-8          # MeV
-OUT = "/mnt/user-data/outputs/he3_cross_sections.png"
+OUT = os.path.join(_HERE, "../output/he3_cross_sections.png")
 
 
 def main():
+    out = sys.argv[1] if len(sys.argv) > 1 else OUT
+    os.makedirs(os.path.dirname(out), exist_ok=True)
     E, xs_np = load_xs("reaction_103")   # (n,p)
     E2, xs_ng = load_xs("reaction_102")  # (n,gamma)
 
@@ -28,8 +41,8 @@ def main():
     print(f"                     ratio (n,g)/(n,p) = {s_ng_th/s_np_th:.2e}")
 
     fig, (ax1, ax2) = plt.subplots(
-        2, 1, figsize=(9, 9), sharex=True,
-        gridspec_kw={"height_ratios": [2, 1], "hspace": 0.07})
+        2, 1, figsize=(8.5, 7.5), sharex=True,
+        gridspec_kw={"height_ratios": [1.8, 1], "hspace": 0.07})
 
     ax1.loglog(Eg, np_i, color="#1f77b4", lw=2,
                label=r"$^3$He(n,p)$^3$H  (MT=103)")
@@ -56,8 +69,13 @@ def main():
     ax2.grid(True, which="both", alpha=0.3)
     ax2.set_xlim(E_MIN, E_MAX)
 
-    fig.savefig(OUT, dpi=150, bbox_inches="tight")
-    print(f"saved {OUT}")
+    # Shade the sub-keV analysis window on both panels
+    for ax in (ax1, ax2):
+        ax.axvspan(1e-9, 1e-3, color="0.85", alpha=0.45, zorder=0)
+    ax2.text(2e-7, 2.5e-8, "sub-keV window", fontsize=8.5, color="0.35")
+
+    fig.savefig(out, dpi=150, bbox_inches="tight")
+    print(f"saved {out}")
 
 
 def load_xs(rx):

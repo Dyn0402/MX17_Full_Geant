@@ -156,7 +156,7 @@ def fig_opaque(out):
         ax.plot([x], [-20 - 10 * np.sqrt(1 - (x / 10) ** 2) + 1.5], marker="*",
                 ms=12, color="#7a1f12", zorder=6)
     ax.annotate("neutrons never reach\nthe rest of the gas",
-                xy=(-3, 0), xytext=(-43, 8), fontsize=9, ha="left",
+                xy=(-3, 0), xytext=(-65, 8), fontsize=9, ha="left",
                 va="center",
                 arrowprops=dict(arrowstyle="->", color="0.3", lw=1.1,
                                 shrinkB=4))
@@ -208,8 +208,8 @@ def fig_money(d, out):
     fig, ax = plt.subplots(figsize=(9, 6.3))
     ax.step(dec_edges, np.append(np_dec, np_dec[-1]) * SIGMA_RATIO * w,
             where="post", color="C0", lw=2.2,
-            label="full simulation: (n,p)t counts $\\times\\ "
-                  "\\sigma_{n\\gamma}/\\sigma_{np}$")
+            label="full simulation: (n,p)t counts $\\times$ thermal "
+                  "$\\sigma_{n\\gamma}/\\sigma_{np}$ (floor)")
     for i in range(6):
         n = rad_dec[i]
         if n > 0:
@@ -247,11 +247,13 @@ def fig_money(d, out):
     ax.set_xscale("log"); ax.set_yscale("log")
     ax.set_xlabel("neutron energy [eV]")
     ax.set_ylabel("$^3$He(n,$\\gamma$)$^4$He per pulse per energy decade")
-    tot = np_dec.sum() * SIGMA_RATIO * w
+    tot_floor  = np_dec.sum() * SIGMA_RATIO * w
+    tot_direct = rad_dec.sum() * w
     ax.set_title("X17-production captures per pulse, sub-keV region\n"
-                 f"simulation total: {tot:.1e} /pulse  "
-                 f"($\\to$ {tot*2.1e-3:.1e} IPC/pulse;  "
-                 "table: 1.2$\\times$10$^{-2}$ IPC/pulse)")
+                 f"simulation total: {tot_floor:.1e} (floor) – "
+                 f"{tot_direct:.1e} (direct) /pulse  "
+                 f"($\\to$ {tot_floor*2.1e-3:.1e}–{tot_direct*2.1e-3:.1e} "
+                 "IPC/pulse;  table: 1.2$\\times$10$^{-2}$)")
     ax.legend(fontsize=9, loc="upper right")
     fig.savefig(out / "fig_money.pdf", bbox_inches="tight")
     plt.close(fig)
@@ -274,7 +276,7 @@ def fig_depth(d, out):
         for E, y in rad:
             ax.axvline(y, color="#c23b22", alpha=0.6, lw=1.2, ls="--")
         ax.plot([], [], color="#c23b22", ls="--",
-                label="the 4 direct (n,$\\gamma$) events")
+                label=f"the {len(rad)} direct (n,$\\gamma$) events")
     ax.set_xlabel("where along the beam axis the neutron was absorbed [mm]\n"
                   "(beam enters from the left)")
     ax.set_ylabel("probability density [mm$^{-1}$]")
