@@ -103,6 +103,15 @@ def resolve_files(inputs, max_files):
 
 # ── Per-file scan (runs in worker process) ────────────────────────────────────
 def scan_file(args):
+    try:
+        return {"ok": True, "acc": _scan_file_impl(args)}
+    except Exception as e:
+        print(f"[SKIP] {Path(args[0]).name}: {e.__class__.__name__}: "
+              f"{str(e)[:80]}", flush=True)
+        return {"ok": False, "path": args[0], "err": str(e)[:200]}
+
+
+def _scan_file_impl(args):
     path, step_size = args
     acc = {
         "n_events": 0,
@@ -287,6 +296,7 @@ def save_results(acc, args):
         "decades": decade_table(acc, w),
         "budget": {f"{v}|{p}": int(c) for (v, p), c in
                    acc["budget"].most_common()},
+        "skipped_files": acc.get("skipped_files", []),
     }
     with open(args.output + ".json", "w") as jf:
         json.dump(summary, jf, indent=1)
@@ -413,10 +423,19 @@ def main():
     work = [(f, args.step_size) for f in files]
     if args.workers > 1:
         with Pool(args.workers) as pool:
-            accs = pool.map(scan_file, work)
+            results = pool.map(scan_file, work)
     else:
-        accs = [scan_file(wk) for wk in work]
+        results = [scan_file(wk) for wk in work]
+    accs    = [r["acc"] for r in results if r["ok"]]
+    skipped = [(r["path"], r["err"]) for r in results if not r["ok"]]
+    if skipped:
+        print(f"\nWARNING: skipped {len(skipped)}/{len(files)} unreadable files:")
+        for p, err in skipped:
+            print(f"  {Path(p).name}")
+    if not accs:
+        print("ERROR: no readable files"); sys.exit(1)
     acc = merge_accs(accs)
+    acc["skipped_files"] = [Path(p).name for p, _ in skipped]
 
     print_summary(acc, args)
     save_results(acc, args)
