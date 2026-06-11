@@ -1,62 +1,47 @@
 # MX17 simulation campaign — status & next steps
 
-**Updated:** 2026-06-11 (morning) · companion docs:
+**Updated:** 2026-06-11 (afternoon) · companion docs:
 [PLAN_NEUTRON_CAMPAIGN.md](PLAN_NEUTRON_CAMPAIGN.md) ·
-[docs/he3_self_shielding_note.md](docs/he3_self_shielding_note.md)
+[docs/he3_self_shielding_note.md](docs/he3_self_shielding_note.md) ·
+[docs/report/thermal_note.pdf](docs/report/thermal_note.pdf)
 
 ---
 
-## Current state (2026-06-11 ~11:15 CERN)
+## Headline result (2026-06-11): thermal statistics confirmed dead
 
-### All 300 original jobs completed overnight
+First physics from run B (40 validated jobs, 4×10⁸ neutrons,
+`scripts/analyze_thermal_captures.py`): the sub-keV ³He(n,γ) rate is
+**7–8×10⁻⁹ per beam neutron, flat across all decades** — at the self-shielding
+cap, ×8–207 below the thin-target table rows. Four direct (n,γ) events
+observed (two thermal at the gas entrance face, two at ~500 eV mid-column —
+textbook self-shielding). Integrated: **1.14×10⁻⁴ IPC/pulse vs the table's
+1.21×10⁻², factor ×106**. Sub-keV-anchored sensitivity scales 3.0σ → ~0.3σ.
+The MeV region (thin-target valid, ~98 % of the rate) is the likely ROI.
+Full write-up: [docs/report/thermal_note.pdf](docs/report/thermal_note.pdf)
+(internal note, preliminary 40/100 jobs).
 
-| Batch | Files landed | Total size | Notes |
+## Quota corruption post-mortem (worse than first thought)
+
+The overnight quota exhaustion didn't just kill 4 jobs — every job that hit
+the full personal-EOS quota **mid-write** produced a GB-sized ROOT file with
+no key directory (`TBranch::WriteBasketImpl: WriteBuffer failed` in .err,
+unreadable by uproot/ROOT). Validation (`EventTree.num_entries` check on all
+files): **60/100 subkev, 14/100 fullrange (+2 pending first retries),
+4/100 pairs corrupt**. All 78 resubmitted ~12:30 (clusters
+16249004/5/6, original seeds, writing directly to ntof EOS).
+**Lesson: validate every output file's tree readability after any campaign;
+`ls`-level checks and byte counts are not enough.**
+
+## Current state
+
+| Batch | Validated good | In production | Output (ntof EOS) |
 |---|---|---|---|
-| Run B — sub-keV neutrons | **100 / 100** | 188 GB | Complete |
-| Run B-full — full-range neutrons | **98 / 100** | 126 GB | jobs 076, 083 missing |
-| Run A — X17+IPC pairs, new STEP geometry | **98 / 100** | 215 GB | jobs 030, 078 missing |
+| Run B — sub-keV neutrons | 40 / 100 | 60 retries | `neutrons_subkev/` |
+| Run B-full — full-range | 84 / 100 | 14 retries (+2 first-round) | `neutrons_fullrange/` |
+| Run A — pairs, STEP geometry | 96 / 100 | 4 retries | `pairs_v2_step_target/` |
 
-The 4 missing files all failed with **disk quota exceeded** on the personal EOS area — the
-simulation ran to completion (5M / 100k events written) but the output ROOT file could
-not be opened.  No partial files exist; re-running is clean.
-
----
-
-## In progress right now
-
-### 1. EOS migration (background copy running on lxplus)
-
-Output has been relocated from the personal user area to the shared n_TOF experiment space:
-
-```
-OLD: /eos/user/d/dneff/mx17_geant_sim_results/{neutrons_subkev,neutrons_fullrange,pairs_v2_step_target}/
-NEW: /eos/experiment/ntof/data/x17/full_sim/{neutrons_subkev,neutrons_fullrange,pairs_v2_step_target}/
-```
-
-`submit_neutrons.py` and `submit_pairs.py` defaults updated to the new path and pushed.
-The copy is running as a `nohup` process on lxplus; log at
-`/afs/cern.ch/user/d/dneff/eos_copy.log` (~530 GB total; may take an hour or more).
-
-**After the copy completes:**
-```bash
-# verify counts
-ls /eos/experiment/ntof/data/x17/full_sim/neutrons_subkev/ | wc -l   # expect 100
-ls /eos/experiment/ntof/data/x17/full_sim/neutrons_fullrange/ | wc -l # expect 98
-ls /eos/experiment/ntof/data/x17/full_sim/pairs_v2_step_target/ | wc -l # expect 98
-# then remove originals to free ~530 GB of personal quota
-rm -r /eos/user/d/dneff/mx17_geant_sim_results/{neutrons_subkev,neutrons_fullrange,pairs_v2_step_target}
-```
-
-### 2. Four retry jobs in Condor queue (writing directly to ntof EOS)
-
-| Condor cluster | Jobs | Batch | Seeds |
-|---|---|---|---|
-| 16248995 | 076, 083 | neutrons_fullrange | 1850501473, 1420052173 |
-| 16248996 | 030, 078 | pairs_v2_step_target | 1170252924, 1239854304 |
-
-Submit files: `/afs/cern.ch/user/d/dneff/condor/mx17_{neutrons_fullrange,pairs_v2}_retry/`
-These write directly to the new ntof path, so nothing more to do when they finish.
-Monitor with `condor_q dneff`.
+EOS migration complete: all data at `/eos/experiment/ntof/data/x17/full_sim/`,
+originals deleted from personal EOS (~530 GB freed; usage 1.1 TB → 585 GB).
 
 ---
 
@@ -126,17 +111,15 @@ Serial/parallel detector-plane inconsistency in `MX17_Simulator.py` fixed
 
 ---
 
-## Next steps (once copy + retries finish)
+## Next steps (once retries finish)
 
-1. **Verify & clean up**: check copy log, confirm file counts on ntof EOS, then
-   `rm -r` the originals from `/eos/user/d/dneff/mx17_geant_sim_results/`.
+1. **Validate all 300 files** (tree readability + entry counts), then rerun
+   `analyze_thermal_captures.py` on the full 10⁹ and refresh the numbers +
+   figures in `docs/report/thermal_note.tex` (drop the PRELIMINARY banner).
 
-2. **Capture budget** (`analyze_neutrons.py`) — first physics deliverable of run B:
-   - Extract `capture_vol` + `capture_proc` + `neutron_E_eV` from run B sub-keV output.
-   - Bin by volume (He3 gas, Al vessel, LS/PVT, CFRP, world escape) and energy decade.
-   - Compare Al capture rate to analytic toy (~1.2×10⁻⁴/n expected) and smoke-test value (7.6×10⁻³/n).
-   - Cross-check He3 (n,p)t rate vs Alberto's self-shielding-corrected table.
-   - Flag the LS/PVT H-capture channel (2.22 MeV γ inside calorimeter) — quantify per detector.
+2. **Capture budget done in the thermal scan** — Al 8.0×10⁻³/n (~60× toy),
+   LS H-capture 1.2×10⁻² /n (largest non-gas channel). Remaining: per-detector
+   breakdown and the run B-full MeV-region budget for the ROI decision.
 
 3. **Run C** (biased wall-background statistics):
    ```bash
