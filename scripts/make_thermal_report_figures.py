@@ -65,8 +65,9 @@ def fig_reaction(out):
 
     box(0.4, 4.4, 3.8, 1.5, "proton + triton\n(heat in the gas, no photon)",
         fc="#fbeee6")
-    arrow(6.6, 7.6, 3.0, 5.9,
-          "almost always\n($\\sigma$ = 5333 b at 25 meV)", dx=0.25)
+    arrow(6.6, 7.6, 3.0, 5.9)
+    ax.text(3.6, 6.9, "almost always\n($\\sigma$ = 5333 b at 25 meV)",
+            fontsize=9.5, ha="right")
 
     box(5.8, 4.4, 3.8, 1.5,
         "$^4$He + 20.6 MeV de-excitation\n(the only path to X17)",
@@ -103,9 +104,9 @@ def fig_opaque(out):
     for y in (3.0, 5.0, 7.0):
         ax.add_patch(FancyArrowPatch((0.5, y), (9.5, y), arrowstyle="-|>",
                                      mutation_scale=14, color="C0", lw=1.6))
-    ax.text(5.0, 0.5, "every neutron samples the whole column:\n"
-            "P(rare capture) = (atoms/cm$^2$) $\\times\\ \\sigma_{n\\gamma}$"
-            "  — grows with thickness", ha="center", fontsize=9.5)
+    ax.text(5.0, 0.55, "every neutron samples the whole column:\n"
+            "P(rare) = (atoms/cm$^2$) $\\times\\ \\sigma_{n\\gamma}$\n"
+            "grows with thickness", ha="center", fontsize=9)
 
     ax = axes[1]
     ax.set_title("The reality below 1 keV: gas is opaque\n"
@@ -115,12 +116,12 @@ def fig_opaque(out):
         ax.add_patch(FancyArrowPatch((0.5, y), (3.25, y), arrowstyle="-|>",
                                      mutation_scale=14, color="C0", lw=1.6))
         ax.plot([3.28], [y], marker="*", ms=13, color="#c23b22", zorder=5)
-    ax.text(5.6, 5.0, "neutrons never\nreach the back\nof the gas",
-            ha="center", fontsize=10)
-    ax.text(5.0, 0.5, "every neutron is absorbed regardless; the rare branch\n"
-            "can only win its share:  P(rare) $\\to\\ \\sigma_{n\\gamma}/"
-            "\\sigma_{np} = 1.0\\times10^{-8}$  — thickness-independent",
+    ax.text(5.2, 5.0, "neutrons never\nreach the back\nof the gas",
             ha="center", fontsize=9.5)
+    ax.text(5.0, 0.55, "every neutron is absorbed regardless;\n"
+            "P(rare) $\\to\\ \\sigma_{n\\gamma}/\\sigma_{np} = "
+            "1.0\\times10^{-8}$\nthickness-independent",
+            ha="center", fontsize=9)
 
     fig.savefig(out / "fig_opaque_cartoon.pdf", bbox_inches="tight")
     plt.close(fig)
@@ -182,23 +183,24 @@ def fig_money(d, out):
     ax.errorbar([], [], fmt="o", color="C3", ms=9, capsize=5,
                 label="full simulation: direct $^3$He(n,$\\gamma$) counts")
 
-    tt_x, tt_y, cp_y = [], [], []
+    tt_x, tt_y, cp_y, sim_y = [], [], [], []
     for i, elo in enumerate(10.0 ** np.arange(-3.0, 3.0)):
         for key in ALBERTO:
             if abs(np.log10(key / elo)) < 0.05:
                 tt_x.append(dec_cent[i])
                 tt_y.append(ALBERTO[key] * beam_dec[i] * w)
                 cp_y.append(CAP[key] * beam_dec[i] * w)
+                sim_y.append(np_dec[i] * SIGMA_RATIO * w)
     ax.plot(tt_x, tt_y, "s--", color="C1", ms=8,
             label="thin-target rate table (transparent-gas assumption)")
     ax.plot(tt_x, cp_y, "^:", color="C2", ms=8,
             label="opaque-gas ceiling $\\sigma_{n\\gamma}/\\sigma_{np}$ "
                   "$\\times$ beam")
-    # factor annotations
-    for x, ty, cy in zip(tt_x, tt_y, cp_y):
-        ax.annotate(f"$\\times${ty/cy:.0f}", xy=(x, np.sqrt(ty * cy)),
+    # table / simulation overshoot factors (match Appendix A)
+    for x, ty, sy in zip(tt_x, tt_y, sim_y):
+        ax.annotate(f"$\\times${ty/sy:.0f}", xy=(x, np.sqrt(ty * sy)),
                     fontsize=9, color="0.35", ha="left",
-                    xytext=(x * 1.25, np.sqrt(ty * cy)))
+                    xytext=(x * 1.25, np.sqrt(ty * sy)))
 
     ax.set_xscale("log"); ax.set_yscale("log")
     ax.set_xlabel("neutron energy [eV]")
@@ -306,8 +308,8 @@ def fig_ladder(d, out):
         ("X17 (assumed 2.5%)",
          f"$\\times\\ 0.025$  $\\to$  {rad_pp*0.025:.1e} /pulse", "#fff3cc"),
     ]
-    fig, ax = plt.subplots(figsize=(7.2, 6.4))
-    ax.axis("off"); ax.set_xlim(0, 10); ax.set_ylim(0, 10.4)
+    fig, ax = plt.subplots(figsize=(7.2, 6.6))
+    ax.axis("off"); ax.set_xlim(0, 10); ax.set_ylim(-0.5, 10.4)
     y = 9.0
     for title, val, fc in steps:
         ax.add_patch(FancyBboxPatch((1.2, y - 0.65), 7.6, 1.3,
