@@ -1,0 +1,237 @@
+{
+ "n_events": 1000000000,
+ "n_per_pulse": 7310000.0,
+ "weight_per_neutron": 0.00731,
+ "n_gas_np": 735684813,
+ "n_gas_rad": 15,
+ "rad_events": [
+  [
+   80.86536542072152,
+   -26.06656211883909
+  ],
+  [
+   3.2697198820807114,
+   -28.55437588354835
+  ],
+  [
+   519.1024827750769,
+   -22.897553866660623
+  ],
+  [
+   4.138119204746662,
+   -23.272871452759816
+  ],
+  [
+   0.04191338652831528,
+   -29.315733607218316
+  ],
+  [
+   17.263041945439884,
+   -21.533223583784064
+  ],
+  [
+   15.67670166794635,
+   -28.806326945872318
+  ],
+  [
+   0.012415034095510646,
+   -29.153056467891968
+  ],
+  [
+   0.7347174044517643,
+   -28.248290822753525
+  ],
+  [
+   896.6937259335606,
+   -8.654194925949465
+  ],
+  [
+   8.10492897883744,
+   -29.567225413866474
+  ],
+  [
+   0.06439132824850069,
+   -29.219808486711823
+  ],
+  [
+   478.52471539965853,
+   4.909070170631761
+  ],
+  [
+   0.013464820401659508,
+   -29.31523461678276
+  ],
+  [
+   497.8227386992021,
+   -14.398581042221934
+  ]
+ ],
+ "ratio_ng_np": 2.038916630456527e-08,
+ "sigma_ratio_expected": 1.0125632852053253e-08,
+ "rad_per_pulse_npxbr": 0.054454195215379704,
+ "ipc_per_pulse": 0.00011435380995229738,
+ "x17_per_pulse": 0.0013613548803844927,
+ "decades": [
+  {
+   "E_lo_eV": 0.001,
+   "E_hi_eV": 0.01,
+   "n_beam_sim": 15678357,
+   "n_np_sim": 10753681,
+   "n_rad_sim": 0,
+   "beam_per_pulse": 114608.78967,
+   "np_per_pulse": 78609.40810999999,
+   "rad_per_pulse_direct": 0.0,
+   "rad_per_pulse_npxbr": 0.0007959700052390774,
+   "rad_per_n_direct": 0.0,
+   "rad_per_n_npxbr": 6.945104363556773e-09,
+   "thin_target_per_n": null,
+   "cap_per_n": null
+  },
+  {
+   "E_lo_eV": 0.01,
+   "E_hi_eV": 0.1,
+   "n_beam_sim": 356558835,
+   "n_np_sim": 239754077,
+   "n_rad_sim": 4,
+   "beam_per_pulse": 2606445.08385,
+   "np_per_pulse": 1752602.30287,
+   "rad_per_pulse_direct": 0.02924,
+   "rad_per_pulse_npxbr": 0.017746207454524657,
+   "rad_per_n_direct": 1.1218344933172109e-08,
+   "rad_per_n_npxbr": 6.808586746938707e-09,
+   "thin_target_per_n": 1.41e-06,
+   "cap_per_n": 1.01e-08
+  },
+  {
+   "E_lo_eV": 0.1,
+   "E_hi_eV": 1.0,
+   "n_beam_sim": 173187889,
+   "n_np_sim": 131251076,
+   "n_rad_sim": 1,
+   "beam_per_pulse": 1266003.46859,
+   "np_per_pulse": 959445.36556,
+   "rad_per_pulse_direct": 0.00731,
+   "rad_per_pulse_npxbr": 0.00971499151326458,
+   "rad_per_n_direct": 5.774075807344704e-09,
+   "rad_per_n_npxbr": 7.67374794326951e-09,
+   "thin_target_per_n": 5.71e-07,
+   "cap_per_n": 1.01e-08
+  },
+  {
+   "E_lo_eV": 1.0,
+   "E_hi_eV": 10.0,
+   "n_beam_sim": 134510180,
+   "n_np_sim": 108478290,
+   "n_rad_sim": 3,
+   "beam_per_pulse": 983269.4158,
+   "np_per_pulse": 792976.2999,
+   "rad_per_pulse_direct": 0.021929999999999998,
+   "rad_per_pulse_npxbr": 0.008029386873167073,
+   "rad_per_n_direct": 2.2303144639312802e-08,
+   "rad_per_n_npxbr": 8.166008973882571e-09,
+   "thin_target_per_n": 1.68e-07,
+   "cap_per_n": 1.01e-08
+  },
+  {
+   "E_lo_eV": 10.0,
+   "E_hi_eV": 100.0,
+   "n_beam_sim": 151551547,
+   "n_np_sim": 121285481,
+   "n_rad_sim": 3,
+   "beam_per_pulse": 1107841.8085699999,
+   "np_per_pulse": 886596.86611,
+   "rad_per_pulse_direct": 0.021929999999999998,
+   "rad_per_pulse_npxbr": 0.008977354354010874,
+   "rad_per_n_direct": 1.9795244980244245e-08,
+   "rad_per_n_npxbr": 8.103462321573534e-09,
+   "thin_target_per_n": 6.69e-08,
+   "cap_per_n": 1e-08
+  },
+  {
+   "E_lo_eV": 100.0,
+   "E_hi_eV": 1000.0,
+   "n_beam_sim": 168513192,
+   "n_np_sim": 124162208,
+   "n_rad_sim": 4,
+   "beam_per_pulse": 1231831.43352,
+   "np_per_pulse": 907625.7404799999,
+   "rad_per_pulse_direct": 0.02924,
+   "rad_per_pulse_npxbr": 0.009190285015173447,
+   "rad_per_n_direct": 2.3737014013715912e-08,
+   "rad_per_n_npxbr": 7.460667722134592e-09,
+   "thin_target_per_n": 5.9e-08,
+   "cap_per_n": 7.9e-09
+  }
+ ],
+ "budget": {
+  "He3Gas|neutronInelastic": 735684813,
+  "(escaped)|(none)": 238786334,
+  "He3Cap_Al|nCapture": 8034643,
+  "LiqScint_1|nCapture": 7780897,
+  "LiqScint_2|nCapture": 4615981,
+  "PlasticScint|nCapture": 1052839,
+  "World|neutronInelastic": 926991,
+  "BackScintL|nCapture": 591472,
+  "BackScintR|nCapture": 589729,
+  "He3Cap_CFRP|nCapture": 353184,
+  "LS_CFRP_1|nCapture": 251236,
+  "LS_CFRP_2|nCapture": 203560,
+  "PCB_Cu_3|nCapture": 101650,
+  "PCB_Cu_4|nCapture": 101537,
+  "PCB_Cu_2|nCapture": 101437,
+  "PCB_Cu_1|nCapture": 101116,
+  "LS_CFRP_3|nCapture": 89249,
+  "Micromesh|nCapture": 83562,
+  "LS_InnerCFRP_1|nCapture": 77661,
+  "LS_InnerCFRP_2|nCapture": 60323,
+  "ScintWall_BlackTape2|nCapture": 46181,
+  "ScintWall_BlackTape1|nCapture": 42607,
+  "PCB_Rohacell|neutronInelastic": 41012,
+  "World|nCapture": 39982,
+  "PCB_Rohacell|nCapture": 38727,
+  "DriftCathode_Cu|nCapture": 32614,
+  "ResistivePaste|nCapture": 25847,
+  "ScintWall_AlFoil|nCapture": 13907,
+  "PCB_FR4_4|nCapture": 13545,
+  "PCB_FR4_3|nCapture": 13371,
+  "PCB_FR4_2|nCapture": 13161,
+  "PCB_FR4_1|nCapture": 13063,
+  "LS_Al_1|nCapture": 10976,
+  "BackScintTapeR|nCapture": 8698,
+  "BackScintTapeL|nCapture": 8573,
+  "LS_Al_2|nCapture": 8391,
+  "PCB_AlFoil|nCapture": 8312,
+  "DriftGas|nCapture": 6864,
+  "GasWindow_Mylar|nCapture": 5219,
+  "PCB_Kapton|neutronInelastic": 4773,
+  "PCB_Kapton|nCapture": 4665,
+  "DriftCathode_Kapton|nCapture": 4533,
+  "DriftCathode_Kapton|neutronInelastic": 4487,
+  "BackScintAlL|nCapture": 1067,
+  "BackScintAlR|nCapture": 1014,
+  "World|Decay": 46,
+  "AmpGas|nCapture": 32,
+  "He3Cap_CFRP|neutronInelastic": 24,
+  "GasWindow_Al|nCapture": 18,
+  "LS_CFRP_1|neutronInelastic": 15,
+  "He3Gas|nCapture": 15,
+  "ScintWall_BlackTape1|neutronInelastic": 6,
+  "PCB_FR4_3|neutronInelastic": 5,
+  "PCB_FR4_1|neutronInelastic": 4,
+  "LS_CFRP_2|neutronInelastic": 4,
+  "PCB_FR4_2|neutronInelastic": 3,
+  "PCB_FR4_4|neutronInelastic": 3,
+  "LS_InnerCFRP_1|neutronInelastic": 3,
+  "LS_InnerCFRP_2|neutronInelastic": 3,
+  "LS_CFRP_3|neutronInelastic": 3,
+  "LiqScint_1|Decay": 3,
+  "ResistivePaste|neutronInelastic": 2,
+  "He3Cap_Al|Decay": 2,
+  "DriftGas|Decay": 2,
+  "DriftGas|neutronInelastic": 1,
+  "BackScintTapeL|neutronInelastic": 1,
+  "LS_CFRP_2|Decay": 1,
+  "ScintWall_BlackTape2|neutronInelastic": 1
+ },
+ "skipped_files": []
+}

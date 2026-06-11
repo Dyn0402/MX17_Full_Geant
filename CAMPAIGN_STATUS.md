@@ -7,18 +7,21 @@
 
 ---
 
-## Headline result (2026-06-11): thermal statistics confirmed dead
+## Headline result (2026-06-11, FINAL — full 10⁹ statistics): thermal statistics confirmed dead
 
-First physics from run B (40 validated jobs, 4×10⁸ neutrons,
-`scripts/analyze_thermal_captures.py`): the sub-keV ³He(n,γ) rate is
-**7–8×10⁻⁹ per beam neutron, flat across all decades** — at the self-shielding
-cap, ×8–207 below the thin-target table rows. Four direct (n,γ) events
-observed (two thermal at the gas entrance face, two at ~500 eV mid-column —
-textbook self-shielding). Integrated: **1.14×10⁻⁴ IPC/pulse vs the table's
-1.21×10⁻², factor ×106**. Sub-keV-anchored sensitivity scales 3.0σ → ~0.3σ.
-The MeV region (thin-target valid, ~98 % of the rate) is the likely ROI.
+Run B complete (100 validated jobs, 10⁹ neutrons,
+`scripts/analyze_thermal_captures.py`): the sub-keV ³He(n,γ) rate sits at
+the self-shielding ceiling — **15 direct (n,γ) events** observed, all
+eleven below 100 eV absorbed within mm of the gas entrance face (textbook
+self-shielding). The direct counts also resolve the ENDF energy dependence:
+ratio (2.0±0.5)×10⁻⁸ overall, thermal events at 1.0×10⁻⁸, eV–keV events at
+the elevated ENDF σ_nγ/σ_np. Integrated: **(1.1–2.3)×10⁻⁴ IPC/pulse vs the
+table's 1.21×10⁻² — factor ×50–100** (direct ×53, thermal-ratio floor ×106).
+Sub-keV-anchored sensitivity scales 3.0σ → ~0.3–0.4σ. The MeV region
+(thin-target valid, ~98 % of the rate) is the likely ROI.
 Full write-up: [docs/report/thermal_note.pdf](docs/report/thermal_note.pdf)
-(internal note, preliminary 40/100 jobs).
+(12-page internal note, final statistics, incl. ENDF cross-section figure
+and measured absorption-position maps).
 
 ## Quota corruption post-mortem (worse than first thought)
 
@@ -32,16 +35,13 @@ files): **60/100 subkev, 14/100 fullrange (+2 pending first retries),
 **Lesson: validate every output file's tree readability after any campaign;
 `ls`-level checks and byte counts are not enough.**
 
-## Current state
+## Current state — campaign COMPLETE
 
-| Batch | Validated good | In production | Output (ntof EOS) |
-|---|---|---|---|
-| Run B — sub-keV neutrons | 40 / 100 | 60 retries | `neutrons_subkev/` |
-| Run B-full — full-range | 84 / 100 | 14 retries (+2 first-round) | `neutrons_fullrange/` |
-| Run A — pairs, STEP geometry | 96 / 100 | 4 retries | `pairs_v2_step_target/` |
-
-EOS migration complete: all data at `/eos/experiment/ntof/data/x17/full_sim/`,
-originals deleted from personal EOS (~530 GB freed; usage 1.1 TB → 585 GB).
+All 300 files validated (tree readable, exact entry counts):
+**100/100 each** of `neutrons_subkev/` (10⁹), `neutrons_fullrange/` (5×10⁸),
+`pairs_v2_step_target/` (10⁷) at `/eos/experiment/ntof/data/x17/full_sim/`.
+Originals deleted from personal EOS (~530 GB freed; usage 1.1 TB → 585 GB).
+Scan results: `thermal_captures_subkev_full.npz/json` (repo on lxplus).
 
 ---
 
