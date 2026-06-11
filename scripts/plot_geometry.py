@@ -14,9 +14,12 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 from matplotlib.patches import Rectangle
-import pyvista as pv
 
-pv.OFF_SCREEN = True   # headless rendering — no display required
+try:                       # pyvista only needed for the 3D view
+    import pyvista as pv
+    pv.OFF_SCREEN = True   # headless rendering — no display required
+except ImportError:
+    pv = None
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -156,11 +159,32 @@ LAYERS_2D = [
     ('LS_CFRP',   _lsDivRear_f,  _lsDivRear_b,  'ls',    'ls',    '#303030'),
 ]
 
-he3_r       = 1.5   # radius = 1.5 cm  → diameter = 3 cm
-al_wall     = 0.05
-cfrp_wall   = 0.09
-he3_total_r = he3_r + al_wall + cfrp_wall
-he3_half_y  = 4.0 + al_wall + cfrp_wall  # half-length = 4 cm → length = 8 cm
+# ─────────────────────────────────────────────────────────────────────────────
+# He-3 capsule — STEP-derived polycone profiles [cm]
+# (keep in sync with src/DetectorConstruction.cc; axis along beam = Y)
+# Gas: 40 mm cylinder r=10 mm + 10 mm hemispherical ends (60 mm on axis)
+# Al:  0.6 mm barrel wall; ~5 mm dome on axis upstream; neck+valve to +51 mm
+# ─────────────────────────────────────────────────────────────────────────────
+Z_GAS  = np.array([-3.0, -2.8, -2.6, -2.4, -2.2, -2.0,
+                    2.0,  2.2,  2.4,  2.6,  2.8,  3.0])
+RO_GAS = np.array([1e-4, 0.60, 0.80, 0.9165, 0.9798, 1.0,
+                   1.0,  0.9798, 0.9165, 0.80, 0.60, 1e-4])
+
+Z_AL   = np.array([-3.5000, -3.4635, -3.3947, -3.2880, -3.1447,
+                   -2.9693, -2.7688, -2.5521, -2.3288, -2.1075,
+                   -2.0000,  2.0000,
+                    2.2000,  2.4000,  2.6000,  2.6770,
+                    3.1370,  4.0900,  5.0980])
+RO_AL  = np.array([0.0000, 0.2323, 0.3902, 0.5433, 0.6850,
+                   0.8090, 0.9102, 0.9856, 1.0342, 1.0573,
+                   1.0600, 1.0600,
+                   1.0317, 0.9469, 0.8054, 0.7360,
+                   0.6912, 0.3500, 0.3500])
+RO_CFRP = np.where(RO_AL > 0, RO_AL + 0.09, 0.0)   # 0.9 mm wrap
+
+he3_r       = 1.0    # gas bore radius [cm]
+he3_total_r = 1.15   # CFRP outer radius at the barrel [cm]
+he3_half_y  = (Z_AL[-1] - Z_AL[0]) / 2  # for plot extents
 
 
 def arm_box_world(arm, w_f, w_b, hu, hv, u_offset=0.0):
@@ -183,11 +207,11 @@ def plot_2d_topdown():
     fig, ax = plt.subplots(figsize=(10, 10))
     ax.set_aspect('equal')
 
-    # He-3 capsule cross-section — largest drawn first (behind), gas on top
+    # He-3 capsule cross-section at the barrel — largest first, gas on top
     for r, fc, zo in [
-        (he3_total_r,     '#404040', 3),
-        (he3_r + al_wall, '#b0b0b0', 4),
-        (he3_r,           '#99d8f5', 5),
+        (1.15, '#404040', 3),   # CFRP outer
+        (1.06, '#b0b0b0', 4),   # Al outer
+        (1.00, '#99d8f5', 5),   # gas bore
     ]:
         ax.add_patch(plt.Circle((0, 0), r, color=fc, zorder=zo))
 
@@ -223,8 +247,11 @@ def plot_2d_topdown():
     ax.annotate('beam ⊙\n(+Y)', xy=(0, 0), xytext=(3, 3), fontsize=8, zorder=6)
 
     legend_patches = [
-        mpatches.Patch(color='#99d8f5', label=f'He-3 gas  (r = {he3_r} cm)'),
-        mpatches.Patch(color='#404040', label='He-3 capsule walls (Al 0.5 mm + CFRP 0.9 mm)'),
+        mpatches.Patch(color='#99d8f5',
+                       label='He-3 gas bore  (r = 10 mm, 60 mm on axis)'),
+        mpatches.Patch(color='#404040',
+                       label='Capsule walls: Al 0.6 mm barrel + CFRP 0.9 mm '
+                             '(5 mm Al dome / ~21 mm neck+valve on axis)'),
         mpatches.Patch(color='#4a90d9', alpha=0.75, label=f'MM drift gas  ({tDrift*10:.0f} mm drift)'),
         mpatches.Patch(color='#5cb85c', alpha=0.75, label=f'PCB stack  ({t_PCB*10:.1f} mm)'),
         mpatches.Patch(color='#f0c040', alpha=0.75,
@@ -262,6 +289,64 @@ def _annotate_dim(ax, x1, x2, y, label, color='0.4'):
                 arrowprops=dict(arrowstyle='<->', color=color, lw=1.2))
     ax.text((x1+x2)/2, y - 0.8, label,
             ha='center', va='top', fontsize=7, color=color)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Figure 1b — Side view (XY plane): beam from below, capsule end-on
+# ─────────────────────────────────────────────────────────────────────────────
+def _profile_polygon(z, ro):
+    """Closed polygon (x=±r, y=z) for a polycone profile (axis along Y)."""
+    return np.vstack([np.column_stack([ro, z]),
+                      np.column_stack([-ro[::-1], z[::-1]])])
+
+
+def plot_2d_sideview():
+    fig, ax = plt.subplots(figsize=(9, 8))
+    ax.set_aspect('equal')
+
+    # Capsule: CFRP → Al → gas (axis along Y = beam)
+    for z, ro, fc, zo, lab in [
+        (Z_AL,  RO_CFRP, '#404040', 3, 'CFRP wrap (0.9 mm)'),
+        (Z_AL,  RO_AL,   '#b0b0b0', 4, 'Al vessel (0.6 mm barrel; '
+                                       '5 mm dome / ~21 mm neck+valve on axis)'),
+        (Z_GAS, RO_GAS,  '#99d8f5', 5, 'He-3 gas (r = 10 mm, 60 mm on axis)'),
+    ]:
+        ax.add_patch(plt.Polygon(_profile_polygon(z, ro), closed=True,
+                                 fc=fc, ec='k', lw=0.4, zorder=zo, label=lab))
+
+    # Arms 0 (+X) and 1 (−X) in side projection (v extent along Y)
+    for sign in (+1, -1):
+        for lname, w_f, w_b, ukey, vkey, col in LAYERS_2D:
+            hv = HW_V[vkey]
+            x0 = sign * (dist + w_f) if sign > 0 else sign * (dist + w_b)
+            ax.add_patch(Rectangle((x0, -hv), w_b - w_f, 2 * hv,
+                                   linewidth=0.4, edgecolor='k',
+                                   facecolor=col, alpha=0.75, zorder=2))
+        for u_sign in (-1.0, +1.0):   # back scint bars (v = 30 cm)
+            x0 = sign * (dist + w_bsc_f) if sign > 0 else sign * (dist + w_bsc_b)
+            ax.add_patch(Rectangle((x0, -bscTape_hv), t_bsc, 2 * bscTape_hv,
+                                   linewidth=0.4, edgecolor='k',
+                                   facecolor='#e07820', alpha=0.8, zorder=2))
+        mid = sign * (dist + stack_depth / 2)
+        ax.text(mid, HW_V['scint'] + 3, f"Arm {0 if sign > 0 else 1} "
+                f"({'+' if sign > 0 else '−'}X)", ha='center', fontsize=9,
+                fontweight='bold')
+
+    # Beam arrow from below along +Y
+    ax.annotate('', xy=(0, -5), xytext=(0, -20),
+                arrowprops=dict(arrowstyle='-|>', color='firebrick', lw=2.5))
+    ax.text(1.2, -14, 'beam (+Y)', color='firebrick', fontsize=10)
+
+    lim = dist + stack_depth + 4
+    ax.set_xlim(-lim, lim); ax.set_ylim(-28, 30)
+    ax.set_xlabel('X  [cm]'); ax.set_ylabel('Y (beam)  [cm]')
+    ax.set_title('MX17 Geometry — Side View (XY plane)\n'
+                 'Beam from below hits the capsule end-on; '
+                 'arms 2,3 (±Z) not shown')
+    ax.legend(loc='lower left', fontsize=8, framealpha=0.85)
+    ax.grid(True, lw=0.3, alpha=0.5)
+    fig.tight_layout()
+    return fig
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -319,17 +404,23 @@ def plot_3d_pyvista(out_path=None, interactive=True):
                         label=bsc_label if 'BSC' not in seen else None)
             seen.add('BSC')
 
-    # He-3 capsule: nested solid cylinders along Y (outer first so inner shows through)
+    # He-3 capsule: STEP polycone profiles revolved about the beam (Y) axis
+    def polycone_mesh(z, ro):
+        pts = np.column_stack([ro, np.zeros_like(ro), z])
+        line = pv.lines_from_points(pts)
+        mesh = line.extrude_rotate(resolution=72, capping=True)
+        mesh.rotate_x(-90.0, inplace=True)   # local Z (axis) → world Y (beam)
+        return mesh
+
     caps = [
-        (he3_total_r,     (0.16, 0.16, 0.16), 0.70, 'CFRP capsule wall'),
-        (he3_r + al_wall, (0.67, 0.67, 0.67), 0.70, 'Al capsule wall'),
-        (he3_r,           (0.60, 0.85, 0.96), 0.85, f'He-3 gas  (r = {he3_r} cm)'),
+        (Z_AL,  RO_CFRP, (0.16, 0.16, 0.16), 0.55, 'CFRP wrap (0.9 mm)'),
+        (Z_AL,  RO_AL,   (0.67, 0.67, 0.67), 0.65,
+         'Al vessel (0.6 mm barrel; thick dome/neck on axis)'),
+        (Z_GAS, RO_GAS,  (0.60, 0.85, 0.96), 0.90,
+         'He-3 gas (r = 10 mm, 60 mm on axis)'),
     ]
-    for r, col, alpha, llabel in caps:
-        cyl = pv.Cylinder(center=(0, 0, 0), direction=(0, 1, 0),
-                          radius=r, height=2*he3_half_y, resolution=80,
-                          capping=True)
-        pl.add_mesh(cyl, color=col, opacity=alpha,
+    for z, ro, col, alpha, llabel in caps:
+        pl.add_mesh(polycone_mesh(z, ro), color=col, opacity=alpha,
                     smooth_shading=True, show_edges=False, label=llabel)
 
     # Beam axis arrow along +Y
@@ -386,7 +477,8 @@ def plot_3d_pyvista(out_path=None, interactive=True):
 # ─────────────────────────────────────────────────────────────────────────────
 if __name__ == '__main__':
     import sys
-    interactive = True
+    interactive = '--interactive' in sys.argv
+    no_3d       = '--no-3d' in sys.argv or pv is None
     _here = os.path.dirname(os.path.abspath(__file__))
 
     print(f"MM front face distance : {dist:.1f} cm")
@@ -399,11 +491,21 @@ if __name__ == '__main__':
     print(f"Arm outer edge         : {dist + stack_depth:.1f} cm from origin")
 
     out1 = os.path.join(_here, 'mx17_geometry_topdown.png')
+    out1b = os.path.join(_here, 'mx17_geometry_sideview')
     out2 = os.path.join(_here, 'mx17_geometry_3d.png')
 
     fig1 = plot_2d_topdown()
     fig1.savefig(out1, dpi=150, bbox_inches='tight')
     print(f"Saved: {out1}")
 
-    plot_3d_pyvista(out_path=out2, interactive=interactive)
-    plt.show()
+    fig1b = plot_2d_sideview()
+    fig1b.savefig(out1b + '.png', dpi=150, bbox_inches='tight')
+    fig1b.savefig(out1b + '.pdf', bbox_inches='tight')
+    print(f"Saved: {out1b}.png/.pdf")
+
+    if no_3d:
+        print("(3D view skipped: --no-3d or pyvista unavailable)")
+    else:
+        plot_3d_pyvista(out_path=out2, interactive=interactive)
+    if interactive:
+        plt.show()

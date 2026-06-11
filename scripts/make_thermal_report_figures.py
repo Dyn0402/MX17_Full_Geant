@@ -89,39 +89,78 @@ def fig_reaction(out):
     plt.close(fig)
 
 
-# ── fig 2: transparent vs opaque cartoon ─────────────────────────────────────
+# ── fig 2: transparent vs opaque cartoon (real capsule, beam from below) ─────
+def _draw_capsule(ax):
+    """Side view of the STEP capsule [mm]: gas bore r=10, 40 mm barrel +
+    hemispherical ends (60 mm on axis); Al dome below, neck+valve above."""
+    ax.set_xlim(-45, 45); ax.set_ylim(-80, 66)
+    ax.set_aspect("equal"); ax.axis("off")
+    # Aluminium silhouette (slightly schematic dome/neck)
+    t = np.linspace(np.pi, 2 * np.pi, 40)
+    dome = np.column_stack([10.6 * np.cos(t), -20 + 15 * np.sin(t)])
+    al = np.vstack([[[-10.6, 20]], dome[::-1], [[10.6, 20]],
+                    [[3.5, 27]], [[3.5, 51]], [[-3.5, 51]], [[-3.5, 27]]])
+    ax.add_patch(plt.Polygon(al, closed=True, fc="#9a9a9a", ec="k",
+                             lw=0.8, zorder=2))
+    # Gas: 40 mm cylinder + 10 mm hemispherical ends
+    t1 = np.linspace(np.pi, 2 * np.pi, 40)
+    t2 = np.linspace(0, np.pi, 40)
+    gas = np.vstack([
+        np.column_stack([10 * np.cos(t1), -20 + 10 * np.sin(t1)]),
+        np.column_stack([10 * np.cos(t2), 20 + 10 * np.sin(t2)]),
+    ])
+    ax.add_patch(plt.Polygon(gas, closed=True, fc="#dcebf7", ec="k",
+                             lw=0.8, zorder=3))
+    # beam arrows from below
+    for x in (-5.0, 0.0, 5.0):
+        ax.add_patch(FancyArrowPatch((x, -58), (x, -38), arrowstyle="-|>",
+                                     mutation_scale=13, color="C0", lw=1.6,
+                                     zorder=4))
+    ax.text(13, -50, "beam", color="C0", fontsize=9)
+    # 60 mm dimension marker
+    ax.annotate("", xy=(20, 30), xytext=(20, -30),
+                arrowprops=dict(arrowstyle="<->", color="0.4", lw=1.1))
+    ax.text(22, 0, "60 mm of gas\non the beam axis", fontsize=8.5,
+            color="0.3", va="center")
+    ax.text(-13, -33, "5 mm\nAl dome", fontsize=8, ha="right", color="0.3")
+
+
 def fig_opaque(out):
-    fig, axes = plt.subplots(1, 2, figsize=(10.5, 4.6))
-    for ax in axes:
-        ax.axis("off"); ax.set_xlim(0, 10); ax.set_ylim(0, 10)
-        # gas slab
-        ax.add_patch(Rectangle((3.0, 1.5), 4.0, 7.0, fc="#dcebf7", ec="k"))
-        ax.text(5.0, 9.0, "30 mm of $^3$He gas", ha="center", fontsize=10)
+    fig, axes = plt.subplots(1, 2, figsize=(10.5, 6.0))
 
     ax = axes[0]
+    _draw_capsule(ax)
     ax.set_title("The assumption: gas is transparent\n"
                  "(thin-target formula)", fontsize=11)
-    for y in (3.0, 5.0, 7.0):
-        ax.add_patch(FancyArrowPatch((0.5, y), (9.5, y), arrowstyle="-|>",
-                                     mutation_scale=14, color="C0", lw=1.6))
-    ax.text(5.0, 0.55, "every neutron samples the whole column:\n"
+    for x in (-5.0, 0.0, 5.0):  # neutrons sail through the whole column
+        ax.add_patch(FancyArrowPatch((x, -28), (x, 34), arrowstyle="-|>",
+                                     mutation_scale=12, color="C0", lw=1.3,
+                                     ls=(0, (4, 2)), zorder=5))
+    ax.text(0, -62, "every neutron samples the whole 60 mm column:\n"
             "P(rare) = (atoms/cm$^2$) $\\times\\ \\sigma_{n\\gamma}$\n"
-            "grows with thickness", ha="center", fontsize=9)
+            "grows with thickness", ha="center", va="top", fontsize=9)
 
     ax = axes[1]
+    _draw_capsule(ax)
     ax.set_title("The reality below 1 keV: gas is opaque\n"
-                 "(mean free path $\\approx$ 0.1 mm at 25 meV)", fontsize=11)
-    ax.add_patch(Rectangle((3.0, 1.5), 0.35, 7.0, fc="#c23b22", alpha=0.75))
-    for y in (3.0, 5.0, 7.0):
-        ax.add_patch(FancyArrowPatch((0.5, y), (3.25, y), arrowstyle="-|>",
-                                     mutation_scale=14, color="C0", lw=1.6))
-        ax.plot([3.28], [y], marker="*", ms=13, color="#c23b22", zorder=5)
-    ax.text(5.2, 5.0, "neutrons never\nreach the back\nof the gas",
-            ha="center", fontsize=9.5)
-    ax.text(5.0, 0.55, "every neutron is absorbed regardless;\n"
-            "P(rare) $\\to\\ \\sigma_{n\\gamma}/\\sigma_{np} = "
-            "1.0\\times10^{-8}$\nthickness-independent",
+                 "(mean free path $\\approx$ 0.15 mm at 25 meV)", fontsize=11)
+    # absorption band just inside the gas entrance (thickness exaggerated)
+    tb = np.linspace(np.pi + 0.25, 2 * np.pi - 0.25, 40)
+    band = np.vstack([
+        np.column_stack([10.0 * np.cos(tb), -20 + 10.0 * np.sin(tb)]),
+        np.column_stack([7.5 * np.cos(tb[::-1]), -20 + 7.5 * np.sin(tb[::-1])]),
+    ])
+    ax.add_patch(plt.Polygon(band, closed=True, fc="#c23b22", alpha=0.8,
+                             zorder=4))
+    for x in (-5.0, 0.0, 5.0):
+        ax.plot([x], [-20 - 10 * np.sqrt(1 - (x / 10) ** 2) + 1.5], marker="*",
+                ms=12, color="#7a1f12", zorder=6)
+    ax.text(0, 8, "neutrons never reach\nthe rest of the gas",
             ha="center", fontsize=9)
+    ax.text(0, -62, "absorbed within a fraction of a mm of entering\n"
+            "(red band exaggerated);  P(rare) $\\to\\ \\sigma_{n\\gamma}/"
+            "\\sigma_{np} = 1.0\\times10^{-8}$\nthickness-independent",
+            ha="center", va="top", fontsize=9)
 
     fig.savefig(out / "fig_opaque_cartoon.pdf", bbox_inches="tight")
     plt.close(fig)
@@ -210,7 +249,7 @@ def fig_money(d, out):
                  f"simulation total: {tot:.1e} /pulse  "
                  f"($\\to$ {tot*2.1e-3:.1e} IPC/pulse;  "
                  "table: 1.2$\\times$10$^{-2}$ IPC/pulse)")
-    ax.legend(fontsize=9, loc="upper left")
+    ax.legend(fontsize=9, loc="upper right")
     fig.savefig(out / "fig_money.pdf", bbox_inches="tight")
     plt.close(fig)
 
@@ -289,6 +328,42 @@ def fig_footprint(out, lambda2d_path):
     plt.close(fig)
 
 
+# ── fig 6b: where scintillator-captured neutrons end up (from one run-B file) ─
+def fig_scint_origin(out, root_file):
+    import uproot
+    SCINT = ("PlasticScint", "LiqScint_1", "LiqScint_2",
+             "BackScintL", "BackScintR")
+    xs, ys, zs = [], [], []
+    with uproot.open(root_file) as f:
+        for chunk in f["EventTree"].iterate(
+                ["capture_vol", "capture_proc", "cap_x", "cap_y", "cap_z"],
+                step_size=2_000_000, library="np"):
+            vol  = np.asarray(chunk["capture_vol"],  dtype=object)
+            proc = np.asarray(chunk["capture_proc"], dtype=object)
+            m = np.isin(vol, SCINT) & (proc == "nCapture")
+            xs.append(chunk["cap_x"][m]); ys.append(chunk["cap_y"][m])
+            zs.append(chunk["cap_z"][m])
+    x = np.concatenate(xs); y = np.concatenate(ys); z = np.concatenate(zs)
+
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(11, 5),
+                                   gridspec_kw={"width_ratios": [1.15, 1]})
+    hb = ax1.hexbin(x / 10, z / 10, gridsize=80, bins="log", cmap="viridis")
+    fig.colorbar(hb, ax=ax1, label="captures (log scale)")
+    ax1.add_patch(plt.Circle((0, 0), 1.15, fc="none", ec="r", lw=1.5))
+    ax1.annotate("capsule", xy=(1.2, 1.2), color="r", fontsize=9)
+    ax1.set_aspect("equal")
+    ax1.set_xlabel("x [cm]"); ax1.set_ylabel("z [cm]")
+    ax1.set_title("Capture positions, beam view\n(four-arm pattern)")
+
+    ax2.hist(y / 10, bins=80, histtype="step", lw=1.6)
+    ax2.set_xlabel("y along beam [cm]"); ax2.set_ylabel("captures / bin")
+    ax2.set_title("Capture positions along the beam axis")
+    fig.suptitle(f"Neutron captures in the scintillator volumes "
+                 f"({len(x):,} in one job file)", fontsize=12)
+    fig.savefig(out / "fig_scint_origin.pdf", bbox_inches="tight")
+    plt.close(fig)
+
+
 # ── fig 7: normalization ladder ───────────────────────────────────────────────
 def fig_ladder(d, out):
     w = float(d["n_per_pulse"]) / float(d["n_events"])
@@ -332,6 +407,9 @@ def main():
     ap.add_argument("npz")
     ap.add_argument("--outdir", default="docs/report/figs")
     ap.add_argument("--lambda2d", default="data/lamda2DvsEn_EAR2.root")
+    ap.add_argument("--scint-events", default=None, metavar="ROOT_FILE",
+                    help="One run-B ROOT file; makes the scintillator-capture"
+                         " position figure (slow: full EventTree scan)")
     args = ap.parse_args()
 
     out = Path(args.outdir); out.mkdir(parents=True, exist_ok=True)
@@ -344,6 +422,8 @@ def main():
     fig_depth(d, out)
     fig_footprint(out, args.lambda2d)
     fig_ladder(d, out)
+    if args.scint_events:
+        fig_scint_origin(out, args.scint_events)
     print(f"Figures written to {out}/")
 
 

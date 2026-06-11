@@ -44,7 +44,8 @@ That table computes the radiative-capture probability as
 (target thickness)\,$\times$\,(cross-section), which silently assumes neutrons
 fly through the gas undisturbed. They do not. At thermal energy the
 competing \He{3}(n,p)t reaction gives a neutron a mean free path of
-$\sim$0.1\,mm in a 30\,mm gas column: \textbf{the gas is opaque}. Every
+$\sim$0.15\,mm, against 60\,mm of gas along the beam axis (on-axis optical
+depth $\sim$400): \textbf{the gas is opaque}. Every
 sub-keV neutron is absorbed regardless of the gas thickness, so the rare
 radiative branch cannot exceed its share of the total,
 $\sng/\snp = 1.0\times10^{-8}$ per absorbed neutron --- no matter how much
@@ -157,11 +158,15 @@ The rate table computes, for each energy bin,
   P_{\text{rad}} = n L \cdot \sng(E),
   \label{eq:thin}
 \end{equation}
-with $nL = 3.16\times10^{-2}$\,atoms/b the gas column. This is the standard
+with $nL$ the gas column density. The table assumes $nL =
+3.16\times10^{-2}$\,atoms/b (its geometry was a 4\,cm gas sphere); the real
+capsule presents an even thicker 60\,mm on-axis column,
+$nL = 7.5\times10^{-2}$\,atoms/b. This is the standard
 \emph{thin-target} formula and it is correct \emph{only} when the neutron
 actually traverses the full column, i.e.\ when $nL\,\snp \ll 1$. At 25\,meV,
-however, $nL\,\snp \approx 150$: a neutron penetrates a fraction of a
-millimetre before being absorbed. In that regime the probability that the
+however, $nL\,\snp \approx 150$ for the table's column ($\approx$400 for the
+capsule on axis): a neutron penetrates a fraction of a millimetre before
+being absorbed. In that regime the probability that the
 absorption is radiative saturates at the branching ratio:
 \begin{equation}
   P_{\text{rad}} \;\longrightarrow\; \frac{\sng}{\snp} = 1.0\times10^{-8}
@@ -169,22 +174,35 @@ absorption is radiative saturates at the branching ratio:
   \label{eq:cap}
 \end{equation}
 Dividing Eq.~\eqref{eq:thin} by Eq.~\eqref{eq:cap} shows the thin-target
-formula overshoots by exactly the opacity $nL\,\snp$ --- the factor 150 at
-thermal, falling to $\sim$7 at 1\,keV. Adding more gas, or pressurising
+formula overshoots by exactly the opacity $nL\,\snp$ of the column it
+assumed --- for the table, a factor 150 at thermal, falling to $\sim$7 at
+1\,keV. Adding more gas, or pressurising
 further, gains nothing below 1\,keV: every neutron is already absorbed, and
 the radiative branch can only ever win its fixed share.
 
 \section{What the full simulation adds}
 
-The cartoon argument above is one-dimensional. The real situation has a
-domed entrance window, a beam wider than the bore, elastic scattering that
-can bounce neutrons around, resonances in the surrounding materials, and a
-gas column whose length depends on where the neutron enters. Geant4 with
-high-precision neutron data (G4NDL) transports every neutron through the
-actual STEP-derived geometry and lets nature take its course. The simulation
+The cartoon argument above is one-dimensional. The real situation
+(Fig.~below) has the beam arriving from below along the capsule axis,
+entering through a 5\,mm-thick domed aluminium tip; the gas column length
+depends on where the neutron enters; the beam is wider than the bore;
+elastic scattering can bounce neutrons around; and the four detector arms
+surround the capsule transversely at 22\,cm. Geant4 with high-precision
+neutron data (G4NDL) transports every neutron through the actual
+STEP-derived geometry and lets nature take its course. The simulation
 records, for each of the $4\times10^{8}$ neutrons in this draft, where its
 track ended, by which process, and at what energy --- so the capture
 accounting is exact, including all geometry and transport effects.
+
+\begin{center}
+\includegraphics[width=0.85\textwidth]{fig_geometry_sideview.pdf}
+\end{center}
+
+\noindent Capsule dimensions (STEP-derived): gas bore r\,=\,10\,mm,
+60\,mm long on axis (40\,mm cylinder + hemispherical ends); Al wall 0.6\,mm
+on the barrel but \textbf{5\,mm on axis upstream} (dome) and
+\textbf{$\sim$21\,mm on axis downstream} (neck + valve), plus a 0.9\,mm CFRP
+overwrap.
 
 \section{The evidence}
 
@@ -258,6 +276,23 @@ far: \textbf{hydrogen capture in the liquid scintillator is the largest
 single capture channel outside the gas}, and its 2.22\,MeV photon is born
 inside the calorimeter itself. Both feed the wall-background simulation
 (run~C) via the capture-vertex library.
+
+\medskip
+\noindent\emph{How do beam neutrons end up in detectors 25\,cm off to the
+side?} They do not fly there directly --- the beam points up, the arms sit
+sideways. But a neutron is not absorbed on its first encounter with
+aluminium: it usually just ricochets. Beam-halo neutrons that miss the
+20\,mm bore strike the thick Al dome, shoulder or valve, scatter to large
+angles, and then wander through the air. The four arms (each
+$\sim$40$\times$40\,cm at 22--31\,cm) cover a large fraction of the sky as
+seen from the capsule, and the LAB liquid scintillator is hydrogen-rich ---
+for a slow neutron, hydrogen is both an efficient brake and an efficient
+absorber. The capture positions confirm this picture: they reproduce the
+four-arm cross pattern around the capsule.
+
+\begin{center}
+\includegraphics[width=0.95\textwidth]{fig_scint_origin.pdf}
+\end{center}
 
 \section{What this means for the experiment}
 
