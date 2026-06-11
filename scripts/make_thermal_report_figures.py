@@ -155,8 +155,11 @@ def fig_opaque(out):
     for x in (-5.0, 0.0, 5.0):
         ax.plot([x], [-20 - 10 * np.sqrt(1 - (x / 10) ** 2) + 1.5], marker="*",
                 ms=12, color="#7a1f12", zorder=6)
-    ax.text(0, 8, "neutrons never reach\nthe rest of the gas",
-            ha="center", fontsize=9)
+    ax.annotate("neutrons never reach\nthe rest of the gas",
+                xy=(-3, 0), xytext=(-43, 8), fontsize=9, ha="left",
+                va="center",
+                arrowprops=dict(arrowstyle="->", color="0.3", lw=1.1,
+                                shrinkB=4))
     ax.text(0, -62, "absorbed within a fraction of a mm of entering\n"
             "(red band exaggerated);  P(rare) $\\to\\ \\sigma_{n\\gamma}/"
             "\\sigma_{np} = 1.0\\times10^{-8}$\nthickness-independent",
