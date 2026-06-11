@@ -29,7 +29,7 @@ import sys
 import textwrap
 from pathlib import Path
 
-OUTDIR_DEFAULT  = "/eos/user/d/dneff/mx17_geant_sim_results/neutrons"
+OUTDIR_DEFAULT  = "/eos/experiment/ntof/data/x17/full_sim/neutrons"
 JOBDIR_DEFAULT  = "/afs/cern.ch/user/d/dneff/condor/mx17_neutrons"
 NJOBS_DEFAULT   = 100
 NEVENTS_DEFAULT = 10_000_000

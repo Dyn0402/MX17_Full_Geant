@@ -10,7 +10,7 @@
 
 ### Jobs in flight (submitted 2026-06-10 ~23:40 CERN, 300 jobs, all queued healthy)
 
-| Batch | Primaries | Output (EOS `mx17_geant_sim_results/`) | Purpose |
+| Batch | Primaries | Output (EOS `/eos/experiment/ntof/data/x17/full_sim/`) | Purpose |
 |---|---|---|---|
 | Run B — sub-keV neutrons | 100 × 10M = 10⁹ | `neutrons_subkev/` | capture budget, wall backgrounds, singles, thermal-statistics check |
 | Run B-full — full-range neutrons (1 meV–100 MeV) | 100 × 5M = 5×10⁸ | `neutrons_fullrange/` | flux-weighted picture across the board, MeV-region rates |

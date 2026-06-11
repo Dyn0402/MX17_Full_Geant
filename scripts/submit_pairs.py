@@ -26,7 +26,7 @@ import textwrap
 from pathlib import Path
 
 # ── Defaults ──────────────────────────────────────────────────────────────────
-OUTDIR_DEFAULT  = "/eos/user/d/dneff/mx17_geant_sim_results/pairs"
+OUTDIR_DEFAULT  = "/eos/experiment/ntof/data/x17/full_sim/pairs"
 JOBDIR_DEFAULT  = "/afs/cern.ch/user/d/dneff/condor/mx17_pairs"
 NJOBS_DEFAULT   = 100
 NEVENTS_DEFAULT = 100_000
