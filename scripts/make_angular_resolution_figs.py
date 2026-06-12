@@ -156,11 +156,14 @@ def fig_ms_budget(out=None, ext="png"):
     plt.close(fig)
 
 
-def sample_pair_angles(m_parent, n, rng):
-    """Lab opening angles [deg] for e+e- pairs from a parent of mass m_parent
+def sample_pairs(m_parent, n, rng):
+    """Full lab pair kinematics for e+e- pairs from a parent of mass m_parent
     (scalar or per-event array) carrying total energy E* = 20.58 MeV, emitted
     isotropically from an at-rest 4He* and decaying isotropically — the exact
-    kinematics of GeneratePairFromParent in X17PrimaryGenerator.cc."""
+    kinematics of GeneratePairFromParent in X17PrimaryGenerator.cc.
+
+    Returns (theta_deg, ke1, ke2, u1, u2): opening angle, per-leg lab kinetic
+    energies [MeV], per-leg unit direction vectors (n,3)."""
     m = np.broadcast_to(np.asarray(m_parent, dtype=float), (n,))
     gam, betgam = E_X17 / m, np.sqrt(E_X17**2 - m**2) / m
     e_cm = m / 2
@@ -170,10 +173,19 @@ def sample_pair_angles(m_parent, n, rng):
     # lepton momenta in parent frame (z = boost axis); e+ is -p
     pz, px, py = p_cm * cth, p_cm * sth * np.cos(phi), p_cm * sth * np.sin(phi)
     pz1 = gam * pz + betgam * e_cm;  pz2 = -gam * pz + betgam * e_cm
+    ke1 = gam * e_cm + betgam * pz - ME
+    ke2 = gam * e_cm - betgam * pz - ME
     p1 = np.stack([px, py, pz1], 1); p2 = np.stack([-px, -py, pz2], 1)
-    cos_open = (p1 * p2).sum(1) / (np.linalg.norm(p1, axis=1) *
-                                   np.linalg.norm(p2, axis=1))
-    return np.degrees(np.arccos(np.clip(cos_open, -1, 1)))
+    u1 = p1 / np.linalg.norm(p1, axis=1, keepdims=True)
+    u2 = p2 / np.linalg.norm(p2, axis=1, keepdims=True)
+    cos_open = (u1 * u2).sum(1)
+    th = np.degrees(np.arccos(np.clip(cos_open, -1, 1)))
+    return th, ke1, ke2, u1, u2
+
+
+def sample_pair_angles(m_parent, n, rng):
+    """Lab opening angles [deg] only (see sample_pairs)."""
+    return sample_pairs(m_parent, n, rng)[0]
 
 
 def sample_ipc_masses(n, rng):
@@ -188,6 +200,58 @@ def smear_angles(th, s68, bias, rng):
     t = th + rng.normal(bias, s68, len(th))
     t = np.abs(t)
     return np.where(t > 180.0, 360.0 - t, t)
+
+
+def make_psi_sampler(d, estimator="nomline"):
+    """Per-leg direction-error sampler from the measured Geant4 response.
+
+    Returns sample(ke, rng) → ψ [rad] drawn from P(ψ | KE) of the given
+    estimator in geant4_response.json.  Draws landing in the 44.75–45° cap
+    bin (overflow: ψ exceeded the histogram range, soft legs) are spread
+    uniformly over 45–90° — a broad-tail approximation."""
+    de = d["direction_error"]
+    ke_edges  = np.array(de["ke_bin_edges"])
+    psi_edges = np.array(de["psi_bin_edges"])
+    counts = np.array(de["estimators"][estimator]["counts"], float)
+    row_n = counts.sum(1)
+    valid = np.where(row_n > 0)[0]
+    for i in np.where(row_n == 0)[0]:          # empty KE rows → nearest
+        counts[i] = counts[valid[np.argmin(np.abs(valid - i))]]
+    cdf = np.cumsum(counts, axis=1)
+    cdf /= cdf[:, -1:]
+    n_psi = len(psi_edges) - 1
+    dpsi = np.diff(psi_edges)
+
+    def sample(ke, rng):
+        ki = np.clip(np.digitize(ke, ke_edges) - 1, 0, len(ke_edges) - 2)
+        u = rng.uniform(0, 1, len(ke))
+        pi = np.clip((cdf[ki] < u[:, None]).sum(1), 0, n_psi - 1)
+        psi = psi_edges[pi] + rng.uniform(0, 1, len(ke)) * dpsi[pi]
+        cap = pi == n_psi - 1                  # overflow bin → 45–90° tail
+        psi[cap] = rng.uniform(45.0, 90.0, cap.sum())
+        return np.radians(psi)
+
+    return sample
+
+
+def smear_pair_response(ke1, ke2, u1, u2, sampler, rng):
+    """Opening angles [deg] after smearing each leg's direction by a ψ drawn
+    from the measured P(ψ | KE), with uniform azimuth around the true
+    direction — reproduces the pair Δθ resolution, its θ/energy dependence,
+    and the positive bias, per the geant4_response.json design notes."""
+    def tilt(u, ke):
+        psi = sampler(ke, rng)
+        a = np.zeros_like(u); a[:, 2] = 1.0
+        near_z = np.abs(u[:, 2]) > 0.9
+        a[near_z] = np.array([1.0, 0.0, 0.0])
+        e1 = np.cross(u, a); e1 /= np.linalg.norm(e1, axis=1, keepdims=True)
+        e2 = np.cross(u, e1)
+        phi = rng.uniform(0, 2 * np.pi, len(u))
+        return (np.cos(psi)[:, None] * u +
+                np.sin(psi)[:, None] * (np.cos(phi)[:, None] * e1 +
+                                        np.sin(phi)[:, None] * e2))
+    c = (tilt(u1, ke1) * tilt(u2, ke2)).sum(1)
+    return np.degrees(np.arccos(np.clip(c, -1, 1)))
 
 
 def fig_theta_dilution(d, n=2_000_000, seed=42, out=None, ext="png"):
@@ -268,15 +332,20 @@ def fig_ipc_dilution(n=2_000_000, seed=43, out=None, ext="png"):
     plt.close(fig)
 
 
-def fig_theta_money(n=2_000_000, seed=44, out=None, ext="png"):
+def fig_theta_money(d, n=2_000_000, seed=44, out=None, ext="png"):
     """The money plot: the truth distribution vs the best we can do given
     capsule multiple scattering.
 
     Left   : X17 signal alone — truth opening-angle spectrum vs the same
-             smeared by the BEST feasible resolution (target-centre chord).
+             after per-leg response smearing with the best feasible
+             estimator (target-centre chord, "nomline").
     Middle : X17 stacked on the IPC continuum, truth shapes.
     Right  : the same, both smeared — the spectrum the analysis actually
              has to extract the X17 signal from.
+
+    Smearing: each leg's direction error psi is drawn from the measured
+    Geant4 P(psi | KE) tables, so the pair resolution varies with opening
+    angle and species (best at the X17 shoulder where pairs are symmetric).
 
     Normalisation: 30-day recorded yields under the 10 us readout +
     MM-double acceptance (191 X17 / 9190 IPC).  This is a BEST-CASE picture:
@@ -284,10 +353,11 @@ def fig_theta_money(n=2_000_000, seed=44, out=None, ext="png"):
     pile-up backgrounds, no gamma-flash losses."""
     out = out or OUT
     rng = np.random.default_rng(seed)
-    th_x = sample_pair_angles(M_X17, n, rng)
-    th_i = sample_pair_angles(sample_ipc_masses(n, rng), n, rng)
-    th_x_s = smear_angles(th_x, *BEST_X17, rng)
-    th_i_s = smear_angles(th_i, *BEST_IPC, rng)
+    sampler = make_psi_sampler(d, "nomline")
+    th_x, ke1x, ke2x, u1x, u2x = sample_pairs(M_X17, n, rng)
+    th_i, ke1i, ke2i, u1i, u2i = sample_pairs(sample_ipc_masses(n, rng), n, rng)
+    th_x_s = smear_pair_response(ke1x, ke2x, u1x, u2x, sampler, rng)
+    th_i_s = smear_pair_response(ke1i, ke2i, u1i, u2i, sampler, rng)
 
     bins = np.linspace(0, 180, 91)
     cen = 0.5 * (bins[:-1] + bins[1:])
@@ -305,7 +375,7 @@ def fig_theta_money(n=2_000_000, seed=44, out=None, ext="png"):
     ax.step(cen, sx_t, where="mid", color="#2ca02c", lw=2,
             label="truth distribution")
     ax.step(cen, sx_s, where="mid", color="#e84040", lw=2, ls="--",
-            label=f"smeared σ68={BEST_X17[0]:.0f}° — best we can do")
+            label="measured response (σ68 = 13–18° vs θ) — best we can do")
     ax.set_ylabel("expected events / 2°  (30 days, 10 µs readout, "
                   "MM acceptance)")
     ax.set_title(f"X17 signal alone  ({N_X17_30D:.0f} events)")
@@ -323,9 +393,9 @@ def fig_theta_money(n=2_000_000, seed=44, out=None, ext="png"):
                         label=f"X17 stacked  ({N_X17_30D:.0f} events)")
         ax.step(cen, b + s, where="mid", color="k", lw=1.0)
         ax.set_title(title)
-    ymax = 1.12 * max(axes[1].get_ylim()[1], axes[2].get_ylim()[1])
-    for ax in axes[1:]:
-        ax.set_ylim(0, ymax)
+    # ymax = 1.12 * max(axes[1].get_ylim()[1], axes[2].get_ylim()[1])
+    # for ax in axes[1:]:
+    #     ax.set_ylim(0, ymax)
 
     for ax in axes:
         ax.set_xlabel("e⁺e⁻ opening angle  [deg]")
@@ -334,11 +404,61 @@ def fig_theta_money(n=2_000_000, seed=44, out=None, ext="png"):
 
     fig.suptitle("Best we can do with capsule multiple scattering — "
                  "30-day recorded yields (10 µs readout, MM-double "
-                 "acceptance)\nBEST CASE: smallest feasible smearing "
-                 "(target-centre chord), production-level shapes, no "
-                 "pile-up backgrounds, no γ-flash losses", fontsize=12)
+                 "acceptance)\nBEST CASE: per-leg smearing from the measured "
+                 "P(ψ|KE) response, best estimator (target-centre chord); "
+                 "production-level shapes, no pile-up backgrounds, no "
+                 "γ-flash losses", fontsize=12)
     fig.tight_layout()
     fig.savefig(out / f"fig_theta_money.{ext}", dpi=150)
+    plt.close(fig)
+
+
+def fig_res_vs_theta(d, n=2_000_000, seed=45, out=None, ext="png"):
+    """Pair opening-angle resolution and bias vs TRUTH opening angle, per
+    species, from per-leg response smearing (best estimator).  Shows that the
+    resolution is not flat: X17 is sharpest at the 109° shoulder (symmetric
+    pairs) and degrades toward 180° (asymmetric, soft leg); IPC is sharpest
+    at small angle (low-mass pairs split E* evenly → two stiff legs)."""
+    out = out or OUT
+    rng = np.random.default_rng(seed)
+    sampler = make_psi_sampler(d, "nomline")
+    edges = np.arange(0, 181, 7.5)
+    cen = 0.5 * (edges[:-1] + edges[1:])
+
+    fig, axes = plt.subplots(1, 2, figsize=(13, 5))
+    for lab, mass, col in [("X17", M_X17, "#e84040"),
+                           ("IPC", None, "#4a90d9")]:
+        m = mass if mass is not None else sample_ipc_masses(n, rng)
+        th, ke1, ke2, u1, u2 = sample_pairs(m, n, rng)
+        dth = smear_pair_response(ke1, ke2, u1, u2, sampler, rng) - th
+        s68 = np.full(len(cen), np.nan); bias = np.full(len(cen), np.nan)
+        for i, (lo, hi) in enumerate(zip(edges[:-1], edges[1:])):
+            sel = (th > lo) & (th < hi)
+            if sel.sum() < 3000:
+                continue
+            q16, q50, q84 = np.percentile(dth[sel], [16, 50, 84])
+            s68[i] = 0.5 * (q84 - q16); bias[i] = q50
+        ok = ~np.isnan(s68)
+        axes[0].plot(cen[ok], s68[ok], color=col, lw=2, marker="o", ms=3,
+                     label=lab)
+        axes[1].plot(cen[ok], bias[ok], color=col, lw=2, marker="o", ms=3,
+                     label=lab)
+    for ax in axes:
+        ax.axvline(109.4, color="#2ca02c", lw=1.2, ls=":",
+                   label="X17 shoulder (109°)")
+        ax.set_xlabel("truth e⁺e⁻ opening angle  [deg]")
+        ax.legend(fontsize=9); ax.grid(True, alpha=0.3); ax.set_xlim(0, 180)
+    axes[0].set_ylabel("σ68(Δθ)  [deg]"); axes[0].set_ylim(bottom=0)
+    axes[0].set_title("resolution vs truth angle")
+    axes[1].set_ylabel("median Δθ (bias)  [deg]")
+    axes[1].axhline(0, color="grey", lw=0.8, ls="--")
+    axes[1].set_title("bias vs truth angle")
+    fig.suptitle("Opening-angle response vs truth angle, per species — "
+                 "per-leg P(ψ|KE) smearing, target-centre chord\n"
+                 "(X17 sharpest at its shoulder: symmetric pairs; "
+                 "boundary effects drive the bias at 0°/180°)", fontsize=12)
+    fig.tight_layout()
+    fig.savefig(out / f"fig_res_vs_theta.{ext}", dpi=150)
     plt.close(fig)
 
 
@@ -350,8 +470,9 @@ def main():
     fig_ms_budget()
     fig_theta_dilution(d)
     fig_ipc_dilution()
-    fig_theta_money()
-    print(f"6 figures written to {OUT}")
+    fig_res_vs_theta(d)
+    fig_theta_money(d)
+    print(f"7 figures written to {OUT}")
 
 
 if __name__ == "__main__":

@@ -382,7 +382,8 @@ def main():
     mar.fig_ms_budget(out=OUT, ext="pdf")
     mar.fig_theta_dilution(d, out=OUT, ext="pdf")
     mar.fig_ipc_dilution(out=OUT, ext="pdf")
-    mar.fig_theta_money(out=OUT, ext="pdf")
+    mar.fig_res_vs_theta(d, out=OUT, ext="pdf")
+    mar.fig_theta_money(d, out=OUT, ext="pdf")
     print(f"report figures written to {OUT}")
 
 

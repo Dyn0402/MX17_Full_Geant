@@ -236,15 +236,26 @@ Hardware levers (for completeness — see Part I verdict):
 ### 7. What the peak looks like, and the recommended path
 
 **The money plot** (Part I of the PDF note): left = the truth X17
-distribution vs the best we can do given capsule multiple scattering
-(smeared with the smallest feasible resolution, the target-centre chord,
-σ68 = 15°/13.5° X17/IPC); middle = the truth signal stacked on the recorded
-IPC continuum; right = both smeared —
+distribution vs the best we can do given capsule multiple scattering;
+middle = the truth signal stacked on the recorded IPC continuum; right =
+both smeared —
 **the spectrum the analysis actually has to extract the X17 signal from**.
-This is a best-case picture: smallest feasible smearing, no MM acceptance
-shaping, no pile-up, no γ-flash losses.
+The smearing is per-leg from the measured P(ψ | KE) tables (best estimator,
+the target-centre chord), so the pair resolution varies with angle and
+species automatically. This is a best-case picture: smallest feasible
+smearing, no MM acceptance shaping, no pile-up, no γ-flash losses.
 
 ![money plot](figs/fig_theta_money.png)
+
+**Resolution is not flat in θ** (`fig_res_vs_theta`): X17 is sharpest at
+its 109° shoulder (13°, symmetric pairs — both legs ~9.8 MeV) and degrades
+to ~18° toward 180° (one soft leg); IPC is sharpest at *small* angle
+(low-mass pairs split E* almost evenly → two stiff legs) and worst
+(~18.5°) in the 30–90° mid-range. The bias is boundary-driven: +13° at
+small angles, −10 to −20° near 180°. Mild good news: the signal region is
+where the X17 response is best.
+
+![resolution vs theta](figs/fig_res_vs_theta.png)
 ![IPC dilution](figs/fig_ipc_dilution.png)
 ![theta dilution](figs/fig_theta_dilution.png)
 
@@ -255,7 +266,7 @@ essentially invariant; only the signal shoulder is destroyed. At the
 (191 X17 / ~9190 IPC, production-level shapes), the truth signal would stand
 ~60% above the continuum at the shoulder; after smearing the maximum local
 excess is ~17% spread over ~40°. Naive counting in a 105–150° window gives
-S ≈ 135 on B ≈ 950 (S/√B ≈ 4.4 per 30 days, down from 6.2 unsmeared) — but
+S ≈ 135 on B ≈ 1030 (S/√B ≈ 4.2 per 30 days, down from 6.2 unsmeared) — but
 reading a S/B ≈ 0.14 excess requires fitting the IPC normalisation (α_IPC is
 an *assumed* 2.1e-3) from the off-window shape; the MM geometric acceptance
 vs θ is not applied; and small-angle same-arm IPC pairs must be *resolved*
