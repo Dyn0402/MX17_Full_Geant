@@ -2590,8 +2590,9 @@ def export_response(acc, path, src_info=""):
         "meta": {
             "created": str(date.today()),
             "source": src_info,
-            "geometry": ("OLD-data geometry: He-3 300 bar, Al 0.5 mm + CFRP 0.9 mm "
-                         "target walls, MM front face 220 mm, ArIso drift gas"),
+            "geometry": ("STEP capsule geometry: He-3 500 bar (r=10 mm bore, "
+                         "60 mm on-axis), Al 0.6 mm barrel / 5 mm dome + CFRP "
+                         "0.9 mm, MM front face 250 mm, ArIso drift gas"),
             "n_events": {ETYPE_LABEL[et]: int(acc.n_total[et]) for et in (0, 1)},
             "units": {"ke": "MeV", "psi": "deg", "edep": "MeV"},
             "notes": ("direction_error tables: rows = true particle KE bins, "
