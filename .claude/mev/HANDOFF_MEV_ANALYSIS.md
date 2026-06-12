@@ -96,6 +96,58 @@ HitTree: per-step hits in sensitive volumes (see README "Output").
 - Condor submission: `scripts/submit_neutrons.py`, `scripts/submit_pairs.py`
   (defaults already point at ntof EOS).
 
+## Session 2026-06-12: Task 1 DONE — capture budget complete, note written
+
+- **Scan ran on lxplus** (`analyze_mev_captures.py`, 100/100 files, 5×10⁸
+  events): **714 direct ³He(n,γ) events**, 95% above 100 keV, median 1.3 MeV.
+- **Headline:** 32.3 capt/pulse → **32.7 X17/day** full range;
+  **0.2–2 MeV window: 490 events → 22.5 ± 1.0 X17/day** (within 10% of the
+  commented table row). Per-neutron G4/table = 1.2–1.7 in the thin region
+  (table validated); sub-keV result independently reproduced (2 events →
+  0.09 capt/pulse). Opacity transition mapped: (n,p) eats 67–81% of beam
+  < 1 keV, < 4% above 100 keV.
+- **Deliverables:** `docs/report/mev_note.pdf` (8 pp, thermal-note format),
+  `analysis/mev/mev_rates.json` (per-decade table + window integrals),
+  `analysis/mev/mev_captures.npz` (raw counts), figures via
+  `scripts/make_mev_report_figures.py`.
+- **New pitfall (cost a wrong first pass):** never apply the thermal
+  σ_nγ/σ_np = 1e-8 outside sub-keV — it is 10³–10⁴ too small at MeV. Use
+  direct counts. Also: fullrange n/pulse = **2.263×10⁷** (flux-file
+  integral; sub-keV part = 7.31e6 ✓), not Alberto's 3.29e7 (31% hotter —
+  compare per neutron).
+- **Next:** task 2 (pairs acceptance on `pairs_v2_step_target`), then the
+  generator E_n-kinematics extension before run A; γ-flash recovery is an
+  experimental question (window sits 1.0–3.2 µs after flash at 19.5 m).
+
+## Session 2026-06-12 (cont.): Task 2 DONE — pairs analysis + event pools
+
+- **`analyze_pairs.py` ran on the full pairs_v2_step_target sample** (100
+  files, 10⁷ events, ~50 min, 8 workers). Outputs in `analysis/pairs_v2/`:
+  `pair_analysis_v2.pdf` (17 sections) + `geant4_response.json` (25× the
+  stats of the old-geometry response; geometry metadata patched — the script
+  had a stale hardcoded label, now fixed at source too).
+- **Acceptance (at-rest kinematics baseline):** X17 double-trigger 12.4%,
+  MM-double 19.6%, MM-double∧double-trig 12.1%; IPC double-trigger 3.7%
+  (forward-peaked pairs → same arm). Folded into task 1: **~2.8 double-
+  triggered X17/day in the 0.2–2 MeV window** (~84 per 30-day run), IPC in
+  the same selection ~32/day → trigger-level S/B ≈ 0.09 before mass/angle
+  cuts. New geometry costs ~1–1.5° opening-angle resolution vs old (thicker
+  walls, denser gas).
+- **Response JSON installed** in `nTof_x17/MX17_Simulation/geant4_response.json`
+  (verified `Geant4Response` loads it; old one kept as
+  `geant4_response_old_geom.json`).
+- **PLAN Stage 3 written: `scripts/make_event_pools.py`** — slims HitTree
+  into per-(event, trackClass, arm, det) digest pools (CSR npz, ~330 B/event):
+  `pool_x17.npz` + `pool_ipc.npz` (500k events/class subsample, ~165 MB each)
+  and `pool_neutron_bg.npz` from run B-full (hit-bearing events, pulse time
+  = TOF(E_n over 19.3 m; gun at y=−20 cm) + Geant4 global time, 50 µs window
+  filter). 75.7% of pair events are hit-bearing; ~7.9 digests/event.
+- **Stage 4 sampler design:** per pulse draw Poisson(rate) per pool;
+  background events carry their own t0_pulse_ns; signal times come from
+  sampling E_n off the capture curve in `analysis/mev/mev_rates.json` → TOF.
+  γ-flash itself is in no Geant4 run — model as t=0 + dead-time parameter
+  from beam data.
+
 ## Open items carried over
 
 - Alberto follow-ups: IPC coefficient provenance (2.1×10⁻³ —

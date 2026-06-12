@@ -71,3 +71,7 @@ Testing/
 # IDE and Python cache
 .idea/
 __pycache__/
+
+# Script scratch output & local Claude settings
+output/
+.claude/settings.local.json

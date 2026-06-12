@@ -1,11 +1,33 @@
 # MX17 simulation campaign — status & next steps
 
-**Updated:** 2026-06-11 (afternoon) · companion docs:
+**Updated:** 2026-06-12 · companion docs:
 [PLAN_NEUTRON_CAMPAIGN.md](PLAN_NEUTRON_CAMPAIGN.md) ·
 [docs/he3_self_shielding_note.md](docs/he3_self_shielding_note.md) ·
-[docs/report/thermal_note.pdf](docs/report/thermal_note.pdf)
+[docs/report/thermal_note.pdf](docs/report/thermal_note.pdf) ·
+[docs/report/mev_note.pdf](docs/report/mev_note.pdf)
 
 ---
+
+## Headline result (2026-06-12): MeV region confirmed feasible — 22.5 X17/day in 0.2–2 MeV
+
+Run B-full analysed (100 validated jobs, 5×10⁸ neutrons, 1 meV–100 MeV,
+`scripts/analyze_mev_captures.py` + `make_mev_report_figures.py`): **714
+direct ³He(n,γ) events** (95 % above 100 keV, median 1.3 MeV) give
+**32.3 capt/pulse → 32.7 X17 produced/day** over the full range, of which
+**22.5 ± 1.0/day in the 0.2–2 MeV window** — ×300 the sub-keV yield and
+within 10 % of the commented `results_3He` row. Where thin-target is valid
+the table is *confirmed* (per-neutron G4/table = 1.2–1.7); below 1 keV the
+data sit on the opacity ceiling, reproducing the thermal result. Effective
+σ_nγ/σ_np per decade tracks ENDF over six orders of magnitude. Window sits
+1.0–3.2 µs after the γ flash at 19.5 m, sharing the gate with 3×10⁵ (n,p)t
+and 9×10⁴ scintillator H-captures per pulse. Production is settled —
+remaining work is acceptance (pairs run) and trigger/pile-up design.
+Write-up: [docs/report/mev_note.pdf](docs/report/mev_note.pdf) (8 pp);
+rates: `analysis/mev/mev_rates.json`.
+**Normalisation note:** fullrange n/pulse = 2.263×10⁷ (flux-file integral;
+do not reuse the 7.31×10⁶ sub-keV anchor, and Alberto's 3.29×10⁷ is 31 %
+hotter — compare per neutron). **Physics note:** never apply the thermal
+σ_nγ/σ_np = 10⁻⁸ above ~1 keV; use direct counts.
 
 ## Headline result (2026-06-11, FINAL — full 10⁹ statistics): thermal statistics confirmed dead
 
