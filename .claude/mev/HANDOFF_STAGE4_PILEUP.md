@@ -98,8 +98,17 @@ Per pulse:
    per-decade capture curve (or the 714 raw energies in `mev_captures.npz`)
    → TOF → injection time; attach a pool event's hits at that time.
 3. **Timeline:** merge all digests into one pulse stream; reuse existing
-   `MX17_Simulation` machinery (merge_hits, coincidence pairing, trigger
-   logic, `dead_time_sim` veto model).
+   `MX17_Simulation` machinery (merge_hits, coincidence pairing,
+   `dead_time_sim` veto model).
+   **UPDATE 2026-06-12 (after this handoff was written): scintillator
+   triggers are DROPPED.** The DAQ records a fixed ~10 µs readout per pulse
+   from the γ flash (reaches E_n ≈ 20 keV — essentially full production).
+   Pair acceptance = "MM double" (both legs in any DriftGas, same-arm
+   counts): 19.6% X17 / 23.6% IPC → ~6.4 recorded X17/day (~190/30 d) on
+   ~306 IPC/day, recorded S/B ≈ 0.021. Do NOT use the 12.4%/3.7%
+   double-trigger numbers for sensitivity; the sampler's trigger logic
+   becomes MM-readout occupancy/dead-time, not scintillator coincidence.
+   See `docs/report/angular_note.pdf` §9.
 4. **Gamma flash:** NOT in any Geant4 run. Model as t=0 marker + detector
    blind/recovery-time parameter (scan it — the answer must come from beam
    data). Window of interest sits 1.0–3.2 µs after flash.

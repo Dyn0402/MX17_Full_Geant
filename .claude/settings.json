@@ -3,7 +3,11 @@
     "allow": [
       "Bash(grep *)",
       "Bash(find *)",
-      "Bash(dpkg *)"
+      "Bash(dpkg *)",
+      "Bash(pdflatex *)",
+      "Bash(pdflatex)",
+      "Bash(source *)",
+      "Bash(cd *)"
     ]
   }
 }
