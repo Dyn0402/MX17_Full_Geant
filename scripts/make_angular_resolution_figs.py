@@ -375,7 +375,7 @@ def fig_theta_money(d, n=2_000_000, seed=44, out=None, ext="png"):
     ax.step(cen, sx_t, where="mid", color="#2ca02c", lw=2,
             label="truth distribution")
     ax.step(cen, sx_s, where="mid", color="#e84040", lw=2, ls="--",
-            label="measured response (σ68 = 13–18° vs θ) — best we can do")
+            label="measured response — best we can get")
     ax.set_ylabel("expected events / 2°  (30 days, 10 µs readout, "
                   "MM acceptance)")
     ax.set_title(f"X17 signal alone  ({N_X17_30D:.0f} events)")
@@ -393,13 +393,14 @@ def fig_theta_money(d, n=2_000_000, seed=44, out=None, ext="png"):
                         label=f"X17 stacked  ({N_X17_30D:.0f} events)")
         ax.step(cen, b + s, where="mid", color="k", lw=1.0)
         ax.set_title(title)
-    # ymax = 1.12 * max(axes[1].get_ylim()[1], axes[2].get_ylim()[1])
-    # for ax in axes[1:]:
-    #     ax.set_ylim(0, ymax)
+
+    axes[2].step(cen, sx_s, where="mid", color="#e84040", lw=2, ls="--",
+            label=f"X17 ({N_X17_30D:.0f} events)")
 
     for ax in axes:
         ax.set_xlabel("e⁺e⁻ opening angle  [deg]")
-        ax.legend(fontsize=9, loc="upper left"); ax.grid(True, alpha=0.3)
+        loc = "upper left" if ax is axes[0] else "upper right"
+        ax.legend(fontsize=9, loc=loc); ax.grid(True, alpha=0.3)
         ax.set_xlim(0, 180); ax.set_ylim(bottom=0)
 
     fig.suptitle("Best we can do with capsule multiple scattering — "
