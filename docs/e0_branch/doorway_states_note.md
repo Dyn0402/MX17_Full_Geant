@@ -82,6 +82,38 @@ This is an **illustration of the entrance-channel strength**, meant to show
   ($\theta^2=0.1$) and the channel radius is $a=4$ fm; the *shapes* are robust
   to these, the absolute vertical offsets between curves are not.
 
-If useful, the natural next step is to fold in the (e,e′)-constrained E0
-strength and the M1 radiative width to turn the 0⁺ curve into an actual
-**E0 pair yield vs $E_n$** — the term-2 piece of the money plot.
+## From doorway to pair yield — the punchline, in plain terms
+
+Folding the 0⁺ s-wave physics into an actual pair-yield curve
+(`scripts/make_e0_pair_yield_fig.py`):
+
+![E0 vs M1/E1 pair yield](figs/fig_e0_pair_yield.png)
+
+There are **two ways the captured neutron makes an e⁺e⁻ pair**, and they live at
+**opposite ends of the energy range**:
+
+- **M1/E1 (ordinary radiative capture), blue.** The nucleus wants to emit a γ
+  ray; about **0.35 %** of the time that γ comes out as an e⁺e⁻ pair instead
+  (internal pair conversion, the α≈3.5×10⁻³). The *chance* of radiative capture
+  (rather than the dominant n+p) grows ~10⁴× from thermal to MeV as the E1 /
+  giant-dipole strength turns on — so these pairs **pile up in the MeV region**.
+- **E0 (the 0⁺ monopole), red.** Here a γ is **forbidden** (0⁺→0⁺), so the
+  transition can *only* make a pair — **100 %**, no 0.35 % penalty. It comes
+  from pure s-wave capture (no MeV growth) and from the 0⁺ state sitting just
+  *below* threshold, so it is strongest at the **lowest** neutron energies and
+  fades upward. These pairs **pile up at thermal / sub-keV**.
+
+So the picture flips depending on energy: **above ~10 keV the ordinary M1/E1
+pairs dominate; below ~1 keV the E0 pairs can take over** — even if the E0
+channel is only a few percent of the M1 strength, because it dodges the 0.35 %
+IPC suppression. With $\sigma_{E0}/\sigma_{M1}=0.03$, E0 already gives ~30
+pairs/day below 1 keV, where ordinary IPC gives only a handful. **That
+potentially revives the sub-keV region we had written off** as a place to look
+for pairs.
+
+**The one thing we don't know yet** is the *height* of the red curve — i.e. how
+big the E0 channel really is ($f=\sigma_{E0}/\sigma_{M1}$, shown for
+0.003 / 0.03 / 0.3). That single number is set by the nuclear E0 strength
+$\rho$(E0), which the ⁴He(e,e′) monopole data + a ⁴He R-matrix will pin down
+(roadmap Phase 2). The **shape** — E0 at low energy, M1/E1 at MeV — is robust
+and doesn't depend on that number.
