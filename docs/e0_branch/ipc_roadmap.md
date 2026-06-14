@@ -147,12 +147,14 @@ refers to.
   **BrIccEmis** (Kibédi et al.) — the modern pair-conversion tool — rather than
   the table's flat 2.1×10⁻³; cross-check vs Schlüter & Soff (1979). Helium is
   low-Z (Born limit), so this is well-behaved.
-- Get the **E0 pair energy-sharing + opening-angle distribution** at ~20 MeV
-  from BrIccEmis (this is the generator input #3 from the explainer note).
-- **Checked: BrIccEmis is *not* on lxplus** (not in CVMFS, not in our AFS/work
-  areas). It would need installing (it's a small standalone tool from the ANU
-  BrIcc suite, Kibédi et al.) or running on a machine that has it. So Phase 1 is
-  blocked on getting the tool, not on data.
+- Get the **E0 pair energy-sharing + opening-angle distribution** at ~20 MeV.
+- **Resolved (see `ipc_estimation_method.md`):** BrIcc now installed on lxplus
+  (`/afs/cern.ch/work/d/dneff/tools/BrIcc`, trivial), **but its tables stop at
+  6 MeV** — it cannot give the coefficient at 20.6 MeV. BrIccEmis is the wrong
+  tool (low-energy Auger MC). The accurate 20 MeV coefficients come from
+  high-energy IPC theory (Schlüter–Soff–Greiner / Born, exact at Z=2) anchored
+  to the *measured* ¹²C 15.1 MeV M1 (3.3×10⁻³) and ⁸Be 18.15 MeV points. Phase 1
+  is therefore a small theory-coding task, not a tool-install blocker.
 
 **Phase 2 — the E0 cross section `σ_E0-pair(E_n)` (the real unknown).**
 - **⁴He R-matrix:** the ⁴He system is heavily evaluated; pull the 20.21 MeV 0⁺
