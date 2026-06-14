@@ -41,13 +41,20 @@ A_CH = 4.0               # channel radius [fm]
 S_N = 20.578            # n + 3He threshold = S_n(4He) [MeV]
 THETA2 = 0.1            # dimensionless reduced width (Wigner units)
 
-# states: (label, E_x[MeV], Gamma[MeV], l, J)
+# states: (label, E_x[MeV], Gamma[MeV], l, J, kind)
+#   kind "res"    = resonant doorway (Breit-Wigner around E_r)
+#   kind "direct" = non-resonant direct capture (no nearby level): the 1+ M1
+#                   capture goes through the 3S1 continuum, since the lowest 1+
+#                   level is ~28 MeV away.  Modelled as a reference-width
+#                   "resonance" so it is just the smooth s-wave 1/v entrance.
+G_REF = 1.0   # MeV, reference width for the direct (non-resonant) 1+ channel
 STATES = [
-    ("$0^+$ (20.21, s-wave)", 20.21, 0.50, 0, 0),
-    ("$0^-$ (21.01, p-wave)", 21.01, 0.84, 1, 0),
-    ("$2^-$ (21.84, p-wave)", 21.84, 2.01, 1, 2),
+    ("$1^+$ ($^3S_1$, s, direct)",        28.31, G_REF, 0, 1, "direct"),
+    ("$0^+$ (20.21, s, sub-thr.)",        20.21, 0.50,  0, 0, "res"),
+    ("$0^-$ (21.01, p-wave)",             21.01, 0.84,  1, 0, "res"),
+    ("$2^-$ (21.84, p-wave)",             21.84, 2.01,  1, 2, "res"),
 ]
-COLORS = ["C0", "C3", "C2"]
+COLORS = ["#2471a3", "#c0392b", "C1", "#16a085"]
 
 
 def Ecm_of_En(En):                       # CM energy from lab neutron energy
@@ -78,12 +85,17 @@ def main():
     gamma2 = THETA2 * HBARC**2 / (MU * A_CH**2)     # reduced width [MeV]
 
     curves = {}
-    for (label, Ex, G, l, J) in STATES:
+    for (label, Ex, G, l, J, kind) in STATES:
         Er = Ex - S_N                                # resonance E in CM
         P = np.array([penetrability(l, r) for r in rho])
         gJ = (2 * J + 1) / 4.0                        # (2J+1)/[(2*1/2+1)^2]
         Gn = 2.0 * P * gamma2                         # energy-dependent neutron width
-        S = (1.0 / k**2) * gJ * Gn * G / ((Ecm - Er)**2 + (G / 2.0)**2)
+        if kind == "direct":
+            # non-resonant: flat reference factor -> just the s-wave 1/v entrance
+            F = G / ((G / 2.0) ** 2)                  # = 4/G_ref, energy-independent
+        else:
+            F = G / ((Ecm - Er) ** 2 + (G / 2.0) ** 2)
+        S = (1.0 / k**2) * gJ * Gn * F
         curves[label] = S
 
     # ── figure: top = doorway strength, bottom = penetrabilities ─────────────
@@ -92,20 +104,25 @@ def main():
                                                 "hspace": 0.08})
 
     for (label, *_), c in zip(STATES, COLORS):
-        ax1.loglog(En, curves[label], color=c, lw=2.2, label=label)
+        ls = "--" if label.startswith("$1^+$") else "-"
+        ax1.loglog(En, curves[label], color=c, lw=2.4, ls=ls, label=label)
     ax1.axvspan(2e5 * 1e-6, 2e6 * 1e-6, color="gold", alpha=0.2, zorder=0)  # 0.2-2 MeV
-    ax1.set_ylabel("relative doorway formation strength  [arb.]")
-    ax1.set_title("Forming $^4$He$^*$ through the $0^+$ vs $0^-$ doorway\n"
-                  "(single-level Breit–Wigner $\\times$ penetrability; "
-                  "TUNL A=4 parameters, $a=4$ fm)")
-    ax1.legend(loc="upper right", fontsize=10)
+    ax1.text(0.06, 0.94, "s-wave channels ($0^+,1^+$): rise as $1/v$, dominate "
+             "low $E_n$\np-wave ($0^-,2^-$): barrier-suppressed, peak in "
+             "sub-MeV/MeV", transform=ax1.transAxes, va="top", fontsize=8.2,
+             bbox=dict(boxstyle="round", fc="white", ec="0.7", alpha=0.9))
+    ax1.set_ylabel("relative formation strength  [arb.]")
+    ax1.set_title("Which $^4$He$^*$ doorway do we form, vs neutron energy?\n"
+                  "(single-level Breit–Wigner $\\times$ penetrability; TUNL A=4, "
+                  "$a=4$ fm. $1^+$ is direct/non-resonant.)")
+    ax1.legend(loc="upper right", fontsize=9)
     ax1.grid(alpha=0.3, which="both")
     ymax = max(np.nanmax(v) for v in curves.values())
-    ax1.set_ylim(ymax * 1e-5, ymax * 3)
+    ax1.set_ylim(ymax * 1e-5, ymax * 4)
 
     # penetrabilities
-    for l, c, lab in [(0, "C0", r"$P_0$ (s-wave, $0^+$)"),
-                      (1, "C3", r"$P_1$ (p-wave, $0^-,2^-$)"),
+    for l, c, lab in [(0, "#2471a3", r"$P_0$ (s-wave: $0^+,1^+$)"),
+                      (1, "C1", r"$P_1$ (p-wave: $0^-,2^-$)"),
                       (2, "C2", r"$P_2$ (d-wave)")]:
         P = np.array([penetrability(l, r) for r in rho])
         ax2.loglog(En, P, color=c, lw=1.8, label=lab)
@@ -121,24 +138,25 @@ def main():
                     dpi=150)
     plt.close(fig)
 
-    # ── console: ratio + crossover ───────────────────────────────────────────
-    s0p = curves[STATES[0][0]]
-    s0m = curves[STATES[1][0]]
-    ratio = s0p / s0m
-    # 0- peak
+    # ── console: ratios + crossover ──────────────────────────────────────────
+    s1p = curves[STATES[0][0]]   # 1+ (direct s-wave)
+    s0p = curves[STATES[1][0]]   # 0+ (sub-threshold s-wave)
+    s0m = curves[STATES[2][0]]   # 0- (p-wave)
+    ratio = s0p / s0m            # s-wave 0+ vs p-wave 0-
     i_pk = np.argmax(s0m)
-    # crossover (ratio crosses 1)
     sign = np.sign(ratio - 1.0)
     xover = En[np.where(np.diff(sign) != 0)[0]]
     print(f"reduced width gamma^2 = {gamma2:.3f} MeV (theta^2={THETA2}, a={A_CH} fm)")
     print(f"0- doorway peaks at E_n = {En[i_pk]*1e3:.0f} keV "
           f"(E_cm = {Ecm_of_En(En[i_pk])*1e3:.0f} keV)")
-    print(f"0+/0- strength ratio:")
+    print(f"{'E_n':>9} {'S(0+)/S(0-)':>12} {'S(0+)/S(1+)':>12}  (s/p, and s-wave pair)")
     for En_pt in [1e-3, 1e-2, 0.1, 0.3, 0.6, 1.0, 3.0]:
         j = np.argmin(np.abs(En - En_pt))
-        print(f"  E_n={En_pt:>7.3g} MeV : S(0+)/S(0-) = {ratio[j]:.2e}")
+        print(f"  {En_pt:>7.3g} {ratio[j]:>12.2e} {s0p[j]/s1p[j]:>12.2e}")
     if len(xover):
-        print(f"crossover S(0+)=S(0-) at E_n ~ {xover[0]*1e3:.0f} keV")
+        print(f"s-wave/p-wave crossover S(0+)=S(0-) at E_n ~ {xover[0]*1e3:.0f} keV")
+    print("note: S(0+)/S(1+) is ~flat (both s-wave); its absolute value is the\n"
+          "      unknown E0/M1 matrix-element ratio -- shapes robust, height not.")
     print(f"\nSaved -> {OUT}/fig_doorway_formation.[pdf,png]")
 
 
