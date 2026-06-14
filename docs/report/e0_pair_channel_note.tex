@@ -1,0 +1,342 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[margin=2.4cm]{geometry}
+\usepackage{graphicx}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{xcolor}
+\usepackage[colorlinks=true,linkcolor=blue!50!black,urlcolor=blue!50!black,citecolor=blue!50!black]{hyperref}
+\graphicspath{{figs/}}
+
+\newcommand{\He}[1]{$^{#1}$He}
+\newcommand{\snp}{\sigma_{np}}
+\newcommand{\sng}{\sigma_{n\gamma}}
+\newcommand{\sM}{\sigma_{\mathrm{M1}}}
+\newcommand{\sE}{\sigma_{\mathrm{E0}}}
+
+\title{\vspace{-1.2cm}
+  {\Large\bfseries The E0 pair channel in \He{3}$(n,\cdot)$\He{4}}\\[2mm]
+  {\large A second, $\gamma$-dark way to make $e^+e^-$ pairs --- why it matters,
+   where it lives in energy, and how big it might be}}
+\author{Dylan Neff}
+\date{14 June 2026 \\[2mm]
+  {\small\itshape Internal note --- informal. Drafted by Claude (Anthropic AI
+  assistant) under D.~Neff's direction; \\ physics, numbers and text
+  reviewed by D.~Neff.}}
+
+\begin{document}
+\maketitle
+\vspace{-0.8cm}
+
+%=============================================================================
+\section*{Part I --- Summary of findings}
+
+\begin{center}
+\fcolorbox{blue!40!black}{blue!4}{%
+\begin{minipage}{0.95\textwidth}
+\vspace{3pt}
+\textbf{There are two distinct ways a captured neutron makes an $e^+e^-$ pair in
+\He{4}, and they are easy to confuse.} They are \emph{not} two decays of one
+state --- they are \textbf{different capture channels}, picked out by how the
+neutron and \He{3} spins line up:
+\begin{itemize}\setlength\itemsep{1pt}
+  \item \textbf{M1 channel} ($^3S_1\!\to0^+$): emits a real $\gamma$; only
+    $\sim$0.35\,\% of those $\gamma$'s convert to a pair. This is the ordinary
+    radiative capture (the 54\,$\mu$b). It \emph{grows} toward MeV, so its pairs
+    pile up in the \textbf{MeV} region.
+  \item \textbf{E0 channel} ($^1S_0\!\to0^+$): a $0^+\!\to0^+$ transition, for
+    which a $\gamma$ is \emph{forbidden} --- so it can \emph{only} make a pair,
+    \textbf{100\,\%} of the time. It is s-wave and boosted by the 20.21\,MeV
+    $0^+$ state just below threshold, so its pairs pile up at \textbf{thermal /
+    sub-keV}.
+\end{itemize}
+\textbf{Key consequences:} (i) a $0^+\!\to0^+$ transition can go \emph{only} by
+E0 --- not M1 (the same $0\to0$ rule forbids both the photon and M1).
+(ii) The E0 channel is \textbf{missing from the standard tools} (ENDF, Geant4)
+\emph{and} from our generator --- it is $\gamma$-dark, so nothing counts it.
+(iii) Its energy dependence is the \emph{opposite} of the M1/E1 pairs.
+(iv) \textbf{Its absolute size is not yet known.} A literature search found the
+\He{4} $0^+$ E0 strength is real and measured, but the capture rate has never
+been computed; a transparent estimate brackets it at
+$\boxed{f=\sE/\sM \sim 10^{-3}\text{--}10^{-2}}$, i.e.\ \textbf{E0 pairs
+$\sim$0.3--3$\times$ the ordinary M1 pairs at low neutron energy} --- exactly
+Alberto's ``same order of magnitude'' intuition. Pinning the number needs a
+\He{4} R-matrix calculation.
+\vspace{3pt}
+\end{minipage}}
+\end{center}
+
+\noindent\textbf{What this note is.} Part~II explains the nuclear physics from
+the ground up, in plain terms, with diagrams. Part~III is the magnitude: what we
+can and cannot say, the literature dig, and the bracket. The headline picture is
+Fig.~\ref{fig:yield}: \textbf{E0 pairs at low $E_n$, M1/E1 pairs at MeV.}
+
+%=============================================================================
+\section{What happens when a neutron is captured by \He{3}}
+
+A slow neutron and a \He{3} fuse into an excited \He{4} nucleus
+(\He{4}$^*$, $\approx$20.6\,MeV). That excited nucleus almost always just breaks
+back apart into $p+{}^3$H (the (n,p)t reaction, $\sim$100\,\% --- and no
+pair). Very rarely ($10^{-8}$--$10^{-4}$ of the time) it instead drops to the
+\He{4} ground state by emitting electromagnetic radiation --- \textbf{and that
+rare drop is the only source of $e^+e^-$ pairs}. Figure~\ref{fig:breakdown}
+is the whole logic on one page.
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=0.96\textwidth]{fig_e0_breakdown}
+\caption{What makes the pairs. The neutron+\He{3} fuse; the result almost always
+  breaks up to $p+t$. The rare electromagnetic drop to the ground state comes in
+  \emph{two flavours}, set by how the two spins line up --- and those two
+  flavours are the E0 and M1 channels.}
+\label{fig:breakdown}
+\end{figure}
+
+%=============================================================================
+\section{The selection rule, in plain words}
+
+The \He{4} ground state has spin/parity $0^+$. The transition that makes a pair
+goes from \He{4}$^*$ down to that $0^+$ ground state. \textbf{What kind of
+radiation is allowed is fixed entirely by the spin and parity of \He{4}$^*$} ---
+it is not a free choice.
+
+The crucial fact: \emph{a photon, and an M1, each carry at least one unit of
+angular momentum.} A transition between two spin-0 states ($0\to0$) has
+\textbf{zero} angular momentum to give away. Therefore, for a $0^+\!\to0^+$
+transition:
+\begin{itemize}\setlength\itemsep{1pt}
+  \item \textbf{$\gamma$-ray emission: forbidden} (there is no ``monopole
+    photon'').
+  \item \textbf{M1: forbidden} --- same reason, it needs $\ge1$ unit.
+  \item \textbf{E0: allowed.} E0 is the loophole: the nucleus hands its energy
+    straight to an $e^+e^-$ pair through a \emph{virtual} photon, which is
+    allowed to be monopole. For a $0^+\!\to0^+$ transition the pair is the
+    \emph{only} outlet.
+\end{itemize}
+
+\noindent So ``the $0^+$ goes by E0'' is forced --- it cannot go by M1. This is
+the point that is easy to trip over: \textbf{the M1 in our problem is a
+different transition entirely}, not an alternative way for the $0^+$ to decay.
+
+%=============================================================================
+\section{The two channels: E0 vs M1}
+
+When the neutron (spin $\tfrac12$) and \He{3} (spin $\tfrac12$) capture in
+s-wave, their spins can be \emph{opposite} or \emph{aligned}, and that decides
+which \He{4}$^*$ state you build:
+
+\begin{center}
+\begin{tabular}{llll}
+\hline
+spins & channel & \He{4}$^*$ is & $\to$ ground state \\
+\hline
+\textbf{opposite} & $^1S_0$ & $0^+$ & \textbf{E0}: $\gamma$ forbidden $\Rightarrow$ \textbf{100\,\% pair} ($\gamma$-dark) \\
+\textbf{aligned}  & $^3S_1$ & $1^+$ & \textbf{M1}: $\gamma$ allowed $\Rightarrow$ $\gamma$ (99.65\,\%) $+$ 0.35\,\% pair \\
+\hline
+\end{tabular}
+\end{center}
+
+\noindent These are \textbf{two parallel doorways}. The all-important practical
+consequence: the famous radiative-capture number (54\,$\mu$b at thermal, ENDF
+MT=102) is \emph{only the M1 ($1^+$) channel} --- it counts $\gamma$-emitting
+captures. The E0 ($0^+$) channel emits no $\gamma$, so \textbf{it is invisible
+to that number, to ENDF, and to Geant4}, and it is not in our event generator
+either. It is missing in three places at once.
+
+The M1 channel's pairs are the 0.35\,\% internal-pair-conversion (IPC) tail of
+its $\gamma$: at $\sim$20\,MeV the IPC coefficient is
+$\alpha_{\rm IPC}\approx3.5\times10^{-3}$ (anchored to the \emph{measured}
+$^{12}$C 15.1\,MeV M1 value $(3.3\pm0.5)\times10^{-3}$ and the $^{8}$Be
+18.15\,MeV line; BrIcc's tables stop at 6\,MeV so they cannot be used at our
+energy --- see Part~III).
+
+%=============================================================================
+\section{Why angular momentum sets the energy dependence}
+
+Now the energy dependence, which is where it gets interesting. To build a given
+state you need a specific orbital angular momentum $\ell$, because the parity of
+the $n+{}$\He{3} system is $(-1)^\ell$:
+\begin{itemize}\setlength\itemsep{1pt}
+  \item $0^+$ (parity $+$) needs $\ell$ even $\Rightarrow$ \textbf{s-wave}
+    ($\ell=0$).
+  \item $0^-$ (parity $-$) needs $\ell$ odd $\Rightarrow$ \textbf{p-wave}
+    ($\ell=1$).
+\end{itemize}
+An s-wave neutron has \emph{no centrifugal barrier} --- it gets in for free, and
+the formation rate behaves as $\sim1/v$, \textbf{growing without limit toward
+low energy}. A p-wave neutron must climb the barrier, so its formation
+\emph{vanishes} at threshold and only switches on with energy. Figure~\ref{fig:doorway}
+makes this concrete with a Breit--Wigner $\times$ penetrability calculation using
+the measured \He{4} resonance parameters.
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=0.80\textwidth]{fig_e0_doorway}
+\caption{Relative strength for forming the $0^+$ (s-wave) vs $0^-$ (p-wave)
+  doorway, and the underlying penetrabilities (bottom). The $0^+$ dominates
+  everywhere below $\sim$0.5\,MeV --- by $\sim$2500$\times$ at 1\,keV. The $0^-$
+  is \emph{not} forbidden below 1\,MeV; it is barrier-suppressed and in fact
+  \emph{peaks} at $E_n\approx0.64$\,MeV. (Single-level illustration; absolute
+  vertical offsets need the full R-matrix.)}
+\label{fig:doorway}
+\end{figure}
+
+\paragraph{The $0^-$ question, settled.} A natural worry is whether the $0^-$
+state (21.0\,MeV) is ``energetically forbidden'' at low energy. It is not: the
+$n+{}$\He{3} channel is open at all $E_n>0$. What suppresses the $0^-$ below
+$\sim$0.5\,MeV is the \emph{p-wave barrier}, not energetics --- and it actually
+peaks just below 1\,MeV. (As a bonus, the $0^-$ is a \emph{spectator} for the
+pair signal anyway: $0^-\!\to0^+$ is forbidden for $\gamma$, M1 \emph{and} E0,
+so it simply decays back by particle emission.) \textbf{The upshot: as the
+neutron energy drops, we make relatively more of the $0^+$ (E0) doorway.}
+
+%=============================================================================
+\section{The cross-section backdrop}
+
+For context, Fig.~\ref{fig:xs} shows the two known \He{3}$+n$ cross sections.
+The (n,p)t dominates utterly ($1/v$, 5333\,b at thermal). The radiative
+$\sng$ (the M1/E1, 54\,$\mu$b at thermal) is $1/v$ at low energy then
+\emph{rises} toward the MeV region as the E1 / giant-dipole strength turns on ---
+the ratio $\sng/\snp$ climbs $\sim$10$^4\times$ from thermal to 10\,MeV. That
+rise is \emph{why the ordinary M1/E1 pairs are a MeV phenomenon}. Note this is
+the \emph{lumped} radiative number; it contains no E0 (which is $\gamma$-dark)
+and cannot be sliced into multipoles.
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=0.74\textwidth]{fig_e0_he3xs}
+\caption{\He{3}$+n$ cross sections (ENDF/B-VIII.0). Bottom: the radiative/(n,p)
+  ratio is flat at $10^{-8}$ through the sub-keV window and climbs to
+  $\sim2\times10^{-4}$ by 10\,MeV --- the E1 turning on. The E0 channel is not
+  in this file.}
+\label{fig:xs}
+\end{figure}
+
+%=============================================================================
+\section{Where the pairs come from: the punchline}
+
+Putting it together: the two pair channels live at \textbf{opposite ends} of the
+energy range (Fig.~\ref{fig:yield}).
+\begin{itemize}\setlength\itemsep{1pt}
+  \item \textbf{M1/E1 (blue):} rides the rising $\sng/\snp$, so it
+    \textbf{peaks in the MeV region}. This is the piece we can already compute
+    from the simulated capture rate $\times\,\alpha_{\rm IPC}$
+    ($\approx$2200 pairs/day, concentrated 0.1--10\,MeV).
+  \item \textbf{E0 (red):} pure s-wave, boosted by the sub-threshold $0^+$, and
+    with \emph{no} 0.35\,\% penalty (the $\gamma$ is forbidden, so every such
+    capture is a pair) --- so it \textbf{piles up at thermal / sub-keV} and
+    fades upward.
+\end{itemize}
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=0.86\textwidth]{fig_e0_yield}
+\caption{$e^+e^-$ pairs/day vs neutron energy. M1/E1 (blue) peaks at MeV; E0
+  (red, three assumed strengths) piles up at low $E_n$. \textbf{Below
+  $\sim$1\,keV the E0 channel can dominate the pair yield} even at a few-percent
+  strength, because it dodges the 0.35\,\% IPC suppression. The vertical
+  position of the red curves is the one unknown (Part~III).}
+\label{fig:yield}
+\end{figure}
+
+\noindent The striking implication: \textbf{the sub-keV region we had written
+off} (for M1 it is dead --- self-shielded, capped at $10^{-8}$) \textbf{might be
+exactly where the E0 pairs are.} That is a genuinely different place to look.
+
+%=============================================================================
+\section{Part III --- How big is the E0 channel? (the open question)}
+
+Everything above --- the channel structure, the selection rules, the opposite
+energy trends --- is \textbf{settled}. The one thing still unknown is the
+\emph{height} of the red curve: how strong the E0 ($^1S_0$) capture is relative
+to the M1 ($^3S_1$), i.e.\ $f=\sE/\sM$.
+
+\subsection*{What the literature dig found}
+\begin{itemize}\setlength\itemsep{1pt}
+  \item The \He{4} $0^+_2$ (20.21\,MeV) \textbf{E0 strength is real and
+    measured}: its monopole transition form factor was measured precisely at
+    MAMI \cite{kegel}, and is the subject of the ``$\alpha$-particle monopole
+    puzzle'' \cite{puzzle}. So the \emph{decay-side} E0 matrix element is
+    established --- it is a genuine \emph{collective} monopole (``breathing'')
+    transition, \textbf{not weak}.
+  \item But that form factor is the \emph{bound} $0^+_2\!\to$g.s.\ strength.
+    Neutron capture needs the $^1S_0$ \emph{continuum}$\to$g.s.\ amplitude at
+    20.58\,MeV (the $0^+_2$ sits 0.37\,MeV \emph{below} threshold and enters
+    through its sub-threshold tail). Converting one to the other is reaction
+    theory, not a table lookup.
+  \item The ATOMKI \He{4} pair experiment ($^3$H$(p,e^+e^-)$\He{4}
+    \cite{atomki}) models its pairs as the internal/external pair creation of
+    \emph{direct E1/M1 proton capture} --- it does not isolate a clean E0 line,
+    and the $p+t$ entrance couples to the $0^+_2$ differently than $n+{}$\He{3}.
+  \item I found \textbf{no calculation of \He{3}$(n,e^+e^-)$\He{4}} (the E0
+    capture) anywhere --- this specific channel appears genuinely un-computed.
+\end{itemize}
+
+\subsection*{A transparent bracket}
+Since no number exists, here is an honest order-of-magnitude argument. The
+decisive quantity is the ratio of \emph{pair} yields, $f/\alpha_{\rm IPC}$:
+\begin{itemize}\setlength\itemsep{1pt}
+  \item \textbf{Lower edge:} E0 is allowed and collective, and unpolarised
+    $n+{}$\He{3} populates the $^1S_0$ channel with statistical weight
+    $\tfrac14$ (vs $\tfrac34$ for $^3S_1$). So $f$ is unlikely to be far below
+    the $\alpha_{\rm IPC}\sim10^{-3}$ scale.
+  \item \textbf{Upper edge:} E0 pair emission has \emph{no real-photon mode}, so
+    it is intrinsically much slower than the M1 \emph{photon} width --- an E0
+    pair width is typically $\sim10^{-2}$--$10^{-3}$ of a comparable allowed M1
+    photon width. Even with the collective enhancement, $f\gtrsim0.1$ is hard to
+    reach.
+\end{itemize}
+\[
+\boxed{\,f=\sE/\sM \sim 10^{-3}\text{--}10^{-2}\,}
+\qquad\Longrightarrow\qquad
+\frac{\text{E0 pairs}}{\text{M1 pairs}}=\frac{f}{\alpha_{\rm IPC}}
+\sim 0.3\text{--}3 \ \ (\text{up to}\sim30)
+\]
+at the low neutron energies where E0 lives. \textbf{So E0 is plausibly a
+same-order-or-larger contributor to the sub-keV pair yield} --- which is exactly
+the ``same order of magnitude'' point that started this. The three red curves in
+Fig.~\ref{fig:yield} ($f=0.003/0.03/0.3$) bracket this range.
+
+\subsection*{What would replace the bracket with a number}
+One calculation: a \textbf{\He{4} multi-level R-matrix} (G.~M.~Hale maintains the
+evaluated \He{4} system) for the $^1S_0$ $n+{}$\He{3}$\to$g.s.\ E0 capture,
+\emph{normalised} by the measured (e,e$'$) monopole strength and the $0^+_2$
+neutron asymptotic normalisation. That is a concrete, well-posed ask for a
+\He{4}-theory contact, and is the clean next step if we want to firm up the red
+curve. \emph{(Worth keeping on the list to work on together.)}
+
+%=============================================================================
+\section*{Reproducing the figures}
+Schematic \texttt{make\_capture\_breakdown\_fig.py}
+(Fig.~\ref{fig:breakdown}); doorway calc \texttt{calc\_doorway\_formation.py}
+(Fig.~\ref{fig:doorway}); cross sections \texttt{plot\_he3\_xs.py}
+(Fig.~\ref{fig:xs}); pair yield \texttt{make\_e0\_pair\_yield\_fig.py}
+(Fig.~\ref{fig:yield}). Companion markdown: \texttt{docs/e0\_branch/}
+(\texttt{capture\_breakdown.md}, \texttt{doorway\_states\_note.md},
+\texttt{ipc\_estimation\_method.md}, \texttt{ipc\_roadmap.md}).
+
+\begin{thebibliography}{9}
+\small
+\bibitem{kegel} S.~Kegel \emph{et al.}, ``Measurement of the $\alpha$-Particle
+  Monopole Transition Form Factor'', Phys.\ Rev.\ Lett.\ \textbf{130} (2023)
+  152502 (MAMI A1).
+\bibitem{puzzle} ``Derivation of transition density from the observed
+  \He{4}$(e,e')$\He{4}$(0^+_2)$ form factor \dots'', arXiv:2306.07268; and
+  arXiv:2406.00653.
+\bibitem{atomki} A.~J.~Krasznahorkay \emph{et al.}, ``New anomaly observed in
+  \He{4} \dots'', Phys.\ Rev.\ C \textbf{104} (2021) 044003;
+  arXiv:2104.10075.
+\bibitem{bricc} T.~Kib\'edi \emph{et al.}, BrIcc, Nucl.\ Instrum.\ Meth.\ A
+  \textbf{589} (2008) 202; \url{https://github.com/IAEA-NSDDNetwork/BrIcc}
+  (pair coefficients tabulated only to 6\,MeV).
+\bibitem{ss} M.~Schl\"uter, G.~Soff, W.~Greiner, Z.~Phys.\ A \textbf{286} (1978)
+  149; At.\ Data Nucl.\ Data Tables \textbf{24} (1979) 509 (high-energy IPC).
+\bibitem{ipc12c} Measured $^{12}$C 15.1\,MeV M1 IPC, $\alpha_\pi=(3.3\pm0.5)
+  \times10^{-3}$ (PEPSI; arXiv:nucl-ex/9704007).
+\bibitem{tunl} D.~R.~Tilley, H.~R.~Weller, G.~M.~Hale, ``Energy levels of
+  $A=4$'', Nucl.\ Phys.\ A \textbf{541} (1992) 1 (TUNL); G.~M.~Hale's \He{4}
+  R-matrix.
+\bibitem{werv} R.~Wervelman \emph{et al.}, \He{3}$(n,\gamma)$\He{4} M1/E1
+  content, Nucl.\ Phys.\ A \textbf{526} (1991) 265.
+\end{thebibliography}
+
+\end{document}
