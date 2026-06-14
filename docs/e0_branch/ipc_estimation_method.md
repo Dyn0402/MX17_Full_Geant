@@ -89,6 +89,51 @@ Output: `P_E0(E_n)`, hence term 2 on the plot. Even an order-of-magnitude
 bracket settles whether E0 is a ~10 % correction or rivals term 1 (it rivals
 term 1 once `σ_E0 ≳ α_IPC·σ_M1 ≈ 3×10⁻³ σ_M1`, since E0 has no competing γ).
 
+### 2a. Pinning the height f — what the literature gives, and doesn't
+
+I dug for a number for `f = σ_E0/σ_M1` (equivalently `σ_E0`). Honest result:
+**it is not available as a literature number — it requires the ⁴He R-matrix.**
+What the dig *did* establish:
+
+- The ⁴He **0₂⁺ E0 strength is real and measured**: the monopole transition
+  form factor is measured precisely at MAMI (Kegel et al., PRL **130** (2023)
+  152502; the "α-particle monopole puzzle", arXiv:2306.07268 / 2406.00653). So
+  the *decay-side* E0 matrix element is established — it is a genuine collective
+  monopole ("breathing") transition, **not weak**.
+- The ATOMKI ⁴He pair experiment (³H(p,e⁺e⁻)⁴He, Krasznahorkay et al., PRC
+  **104** (2021) 044003) models its observed pairs as the **internal+external
+  pair creation of direct E1/M1 proton radiative capture** — i.e. it does *not*
+  isolate a large clean E0 line. So there is no published `σ_E0` we can lift,
+  and the p+t entrance couples to the 0₂⁺ differently from n+³He anyway.
+- I found **no calculation of ³He(n,e⁺e⁻)⁴He** (the E0 capture) at all — this
+  specific channel appears genuinely un-computed, which is part of why Alberto's
+  point is worth raising.
+
+**Reasoned order-of-magnitude bracket** (transparent, not a substitute for the
+R-matrix). The decisive ratio is E0-pairs / M1-pairs `= f/α_IPC`. Two facts
+bound `f`:
+- *Lower edge:* E0 is allowed and collective, and unpolarised n+³He populates
+  the ¹S₀ (S=0) channel with statistical weight ¼ vs ¾ for ³S₁ — so `f` is very
+  unlikely to be far below the α_IPC scale (~10⁻³).
+- *Upper edge:* E0 pair emission has **no real-photon mode**, so it is
+  intrinsically far slower than the M1 *photon* width; an E0 pair width is
+  typically ~10⁻²–10⁻³ of a comparable allowed M1 photon width. Even with the
+  collective monopole enhancement, `f ≳ 0.1` is hard to reach.
+
+⇒ **`f ~ 10⁻³ – 10⁻²`** most plausibly (generous range 10⁻³–10⁻¹). Folding in
+`α_IPC ≈ 3.5×10⁻³`:
+
+> **E0 pairs / M1 pairs `= f/α_IPC ~ 0.3 – 3`** (up to ~30 at the generous
+> edge), **at the low neutron energies where E0 lives.** So E0 is plausibly a
+> *same-order-or-larger* contributor to the sub-keV pair yield — which is
+> exactly Alberto's original "same order of magnitude" intuition, now with a
+> mechanism and a bracket.
+
+The one calculation that replaces this bracket with a number: a **⁴He
+multi-level R-matrix** (Hale has the evaluated ⁴He system) giving the ¹S₀
+n+³He → g.s. E0 capture, normalised by the measured (e,e′) monopole strength
+and the 0₂⁺ neutron ANC. That is the concrete Phase-2 ask for a theory contact.
+
 ## 3. Tool finding: BrIcc on lxplus
 
 **Installed and working** at `/afs/cern.ch/work/d/dneff/tools/BrIcc` (untar the

@@ -79,14 +79,18 @@ So the two pair sources sit at **opposite ends** of the energy range (see
 |---|---|
 | M1/E1 pair yield vs $E_n$ (the MeV peak) | **have it** — campaign (n,γ) rate × α_IPC≈3.5×10⁻³ |
 | The *shape* of the E0 yield (low-$E_n$, falling upward) | **have it** — s-wave + sub-threshold 0⁺ |
-| The *height* of the E0 yield ($f=\sigma_{E0}/\sigma_{M1}$) | **unknown** — the nuclear matrix element |
+| The *height* of the E0 yield ($f=\sigma_{E0}/\sigma_{M1}$) | **bracketed**, not pinned — $f\sim10^{-3}$–$10^{-2}$ (see below) |
 
 The one missing number is **how strong the E0 (¹S₀) capture channel is relative
-to the M1 (³S₁)**. That is a nuclear-structure quantity: it's anchored by the
-⁴He(e,e′) monopole form factor (the measured 0⁺→0⁺ strength, the "α-particle
-monopole puzzle") but turning that into a *capture* rate needs a ⁴He R-matrix
-(roadmap Phase 2). Everything else — the channel structure, the multipoles, the
-opposite energy trends — is settled and shown above.
+to the M1 (³S₁)**. A literature dig (details in `ipc_estimation_method.md` §2a)
+found no published value — the ⁴He(e,e′) data fix the *decay-side* E0 strength
+(it's a real, collective monopole — not weak), but turning that into a *capture*
+rate needs a ⁴He R-matrix (roadmap Phase 2). A transparent order-of-magnitude
+argument brackets it at **$f\sim10^{-3}$–$10^{-2}$**, which means **E0 pairs are
+plausibly comparable to (≈0.3–3×) the ordinary M1 pairs at low neutron energy** —
+matching Alberto's original "same order of magnitude" hunch. Everything else —
+the channel structure, the multipoles, the opposite energy trends — is settled
+and shown above.
 
 ### The one-line takeaway
 There are two pair channels, set by spin alignment in the capture: **0⁺→E0**
