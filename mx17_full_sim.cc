@@ -38,6 +38,9 @@ static void PrintUsage() {
               << "  --gamma-source <capture_lib.csv>\n"
               << "                   Biased wall-background mode: capture-cascade gammas\n"
               << "                   from a capture-vertex library (make_capture_library.py)\n"
+              << "  --trajdump [N]   Dump per-step neutron(+secondary) trajectories for the\n"
+              << "                   first N events (default 20) to <out>_traj[_t<tid>].csv\n"
+              << "                   (event displays; use -t 1 + narrow --emin/--emax)\n"
               << "  --mass <MeV>     X17 mass (default: 16.8)\n"
               << "  --energy <MeV>   4He* transition energy for both X17 and IPC (default: 20.58)\n"
               << "  --ipc <frac>     IPC fraction 0..1 (0=all X17, 1=all IPC, default: 0.5)\n"
@@ -80,6 +83,11 @@ int main(int argc, char** argv) {
         else if (a == "--gamma-source" && i+1<argc) {
             config.gammaSourceMode = true;
             config.captureLibFile  = argv[++i];
+        }
+        else if (a == "--trajdump") {
+            config.trajDump = true;
+            if (i+1 < argc && argv[i+1][0] != '-')
+                config.trajDumpMaxEvents = std::stoi(argv[++i]);
         }
         else if (a[0] != '-') macroFile = a;
         else { std::cerr << "Unknown option: " << a << "\n"; PrintUsage(); return 1; }

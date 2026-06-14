@@ -15,8 +15,10 @@
 #include "G4SystemOfUnits.hh"
 #include "G4ParticleDefinition.hh"
 #include "G4VProcess.hh"
+#include "G4Threading.hh"
 
 #include <cstring>
+#include <sstream>
 
 // Volumes scored — any step with edep > 0 in these gets a HitData entry
 const std::map<std::string, bool> SteppingAction::kScoredVolumes = {
@@ -29,12 +31,24 @@ const std::map<std::string, bool> SteppingAction::kScoredVolumes = {
     {"BackScintR",  true},   // 2cm back plastic scint, right bar
 };
 
+// Particles drawn by the trajectory dump: the neutron itself plus the charged
+// products of (n,p)t and of any pair/cascade, so an event display shows the
+// neutron path AND what it made at the end.  In neutron mode every track
+// descends from the one primary neutron, so a particle-type filter suffices.
+const std::set<std::string> SteppingAction::kTrajParticles = {
+    "neutron", "proton", "triton", "alpha", "deuteron", "He3",
+    "e-", "e+", "gamma",
+};
+
 SteppingAction::SteppingAction(const SimConfig& cfg, EventAction* eventAction,
                                 const std::array<ArmAxes, 4>& armAxes)
     : G4UserSteppingAction(), fConfig(cfg),
       fEventAction(eventAction), fArmAxes(armAxes) {}
 
 void SteppingAction::UserSteppingAction(const G4Step* step) {
+    // ── Trajectory dump for event displays (--trajdump) ──────────────────
+    if (fConfig.trajDump) DumpTrajectoryStep(step);
+
     // ── Neutron terminal-interaction recording (neutron mode) ────────────
     // Record where the PRIMARY neutron track ENDS via a hadronic interaction:
     // volume, position, and process name.  NOTE: ³He(n,p)t is filed under
@@ -125,4 +139,50 @@ void SteppingAction::UserSteppingAction(const G4Step* step) {
     h.pz   = momDir.z();
 
     fEventAction->GetEventData().hits.push_back(h);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// One CSV row per step of a followed particle, for the first
+// trajDumpMaxEvents events.  Segment endpoints (pre→post) are written
+// explicitly so the consumer can draw each step as a line without stitching;
+// KE at both ends shows the slowing-down along the path.
+void SteppingAction::DumpTrajectoryStep(const G4Step* step) {
+    const int eid = fEventAction->GetEventData().eventID;
+    if (eid < 0 || eid >= fConfig.trajDumpMaxEvents) return;
+
+    const G4Track* trk = step->GetTrack();
+    const std::string pname = trk->GetDefinition()->GetParticleName();
+    if (kTrajParticles.find(pname) == kTrajParticles.end()) return;
+
+    if (!fTrajOpenTried) {
+        fTrajOpenTried = true;
+        std::ostringstream fn;
+        fn << fConfig.outFile << "_traj";
+        const int tid = G4Threading::G4GetThreadId();
+        if (tid >= 0) fn << "_t" << tid;
+        fn << ".csv";
+        fTrajFile.open(fn.str());
+        if (fTrajFile.is_open())
+            fTrajFile << "eventID,trackID,parentID,particle,istep,"
+                         "pre_x,pre_y,pre_z,post_x,post_y,post_z,"
+                         "ke_pre_MeV,ke_post_MeV,volume,process,edep_MeV\n";
+    }
+    if (!fTrajFile.is_open()) return;
+
+    const G4StepPoint* pre  = step->GetPreStepPoint();
+    const G4StepPoint* post = step->GetPostStepPoint();
+    const G4VProcess*  proc = post->GetProcessDefinedStep();
+    const std::string  procName = proc ? proc->GetProcessName() : "none";
+    const G4VPhysicalVolume* pv = pre->GetPhysicalVolume();
+    const std::string  vol = pv ? pv->GetLogicalVolume()->GetName() : "OutOfWorld";
+    const G4ThreeVector p0 = pre->GetPosition();
+    const G4ThreeVector p1 = post->GetPosition();
+
+    fTrajFile << eid << ',' << trk->GetTrackID() << ',' << trk->GetParentID() << ','
+              << pname << ',' << trk->GetCurrentStepNumber() << ','
+              << p0.x()/mm << ',' << p0.y()/mm << ',' << p0.z()/mm << ','
+              << p1.x()/mm << ',' << p1.y()/mm << ',' << p1.z()/mm << ','
+              << pre->GetKineticEnergy()/MeV << ',' << post->GetKineticEnergy()/MeV << ','
+              << vol << ',' << procName << ','
+              << step->GetTotalEnergyDeposit()/MeV << '\n';
 }

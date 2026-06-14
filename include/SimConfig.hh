@@ -45,6 +45,16 @@ struct SimConfig {
     bool        gammaSourceMode = false;
     std::string captureLibFile;
 
+    // ── Trajectory dump (event-display / cross-check) ───────
+    // When set, writes per-step trajectories of neutrons and their charged
+    // secondaries for the first trajDumpMaxEvents events to
+    // <outFile>_traj[_t<tid>].csv.  Intended for neutron-path event displays
+    // in the target; pair with a narrow --emin/--emax window for a
+    // ~mono-energetic beam.  Cheap, but neutrons that fully thermalise take
+    // thousands of elastic steps — keep the event count small.
+    bool        trajDump          = false;
+    int         trajDumpMaxEvents = 20;
+
     // ── Gas mixture ─────────────────────────────────────────
     std::string gas = "ArIso";
 
