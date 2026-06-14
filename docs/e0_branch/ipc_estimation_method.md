@@ -132,3 +132,43 @@ generator (the X17 observable) — for both the M1/E1 and E0 cases.
   contact, or pull the (e,e′) form factor + AZURE2 ourselves?
 - Is step 2 (code the high-energy IPC coefficients) worth doing now, or do we
   wait on step 3 (which dominates the total uncertainty)?
+
+---
+
+## References
+
+**Tools / IPC coefficients**
+- T. Kibédi et al., *Evaluation of theoretical conversion coefficients using
+  BrIcc*, Nucl. Instrum. Meth. A **589** (2008) 202. Code + packages:
+  <https://github.com/IAEA-NSDDNetwork/BrIcc>; web tool + manual
+  <http://bricc.anu.edu.au> (tables end at 6 MeV).
+- M. Schlüter, G. Soff, W. Greiner, *Conversion coefficient for internal pair
+  creation*, Z. Phys. A **286** (1978) 149; and *Total and differential
+  conversion coefficients for internal electron–positron pair creation*,
+  At. Data Nucl. Data Tables **24** (1979) 509. (High-energy/low-Z IPC; the
+  differential coefficients give the e⁺e⁻ energy/angle distributions.)
+- D. H. Wilkinson, high-energy IPC behaviour (Born limit), 1969.
+
+**Measured high-energy IPC anchors (for α_IPC ≈ 3.5×10⁻³ at ~20 MeV)**
+- ¹²C 15.1 MeV M1: α_π = (3.3 ± 0.5)×10⁻³ — PEPSI measurement, e.g.
+  arXiv:nucl-ex/9704007 (*First energy- and angle-differential measurements of
+  e⁺e⁻ pairs from internal pair conversion*).
+- ⁸Be 18.15 MeV M1 (the X17 line): A. J. Krasznahorkay et al.,
+  Phys. Rev. Lett. **116** (2016) 042501.
+
+**E0 strength / electronic factors (term 2)**
+- T. Kibédi et al., *Table of electronic factors for E0 electron and
+  electron–positron pair conversion transitions*, At. Data Nucl. Data Tables
+  (2019), arXiv:1911.00031. (Ω_π(E0); definition W_π = ρ²(E0)·Ω_π.)
+- L. C. Biedenharn / E. L. Church & J. Weneser — monopole-transition formalism.
+- ⁴He(e,e′) 0₂⁺ (20.21 MeV) monopole form factor / "α-particle monopole
+  puzzle": arXiv:2306.07268 and refs therein — the experimental handle on ρ(E0).
+
+**Nuclear input / levels / cross sections**
+- R. G. H. Robertson / E. G. Adelberger, and R. Wervelman et al.,
+  *³He(n,γ)⁴He* M1/E1 content, Nucl. Phys. A **526** (1991) 265.
+- D. R. Tilley, H. R. Weller, G. M. Hale, *Energy levels of A = 4*,
+  Nucl. Phys. A **541** (1992) 1 (TUNL) — the 0⁺(20.21), 0⁻(21.01), 2⁻(21.84)
+  resonance parameters; n+³He threshold 20.578 MeV. G. M. Hale's ⁴He R-matrix.
+- ENDF/B-VIII.0 ³He evaluation (`data/He3.h5`): MT=102 (n,γ), 103 (n,p),
+  2 (elastic).
