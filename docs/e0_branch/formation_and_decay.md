@@ -45,8 +45,18 @@ resonance at 20.21 MeV boosting it. So:
 - **$0^-$, $2^-$ (p-wave)** peak at $E_n\approx0.6$ and $\approx1.7$ MeV
   respectively — *not forbidden* at low energy, just barrier-suppressed.
 
+**How much more $1^+$ than $0^+$?** Spin counting alone gives $3{:}1$
+($\,{}^3S_1$ triplet vs $^1S_0$ singlet $= g_J$), favouring $1^+$. But the $0^+$
+sub-threshold boost ($\sim$6× at thermal) almost exactly cancels that, so the
+two s-wave doorways are **comparable at thermal** ($S(1^+)/S(0^+)\approx0.5$–1,
+the $0^+$ even slightly ahead), the gap opening to $\sim$3× only by 1 MeV. (An
+earlier doorway plot showed the $1^+$ dominating by $\sim$10× — that was an
+ad-hoc-normalisation artifact, now corrected; see [`doorway_states_note.md`].)
+
 **Bottom line of Part 1:** as the neutron energy drops, we form relatively more
-$0^+$ and $1^+$ (s-wave); the p-wave states fade out.
+$0^+$ and $1^+$ (s-wave); the p-wave states fade out. The full data provenance,
+the continuum-vs-resonance physics, and the relative-probability recipe are in
+the deep-dive [`doorway_states_note.md`].
 
 ---
 
@@ -76,7 +86,11 @@ Reading each row:
   ordinary radiative capture (the 54 µb).
 - **$1^-\to0^+$: E1.** Same story as M1 (a $\gamma$ with a 0.35 % pair tail), but
   reached by p-wave, so it grows toward MeV — this is what makes the radiative
-  cross section rise (the giant-dipole turning on).
+  cross section rise (the giant-dipole turning on). Note E1 is **isospin-bound**:
+  $^4$He's g.s. is $T=0$ and E1 is isovector, so the $\Delta T=0$ E1 is
+  *isospin-forbidden* — only the **$T=1$** $1^-$ strength (the GDR) can do it.
+  That is the deeper reason M1 dominates at low $E_n$ and E1 only switches on
+  toward the MeV GDR (see [`doorway_states_note.md`] §5).
 - **$0^-\to0^+$: nothing.** $0\to0$ forbids every photon multipole *and* E0
   needs no parity change, so a $0^-\to0^+$ E0 is forbidden too. The $0^-$ simply
   decays back to particles. (So even though the $0^-$ peaks near 0.6 MeV, it

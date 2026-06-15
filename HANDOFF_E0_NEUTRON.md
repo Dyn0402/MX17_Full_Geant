@@ -12,14 +12,18 @@ E0 thread has a clear next step.
 - **Task 1 (neutron histories): DONE.** Answered + LaTeX note + event displays
   generated from a real lxplus Geant4 run. Nothing pending unless we want the
   optional E-at-capture scatter.
-- **Task 2 (E0 pair channel): IN PROGRESS, well advanced.** Physics fully worked
-  out and documented (LaTeX note rebuilt on a Formation/Decay spine). **The next
-  concrete step is the "final-metric" calculation:** combine the formation
-  shapes × decay pair-fractions × detector acceptance → **X17 / IPC pairs per
-  pulse (per day) vs neutron energy, including the E0 channel.**
-- The one open *physics* unknown is the E0 strength `f = σ_E0/σ_M1` (bracketed
-  `1e-3–1e-2`); pinning it needs a ⁴He R-matrix (a theory-contact ask, not a
-  coding task).
+- **Task 2 (E0 pair channel): physics + final-metric DONE (2026-06-15).** The
+  Formation/Decay note and the **final-metric note** (`e0_final_metric_note.tex`,
+  `make_e0_final_metric.py`) are built. **Key result:** the ~10 µs flash readout
+  only reaches E_n ≳ 20 keV, but E0 pairs are sub-keV → recorded E0 ≈ 0 in the
+  flash window; even with a thermal trigger E0 gives ≤3 IPC bg pairs/day and
+  ≤0.06 X17/day. **E0 is a model-completeness fix, not a game-changer.** Also
+  settled: E0 *can* emit a massive vector/scalar X17 (not pseudoscalar/axial).
+  See §4.
+- The one open *physics* unknown is still the E0 strength `f = σ_E0/σ_M1`
+  (bracketed `1e-3–1e-2`); pinning it needs a ⁴He R-matrix (a theory-contact
+  ask, not a coding task). Remaining: discuss with Alberto (R-matrix; α_IPC
+  reconciliation; whether a thermal trigger is worth scoping).
 
 ---
 
@@ -107,6 +111,64 @@ linked by Jπ. Key facts:
   `capture_breakdown.md`, `doorway_states_note.md`, `e0_transition_explainer.md`,
   `ipc_estimation_method.md` (has the literature dig + **References**),
   `ipc_roadmap.md`.
+
+**Part 1 expanded (2026-06-15)** — `doorway_states_note.md` rewritten as the full
+Part-1 reference (TUNL data provenance; continuum-vs-resonance physics; the
+formation decomposition `S=(1/v)·g_J·P_ℓ·M`; the relative-probability recipe +
+R-matrix/AZURE2 pointer; isospin-forbidden E1 → why M1 dominates low-E radiative
+capture, with Wolfs/Wervelman refs). **Two figure corrections:**
+(1) `fig_he4_levels` now has a y-axis break 4→16 MeV; (2) `fig_doorway_formation`
+**rewritten** — the old "1⁺ dominates by ~10×" was an ad-hoc-normalisation
+artifact (flat `F=4/Γ_ref` for the direct 1⁺). Honest result: 1⁺ and 0⁺ are
+COMPARABLE at thermal (`S(1⁺)/S(0⁺)=3/boost_0⁺ ≈ 0.5–1`; the ×3 spin weight is
+cancelled by the 0⁺ sub-threshold boost), gap opens only toward MeV. Report-note
+figure copies (`docs/report/figs/fig_e0_{levels,doorway,directres}.*`) refreshed.
+NB: `e0_pair_channel_note.tex` Part-1 *text* not yet updated for the isospin
+point / corrected comparison (figures are current).
+
+**Cross-section note (2026-06-15)** — new standalone note
+`docs/report/e0_cross_section_note.tex` → `.pdf` (3 pp), the clearest framing so
+far: σ = σ_form × (Γ_X/Γ_tot), then (1) **capture cross sections**
+(`make_e0_cross_section_fig.py` → `fig_e0_xsec`): measured σ_nγ (M1+E1, ENDF,
+55 µb thermal) vs estimated E0 band (f=1e-3–1e-2), E0 sitting 4–5 decades below;
+(2) **IPC yield = σ × pair fraction** (`make_e0_ipc_yield_fig.py` →
+`fig_e0_ipcyield`): ×α_IPC≈3.5e-3 for M1+E1, ×1 for E0 → the gap collapses, pair
+yields **comparable at thermal** (E0/M1E1 = f/α_IPC ≈ 0.3–3), E0 sub-keV / M1E1
+MeV. Both read `data/He3.h5`. Uncertainty table: f dominates (~1 decade); σ_nγ
+firm, α_IPC ~×1.8. Dylan's reaction: clearest plot yet.
+Now 5 pp — extended with **(3) X17 production, two scenarios**
+(`make_e0_x17_production_fig.py` → `fig_e0_x17`): X17 = IPC yield × BR_X17(0.025);
+scenario 1 (vector/scalar X17) = M1+E1 + E0, scenario 2 (pseudoscalar/axial) =
+M1+E1 only (the E0/monopole selection rule is the discriminator). **Critical
+window stats (X17 produced/day):** 0.2–2 MeV high-E window = **37.4/day**
+(22.5/day at table α; E0 adds <0.004 → identical in both scenarios); full sub-keV
+window = **0.15/day** (scenario 2) → **0.18–0.42/day** (scenario 1, f band). Key
+conclusion: the X17 rate lives in the high-E window and is X17-type-independent;
+the sub-keV is starved either way (≤0.4/day even for vector/scalar X17, ~100×
+below the high-E window) — E0 adds a *distinct sub-keV signature*, not
+*statistics*. Recorded ≈ ×0.196; sub-keV needs a thermal trigger.
+Now 6 pp — added **(4) "From cross section to statistics" bridge**
+(`make_e0_luminosity_fig.py` → `fig_e0_lumi`, 4 panels): N_X/day = φ × f_breakup
+× (σ_X/σ_np) × ppd. Key clarification (Dylan asked): for E0 (not in Geant4),
+N_E0 = N_(n,p) × σ_E0/σ_np — the (n,p)t breakup is the luminosity monitor, and
+**opacity cancels in the ratio** (the (n,p) absorption attenuates both channels
+equally, so N_X = N_np σ_X/σ_np holds exactly even sub-keV). M1+E1 uses the
+direct Geant4 (n,γ) count. Panels: (a) EAR2 flux, (b) breakup fraction
+opaque(70%)→thin(4%), (c) effective luminosity L=N_np/σ_np, (d) breakups per X17
+= σ_np/σ_X17, falling 1e12 (sub-keV) → 1e8 (MeV) — the quantitative reason the
+MeV window is favourable.
+
+**Folded capstone (2026-06-15)** — note now 6 pp, closes with
+`make_e0_folded_fig.py` → `fig_e0_folded`: 2 panels (X17 left, IPC right),
+per-day-per-decade, PRODUCED and RECORDED (×MM acceptance 0.196 X17 / 0.236 IPC),
+scenario-1 band (+E0) vs scenario-2 (M1+E1). On-plot text boxes give window sums.
+**Window totals (produced → recorded):** X17 0.2–2 MeV = 37.4→7.3/day;
+X17 sub-keV = 0.15→0.03 (sc2) / 0.18–0.42→0.035–0.083 (sc1). IPC 0.2–2 MeV =
+1497→353/day; IPC sub-keV = 6.1→1.4 (sc2) / 7.2–16.8→1.7–4.0 (sc1). The
+`e0_cross_section_note.tex` is now the cleanest end-to-end note: σ=form×branch →
+capture xsec → IPC yield → X17 (2 scenarios) → flux/luminosity bridge → folded
+per-day capstone → uncertainties. Five figure scripts: make_e0_{cross_section,
+ipc_yield,x17_production,luminosity,folded}_fig.py. NOT yet committed to git.
 - **Figures + scripts** (all in `scripts/`, output to `docs/e0_branch/figs/`):
   | script | figure | shows |
   |---|---|---|
@@ -129,25 +191,41 @@ all refs: `docs/e0_branch/ipc_estimation_method.md`.
 
 ---
 
-## 4. NEXT STEP (where to start)
+## 4. NEXT STEP — final-metric note (DONE 2026-06-15)
 
-**Build the "final-metric" note:** combine
-`N_pairs(E_n) = Σ_Jπ [formation shape] × [pair fraction]`, fold in the absolute
-normalisations (campaign (n,p)t rate, α_IPC≈3.5e-3, and the bracketed f for E0)
-and the detector acceptance, to produce **X17 / IPC pairs per pulse and per day
-vs neutron energy, with the E0 channel included** (and shown as a band over the
-f range). Inputs already on disk:
-- campaign rates: `analysis/mev/mev_rates.json` (per-decade (n,p)t and direct
-  (n,γ) counts, `pulses_per_day`, weights).
-- term-1 machinery: `scripts/make_ipc_vs_energy_fig.py`.
-- E0 shape machinery: `scripts/make_e0_pair_yield_fig.py`.
-- acceptance: pairs-acceptance results live in `analysis/pairs_v2/` and the
-  angular-resolution work (`docs/angular_resolution/`); check how X17/day was
-  computed in the existing MeV note (`docs/report/mev_note.tex`) to stay
-  consistent.
+**The "final-metric" note is built.** `N_rec(E_n) = [N_M1/E1 + N_E0(f)] ×
+acceptance × TOF-window`, summed over decades × pulses/day. Deliverables:
+- **Script:** `scripts/make_e0_final_metric.py` → `analysis/e0/final_metric.json`
+  + `docs/report/figs/fig_e0_final_metric.{pdf,png}` (two panels: IPC background
+  and X17 signal, produced vs recorded, with the flash/thermal trigger regions).
+- **LaTeX:** `docs/report/e0_final_metric_note.tex` → `.pdf` (4 pp).
+- Term 1 = direct G4 (n,γ) counts × α_IPC (reproduces the committed mev_note:
+  32.7 X17/day produced, 6.3/day recorded ≈190/30-day at table α=2.1e-3). Term 2
+  = the existing sub-threshold-0⁺ E0 construction over f=1e-3–1e-2. Acceptance =
+  flat MM-double 19.6% X17 / 23.6% IPC (angular note).
 
-**Parallel / when possible:** raise the E0 R-matrix question with Alberto or a
-⁴He-theory contact to replace the `f` bracket with a number. Also reconcile
+**The decisive finding — the trigger window kills recorded E0.** At L=19.5 m the
+~10 µs flash readout reaches only **E_n ≳ 20 keV** (TOF=10 µs ⇔ 19.9 keV); the
+E0 pairs are **sub-keV** (TOF >45 µs) → arrive after the window. So:
+- **Flash readout:** ~500 IPC bg pairs/day + ~6–10 X17/day recorded, **all
+  M1/E1**; recorded E0 ≈ 0. Baseline run is unaffected by E0.
+- **+ thermal trigger** (the only way to reach E0): even at f=1e-2, E0 gives
+  only ≤3 IPC bg pairs/day and ≤0.06 X17/day — because the E0 capture inherits
+  the σ_nγ/σ_np ~1e-8 sub-keV suppression × f. S/B (vs ~3e5 (n,p)t/pulse), not
+  rate, is the obstacle. **E0 is a completeness fix, not a game-changer.**
+
+**E0 → X17 settled (Dylan's question):** a massive X17 is NOT γ-dark to a 0⁺→0⁺
+monopole (the photon's masslessness is what forbids it). **Vector(1⁻)/scalar(0⁺)
+X17 CAN be emitted in E0; pseudoscalar(0⁻)/axial(1⁺) cannot.** The E0→X17
+branching is a separate unknown (not the M1's 2.5%); benchmarked at 2.5% in the
+table. Rate still tiny because the E0 capture is tiny.
+
+**Trigger framing (Dylan, 2026-06-15):** now considering BOTH the 10 µs flash
+readout AND a separate thermal-neutron trigger — the latter is what would give
+sub-keV statistics where E0 (and any E0→X17) lives.
+
+**Still parallel / when possible:** raise the E0 R-matrix question with Alberto
+or a ⁴He-theory contact to replace the `f` bracket with a number. Also reconcile
 α_IPC = 3.5e-3 (our anchor) vs 2.1e-3 (Alberto's table) with him.
 
 ---

@@ -75,3 +75,10 @@ __pycache__/
 # Script scratch output & local Claude settings
 output/
 .claude/settings.local.json
+
+# LaTeX build artifacts
+*.aux
+*.toc
+*.fls
+*.fdb_latexmk
+*.synctex.gz

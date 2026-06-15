@@ -1,0 +1,309 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[margin=2.4cm]{geometry}
+\usepackage{graphicx}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{xcolor}
+\usepackage[colorlinks=true,linkcolor=blue!50!black,urlcolor=blue!50!black,citecolor=blue!50!black]{hyperref}
+\graphicspath{{figs/}}
+
+\newcommand{\He}[1]{$^{#1}$He}
+\newcommand{\sM}{\sigma_{\mathrm{M1}}}
+\newcommand{\sE}{\sigma_{\mathrm{E0}}}
+\newcommand{\sng}{\sigma_{n\gamma}}
+\newcommand{\snp}{\sigma_{np}}
+\newcommand{\aipc}{\alpha_{\mathrm{IPC}}}
+
+\title{\vspace{-1.2cm}
+  {\Large\bfseries \He{3}$(n,\cdot)$\He{4} capture cross sections and the IPC
+   pair yield}\\[2mm]
+  {\large The measured M1$+$E1 radiative capture, the $\gamma$-dark E0, and the
+   $e^+e^-$ yield that follows from $\sigma\times$(pair fraction)}}
+\author{Dylan Neff}
+\date{15 June 2026 \\[2mm]
+  {\small\itshape Internal note --- informal. Drafted by Claude (Anthropic AI
+  assistant) under D.~Neff's direction; \\ physics, numbers and text
+  reviewed by D.~Neff.}}
+
+\begin{document}
+\maketitle
+\vspace{-0.8cm}
+
+%=============================================================================
+\section*{Part 0 --- Summary}
+
+\begin{center}
+\fcolorbox{blue!40!black}{blue!4}{%
+\begin{minipage}{0.95\textwidth}
+\vspace{3pt}
+The capture cross section factorises as
+$\sigma = \sigma_{\rm form}\times(\Gamma_X/\Gamma_{\rm tot})$ --- \textbf{form the
+\He{4}$^*$ state, then radiate to the ground state rather than break up.} Two
+consequences drive this note:
+\begin{itemize}\setlength\itemsep{1pt}
+  \item \textbf{The photon-emitting capture (M1$+$E1) is MEASURED} --- it is the
+    ENDF \He{3}$(n,\gamma)$\He{4} cross section (55\,\textmu b at thermal, the
+    classic value), with the M1-dominated $1/v$ at low $E_n$ and the E1/GDR rise
+    toward MeV. \textbf{Only the $\gamma$-dark E0 is estimated:}
+    $\sE = f\,\sM$, $f\sim10^{-3}$--$10^{-2}$, sitting 4--5 decades below.
+  \item \textbf{The IPC ($e^+e^-$) yield is just $\sigma\times$(pair fraction):}
+    $\times\aipc\approx3.5\times10^{-3}$ for M1$+$E1 (only the internal-pair tail
+    of the photon makes a pair), $\times1$ for E0 ($\gamma$-dark $\Rightarrow$
+    100\,\% pairs). Multiplying the measured curve \emph{down} by $\aipc$ while
+    leaving E0 alone lifts E0 by $1/\aipc\approx285$: \textbf{the two pair yields
+    become COMPARABLE at thermal/sub-keV} (E0/M1E1 $=f/\aipc\approx0.3$--3),
+    while M1$+$E1 wins at MeV.
+  \item \textbf{The dominant uncertainty is $f$} ($\sim$1 decade); the measured
+    $\sng$ is firm and $\aipc$ contributes only $\sim\times1.8$.
+\end{itemize}
+\vspace{3pt}
+\end{minipage}}
+\end{center}
+
+%=============================================================================
+\section{The cross section is a product: form $\times$ radiate}
+
+For capture through a compound \He{4}$^*$ state of spin $J$,
+\[
+\sigma(n,X)\;=\;\underbrace{\frac{\pi}{k^2}\,g_J\,\frac{\Gamma_n(E)\,
+  \Gamma_{\rm tot}}{(E-E_r)^2+(\Gamma_{\rm tot}/2)^2}}_{\sigma_{\rm form}\ \ \text{(form the state)}}
+\;\times\;\underbrace{\frac{\Gamma_X}{\Gamma_{\rm tot}}}_{\text{(radiate as }X\text{)}}.
+\]
+The total width is almost all \textbf{breakup} ($\Gamma_{\rm tot}\approx\Gamma_n
++\Gamma_p$, the (n,p)t channel), so the radiative branch is a $\sim10^{-8}$
+sliver --- that is why capture is rare. Per channel,
+$\sM=\sigma_{\rm form}(1^+)\,\Gamma_{\rm M1}/\Gamma_{\rm tot}$ and
+$\sE=\sigma_{\rm form}(0^+)\,\Gamma_{\rm E0}/\Gamma_{\rm tot}$, so
+\[
+f\equiv\frac{\sE}{\sM}=\underbrace{\frac{\sigma_{\rm form}(0^+)}
+  {\sigma_{\rm form}(1^+)}}_{\sim1\text{--}2\ (\text{rough})}\times
+  \underbrace{\frac{\Gamma_{\rm E0}}{\Gamma_{\rm M1}}}_{\text{the unknown}}.
+\]
+(\He{4} capture is mostly \emph{direct}, so ``form then decay'' is not a literal
+two-step process --- but the cross section still separates into a
+kinematic/penetrability factor $\times$ an EM-strength factor, which is what
+matters here. The formation side is detailed in
+\texttt{docs/e0\_branch/doorway\_states\_note.md}.)
+
+%=============================================================================
+\section{The capture cross sections: measured vs estimated}
+
+\begin{center}
+\includegraphics[width=0.92\textwidth]{fig_e0_xsec.pdf}
+\end{center}
+
+\noindent Reading the figure:
+\begin{itemize}\setlength\itemsep{1pt}
+  \item \textbf{$\snp$ (grey, dotted)} --- the dominant (n,p)t breakup, 5330\,b
+    at thermal. This \emph{is} $\Gamma_{\rm tot}$, and the reference for ``rare.''
+  \item \textbf{$\sng$ (blue, MEASURED)} --- total radiative capture (M1$+$E1),
+    ENDF/B-VIII.0, 55\,\textmu b at thermal. The $1/v$ falloff is the
+    M1-dominated direct capture; the rise toward MeV is the E1/giant-dipole
+    strength (the $T=1$ $1^-$) turning on. \textbf{No estimation enters this
+    curve.}
+  \item \textbf{$\sE$ (red band, ESTIMATE)} --- the $\gamma$-dark E0 capture,
+    $\sE=f\,\sM$ with the sub-threshold $0^+$ boost steepening it toward low
+    $E_n$. The band is $f=10^{-3}$--$10^{-2}$; $\sE(\text{thermal})\approx
+    0.055$--$0.55$\,\textmu b. Invisible to $\sng$ (it emits no photon).
+\end{itemize}
+The honest split is stark: a measured photon capture, and a $\gamma$-dark E0
+capture 4--5 decades below whose absolute height is the open $f$.
+
+%=============================================================================
+\section{The IPC pair yield: $\sigma\times$(pair fraction)}
+
+The $e^+e^-$ yield is each cross section times its pair fraction --- $\times\aipc$
+for the photon channel (only the internal-pair tail of the $\gamma$ becomes a
+pair), $\times1$ for E0 (it makes nothing \emph{but} pairs):
+\[
+\sigma_{\rm pair}(\text{M1}+\text{E1})=\sng\times\aipc,\qquad
+\sigma_{\rm pair}(\text{E0})=\sE\times1 .
+\]
+$\aipc\approx3.5\times10^{-3}$ at 20.6\,MeV (anchored to the measured
+$^{12}$C/$^8$Be high-energy M1 IPC; band $2.5$--$4.5\times10^{-3}$;
+Alberto's table uses $2.1\times10^{-3}$).
+
+\begin{center}
+\includegraphics[width=0.92\textwidth]{fig_e0_ipcyield.pdf}
+\end{center}
+
+\noindent \textbf{The result.} Multiplying the measured curve \emph{down} by
+$\aipc$ while leaving E0 \emph{unchanged} lifts E0 by $1/\aipc\approx285$
+relative to M1$+$E1. The 4--5-decade gap of the capture figure \textbf{collapses}:
+the two pair yields are \textbf{comparable at thermal} (at $E_n=25$\,meV,
+$\sigma_{\rm pair}^{\rm M1+E1}=0.19$\,\textmu b vs $\sigma_{\rm pair}^{\rm E0}=
+0.055$--$0.55$\,\textmu b, i.e. E0/M1E1 $=f/\aipc\approx0.3$--3). They then split
+by energy --- \textbf{E0 pairs pile up sub-keV, M1$+$E1 pairs peak at MeV} --- so
+the $\gamma$-dark channel matters precisely where the ordinary one is dead.
+
+%=============================================================================
+\section{X17 production, and the two scenarios}
+
+X17 is produced as a sub-branch of the same transitions:
+$\sigma_{\rm X17}=$ (IPC yield) $\times\,$BR$_{\rm X17}$ with
+BR$_{\rm X17}=0.025$ (X17 per $e^+e^-$ pair, the project benchmark). Which
+\emph{modes} contribute depends on the X17 quantum numbers, through one decisive
+rule: a $0^+\!\to0^+$ (E0/monopole) transition can emit a massive boson only if
+its $J^P$ allows $0^+\!\to0^++X$ ---
+
+\begin{center}
+\renewcommand{\arraystretch}{1.1}
+\begin{tabular}{lcc}
+\hline
+X17 & $J^P$ & couples to E0? \\
+\hline
+vector (dark photon) & $1^-$ & \textbf{yes} \\
+scalar & $0^+$ & \textbf{yes} \\
+pseudoscalar & $0^-$ & no \\
+axial-vector & $1^+$ & no \\
+\hline
+\end{tabular}
+\end{center}
+
+\noindent so the total X17 production splits into two scenarios, differing
+\emph{only} by the $\gamma$-dark E0 channel:
+\begin{itemize}\setlength\itemsep{1pt}
+  \item \textbf{Scenario 1 (vector or scalar):} M1$+$E1 $+$ E0.
+  \item \textbf{Scenario 2 (pseudoscalar or axial):} M1$+$E1 only.
+\end{itemize}
+(At the strict per-multipole level the M1/E1 couplings are also type-dependent;
+we take ``X17 rides the measured M1$+$E1 strength'' as the working
+approximation, so the clean scenario difference is the E0 piece.)
+
+\begin{center}
+\includegraphics[width=0.92\textwidth]{fig_e0_x17.pdf}
+\end{center}
+
+\noindent The two scenarios are \textbf{identical at the MeV production peak}
+(all M1$+$E1) and diverge only in the sub-keV region, where scenario~1 gets the
+E0 band.
+
+%=============================================================================
+\section{From cross section to statistics}
+
+To turn a cross section into a rate we fold in the simulated beam:
+\[
+\frac{N_X}{\text{day}}(E_n)=\underbrace{\phi(E_n)}_{\text{flux}}\times
+  \underbrace{f_{\rm breakup}(E_n)}_{\substack{\text{fraction of beam}\\\text{interacting in gas}}}\times
+  \underbrace{\frac{\sigma_X(E_n)}{\snp(E_n)}}_{\text{X per breakup}}\times
+  \text{pulses/day},
+\]
+equivalently $N_X=N_{(n,p)}\times\sigma_X/\snp$ --- \textbf{the (n,p)t breakup,
+counted directly in Geant4, is the luminosity monitor.} The clean part: even
+where the gas is \emph{opaque} (sub-keV), the flux attenuation along the column
+is set by the dominant (n,p) absorption, so it multiplies \emph{both} channels
+by the same $(1-e^{-\tau_{np}})$ and \textbf{cancels in the ratio} ---
+$N_X=N_{(n,p)}\,\sigma_X/\snp$ holds exactly. (For M1$+$E1 we instead use the
+direct Geant4 $(n,\gamma)$ count, which bakes in flux/geometry/opacity already;
+E0, absent from Geant4, is the one obtained via the ratio.)
+
+\begin{center}
+\includegraphics[width=0.98\textwidth]{fig_e0_lumi.pdf}
+\end{center}
+
+\noindent The four factors, vs energy: \textbf{(a)} the EAR2 flux $\phi$;
+\textbf{(b)} the breakup fraction, $\sim$70\,\% (opaque) sub-keV falling to
+$\sim$4\,\% (thin) at MeV; \textbf{(c)} the effective luminosity
+$L=N_{(n,p)}/\snp$ --- multiply $\sigma_X$[barn] by this ($\times$pulses/day) to
+get X/day; \textbf{(d)} the background burden, (n,p)t \emph{breakups per X17
+produced}, which falls from $\sim$10$^{12}$ in the sub-keV to $\sim$10$^{8}$ at
+MeV. Panel (d) is the quantitative reason the MeV window is favourable: $\sim$10$^4\times$
+fewer breakups per signal than sub-keV. (The E0 channel, scenario~1, lowers the
+burden at low $E_n$ --- red dashed --- but only into the $\sim$10$^{11}$ range.)
+
+\subsection*{The daily statistics (the number we want)}
+
+Folding the measured per-decade campaign flux (\texttt{mev\_rates.json}), the
+\textbf{X17 produced per day} in the two windows:
+
+\begin{center}
+\renewcommand{\arraystretch}{1.25}
+\begin{tabular}{lcc}
+\hline
+X17 produced / day & Scenario 2 & Scenario 1 (vector/scalar) \\
+ & (M1$+$E1 only) & M1$+$E1 $+$ E0, $f=10^{-3}$–$10^{-2}$ \\
+\hline
+\textbf{high-energy window} (0.2--2\,MeV) & $37.4$ & $37.4$ (E0 adds $<0.004$) \\
+\textbf{full sub-keV window} ($E_n<1$\,keV) & $0.15$ & $0.18$–$0.42$ \\
+\hline
+\end{tabular}
+\end{center}
+
+\noindent (Anchored $\aipc=3.5\times10^{-3}$; the high-energy row is
+$22.5$/day with the table $\aipc=2.1\times10^{-3}$ --- the committed headline.
+E0 \emph{alone} contributes $0.03$–$0.27$ X17/day in the sub-keV and
+$<0.004$/day in the high-energy window.)
+
+\textbf{What this says.} (i) The high-energy window carries the X17 rate ---
+$\sim$22--37 produced/day --- and is \textbf{identical in both scenarios}: E0 is
+irrelevant there, so the baseline measurement does not depend on the X17 type.
+(ii) The sub-keV window is \textbf{starved either way}: even the most favourable
+case (vector/scalar X17, $f=10^{-2}$) gives only $\sim$0.4 X17/day, $\sim$100$\times$
+below the high-energy window; the E0 channel at best $\sim$2--3$\times$ the (tiny)
+sub-keV M1$+$E1 rate. So a vector/scalar X17 would add a \emph{distinct sub-keV
+signature}, but not significant \emph{statistics}.
+(iii) These are \emph{produced}; recorded $\approx\times0.196$ (MM acceptance),
+and the sub-keV window additionally requires a thermal trigger (the 0.2--2\,MeV
+window is already in the 10\,\textmu s flash readout).
+
+\subsection*{Everything folded: per day per decade}
+
+\begin{center}
+\includegraphics[width=\textwidth]{fig_e0_folded.pdf}
+\end{center}
+
+\noindent The full fold-down, per decade: X17 (left) and IPC pairs (right),
+\emph{produced} and \emph{recorded} ($\times$ the MM-double geometric acceptance,
+0.196 X17 / 0.236 IPC). Scenario~2 (blue) is M1$+$E1 only; scenario~1 (red band)
+adds E0 over $f=10^{-3}$–$10^{-2}$. The MeV peak (gold window) carries the rate
+and is scenario-independent; the sub-keV (blue) is where scenario~1's E0 lifts an
+otherwise-dead region --- but to small absolute numbers. The boxed sums are the
+window totals (produced $\to$ recorded). \emph{(Acceptance only; the sub-keV
+recording additionally needs a thermal trigger, and these use at-rest acceptance
+--- the $E_n$-boost correction is pending.)}
+
+%=============================================================================
+\section{Uncertainties}
+
+\begin{center}
+\renewcommand{\arraystretch}{1.2}
+\begin{tabular}{lll}
+\hline
+piece & size of uncertainty & how to shrink \\
+\hline
+$\sng$ (M1$+$E1 capture) & small (evaluated data) & --- (measured) \\
+$\aipc$ (pair fraction, M1$+$E1) & $\sim\times1.8$ (2.5--4.5$\times10^{-3}$) & high-energy IPC theory + $^{12}$C anchor \\
+$\sigma_{\rm form}(0^+)/\sigma_{\rm form}(1^+)$ & $\sim\times2$--3 & \He{4} R-matrix reduced widths \\
+\textbf{$f=\sE/\sM$} & \textbf{$\sim$1 decade ($10^{-3}$--$10^{-2}$)} & \textbf{\He{4} R-matrix $+$ $(e,e')$ monopole norm.} \\
+\hline
+\end{tabular}
+\end{center}
+
+\noindent \textbf{$f$ dominates by far}, so the E0 pair yield should be quoted as
+an order-of-magnitude \emph{band}, not a central value (as drawn). The formation
+ratio and $\aipc$ are sub-dominant and, for $f$, are already bundled into it. The
+one calculation that turns the red band into a line is a \He{4} multi-level
+R-matrix (Hale's evaluated system) for the $^1S_0$ $n+{}$\He{3}$\to$g.s.\ E0
+capture, normalised by the measured \He{4}$(e,e')$ monopole strength.
+
+%=============================================================================
+\section*{Reproducing this note}
+{\raggedright
+Figures: \texttt{scripts/make\_e0\_cross\_section\_fig.py} (capture cross
+sections, $\to$\texttt{fig\_e0\_xsec}),
+\texttt{scripts/make\_e0\_ipc\_yield\_fig.py} (pair yield, $\to$
+\texttt{fig\_e0\_ipcyield}), and
+\texttt{scripts/make\_e0\_x17\_production\_fig.py} (X17 production $+$ the
+window daily statistics, $\to$\texttt{fig\_e0\_x17}), and
+\texttt{scripts/make\_e0\_luminosity\_fig.py} (the flux/breakup/luminosity
+bridge, $\to$\texttt{fig\_e0\_lumi}), and
+\texttt{scripts/make\_e0\_folded\_fig.py} (the folded per-day-per-decade result,
+$\to$\texttt{fig\_e0\_folded}); all read \texttt{data/He3.h5}
+(ENDF/B-VIII.0) and \texttt{analysis/mev/mev\_rates.json}.
+The formation physics behind $\sigma_{\rm form}$:
+\texttt{docs/e0\_branch/doorway\_states\_note.md}. The recorded-rate version
+(flux $\times$ acceptance $\times$ trigger window):
+\texttt{docs/report/e0\_final\_metric\_note.tex}.
+\par}
+
+\end{document}
