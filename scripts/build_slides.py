@@ -166,7 +166,7 @@ _txbox(s, Inches(7.9), Inches(1.7), Inches(5.1), Inches(5.3), [
     "+ CFRP (0.9 mm) wall.",
     ("Tracking", {"size": 18, "bold": True, "color": NAVY,
                   "space_before": 8}),
-    "4 Micromegas arms, front face ≈ 22 cm from the target, 30 mm drift "
+    "4 Micromegas arms, front face ≈ 25 cm from the target, 30 mm drift "
     "gap — the e⁺ e⁻ directions.",
     ("Calorimetry / trigger", {"size": 18, "bold": True, "color": NAVY,
                                "space_before": 8}),
