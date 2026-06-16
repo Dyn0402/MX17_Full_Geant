@@ -266,53 +266,72 @@ G4VPhysicalVolume* DetectorConstruction::Construct() {
     // Source geometry: STEP file "MASTINU X17 HPRV 00 01 (Cylinder D20 L40 mm)"
     // Polycone axis = local Z; rotateX(-90°) maps local Z → world Y (beam axis).
     //
-    // Gas bore:   capsule — cylinder r=10 mm, ±20 mm, with r=10 mm hemispheres
-    // Al vessel:  STEP-derived outer profile, z=−35 mm (tip) to z=+50.98 mm (valve top)
-    //             Bottom cap: NURBS-evaluated from STEP B-spline
-    //             Top cap (z=+20→+26.77): parabolic fit tangent to outer cylinder
-    //             Neck (z=+26.77→+40.9) and valve port (z=+40.9→+50.98): from STEP vertices
+    // Gas bore:   r=10 mm cylinder (±20 mm) + lower hemispherical end +
+    //             conical fill channel up the neck to the Ø1.5 mm valve bore
+    // Al vessel:  STEP-derived outer profile, z=−35 mm (tip) to z=+51 mm (valve top)
+    //             barrel OD 21.2 mm; shoulder taper into the Ø7 mm neck/valve
     // CFRP wrap:  900 µm over the Al outer surface
+    // (gas/Al/CFRP profiles extracted by axial sectioning of the STEP solid;
+    //  kept in sync with scripts/plot_geometry.py)
 
     auto* capRot = new G4RotationMatrix();
     capRot->rotateX(-90.*deg);
 
-    // ── Gas capsule polycone ─────────────────────────────────
-    // r at hemisphere planes: sqrt(10²−(|z|−20)²) for |z| ∈ [20,30]
-    static const G4int nGas = 12;
+    // ── Gas cavity polycone (full STEP-derived interior) ─────
+    // He-3 fills the r=10 mm bore (±20 mm), the lower hemispherical end,
+    // and the conical fill channel up the neck, necking to the Ø1.5 mm
+    // valve bore (r=0.75 mm) at the top.  Profile extracted from the STEP
+    // cavity by axial sectioning (see scripts/plot_geometry.py); nests
+    // inside the Al vessel with a ≥0.6 mm wall everywhere.
+    static const G4int nGas = 23;
     static const G4double zGas[nGas] = {
-        -30.*mm, -28.*mm, -26.*mm, -24.*mm, -22.*mm, -20.*mm,
-         20.*mm,  22.*mm,  24.*mm,  26.*mm,  28.*mm,  30.*mm
+        -29.500*mm, -28.000*mm, -26.000*mm, -24.000*mm, -22.000*mm,
+        -20.000*mm, -15.000*mm,  -5.000*mm,   5.000*mm,  15.000*mm,
+         20.000*mm,  22.000*mm,  24.000*mm,  26.000*mm,  28.000*mm,
+         30.000*mm,  32.000*mm,  34.000*mm,  36.000*mm,  38.000*mm,
+         40.000*mm,  44.000*mm,  50.700*mm
     };
     static const G4double roGas[nGas] = {
-        0.001*mm,  6.0*mm,  8.0*mm,  9.165*mm,  9.798*mm, 10.0*mm,
-        10.0*mm,   9.798*mm,  9.165*mm,  8.0*mm,  6.0*mm,  0.001*mm
+          0.001*mm,   6.000*mm,   8.000*mm,   9.165*mm,   9.798*mm,
+         10.000*mm,  10.000*mm,  10.000*mm,  10.000*mm,  10.000*mm,
+         10.000*mm,   9.798*mm,   9.165*mm,   8.000*mm,   6.299*mm,
+          4.842*mm,   3.660*mm,   2.711*mm,   1.967*mm,   1.410*mm,
+          1.026*mm,   0.750*mm,   0.750*mm
     };
-    static const G4double riGas[nGas] = {0.,0.,0.,0.,0.,0.,0.,0.,0.,0.,0.,0.};
+    static const G4double riGas[nGas] = {
+        0.,0.,0.,0.,0.,0.,0.,0.,0.,0.,0.,0.,
+        0.,0.,0.,0.,0.,0.,0.,0.,0.,0.,0.
+    };
 
     auto* he3Solid = new G4Polycone("He3Gas", 0, 360.*deg, nGas, zGas, riGas, roGas);
     auto* he3LV    = new G4LogicalVolume(he3Solid, GetMat("He3Gas"), "He3Gas");
     he3LV->SetVisAttributes(new G4VisAttributes(G4Color(0.6, 0.9, 1.0, 0.4)));
     he3LV->SetUserLimits(new G4UserLimits(1.0*mm));
 
-    // ── Aluminium vessel polycone (STEP profile) ─────────────
-    static const G4int nAl = 19;
+    // ── Aluminium vessel polycone (full STEP-derived profile) ─
+    // Outer wall sectioned from the STEP at successive z levels; tip at
+    // z=−35 mm, barrel OD 21.2 mm (±20 mm), shoulder taper into the
+    // Ø7 mm neck/valve (z up to +51 mm).  Matches scripts/plot_geometry.py.
+    static const G4int nAl = 29;
     static const G4double zVessel[nAl] = {
-        -35.000*mm, -34.635*mm, -33.947*mm, -32.880*mm, -31.447*mm,
-        -29.693*mm, -27.688*mm, -25.521*mm, -23.288*mm, -21.075*mm,
-        -20.000*mm,  20.000*mm,
-         22.000*mm,  24.000*mm,  26.000*mm,  26.770*mm,
-         31.370*mm,  40.900*mm,  50.980*mm
+        -35.000*mm, -34.000*mm, -33.000*mm, -31.000*mm, -29.000*mm,
+        -27.000*mm, -25.000*mm, -23.000*mm, -21.000*mm, -20.000*mm,
+        -15.000*mm,  -5.000*mm,   5.000*mm,  15.000*mm,  20.000*mm,
+         21.000*mm,  23.000*mm,  25.000*mm,  27.000*mm,  29.000*mm,
+         31.000*mm,  33.000*mm,  35.000*mm,  37.000*mm,  39.000*mm,
+         40.000*mm,  45.000*mm,  50.000*mm,  51.000*mm
     };
     static const G4double roAl[nAl] = {
-          0.000*mm,   2.323*mm,   3.902*mm,   5.433*mm,   6.850*mm,
-          8.090*mm,   9.102*mm,   9.856*mm,  10.342*mm,  10.573*mm,
-         10.600*mm,  10.600*mm,
-         10.317*mm,   9.469*mm,   8.054*mm,   7.360*mm,
-          6.912*mm,   3.500*mm,   3.500*mm
+          0.000*mm,   3.803*mm,   5.287*mm,   7.206*mm,   8.480*mm,
+          9.375*mm,   9.994*mm,  10.386*mm,  10.600*mm,  10.600*mm,
+         10.600*mm,  10.600*mm,  10.600*mm,  10.600*mm,  10.600*mm,
+         10.600*mm,  10.386*mm,   9.994*mm,   9.375*mm,   8.480*mm,
+          7.206*mm,   5.747*mm,   4.708*mm,   4.015*mm,   3.621*mm,
+          3.500*mm,   3.500*mm,   3.500*mm,   3.500*mm
     };
     static const G4double riAl[nAl] = {
-        0.,0.,0.,0.,0.,0.,0.,0.,0.,0.,
-        0.,0.,0.,0.,0.,0.,0.,0.,0.
+        0.,0.,0.,0.,0.,0.,0.,0.,0.,0.,0.,0.,0.,0.,0.,
+        0.,0.,0.,0.,0.,0.,0.,0.,0.,0.,0.,0.,0.,0.
     };
 
     auto* alSolid = new G4Polycone("He3Cap_Al", 0, 360.*deg, nAl, zVessel, riAl, roAl);
@@ -321,15 +340,16 @@ G4VPhysicalVolume* DetectorConstruction::Construct() {
 
     // ── CFRP wrap polycone (Al outer + 0.9 mm) ───────────────
     static const G4double roCFRP[nAl] = {
-          0.000*mm,   3.223*mm,   4.802*mm,   6.333*mm,   7.750*mm,
-          8.990*mm,  10.002*mm,  10.756*mm,  11.242*mm,  11.473*mm,
-         11.500*mm,  11.500*mm,
-         11.217*mm,  10.369*mm,   8.954*mm,   8.260*mm,
-          7.812*mm,   4.400*mm,   4.400*mm
+          0.000*mm,   4.703*mm,   6.187*mm,   8.106*mm,   9.380*mm,
+         10.275*mm,  10.894*mm,  11.286*mm,  11.500*mm,  11.500*mm,
+         11.500*mm,  11.500*mm,  11.500*mm,  11.500*mm,  11.500*mm,
+         11.500*mm,  11.286*mm,  10.894*mm,  10.275*mm,   9.380*mm,
+          8.106*mm,   6.647*mm,   5.608*mm,   4.915*mm,   4.521*mm,
+          4.400*mm,   4.400*mm,   4.400*mm,   4.400*mm
     };
     static const G4double riCFRP[nAl] = {
-        0.,0.,0.,0.,0.,0.,0.,0.,0.,0.,
-        0.,0.,0.,0.,0.,0.,0.,0.,0.
+        0.,0.,0.,0.,0.,0.,0.,0.,0.,0.,0.,0.,0.,0.,0.,
+        0.,0.,0.,0.,0.,0.,0.,0.,0.,0.,0.,0.,0.,0.
     };
 
     auto* cfrpSolid = new G4Polycone("He3Cap_CFRP", 0, 360.*deg, nAl, zVessel, riCFRP, roCFRP);
@@ -343,7 +363,7 @@ G4VPhysicalVolume* DetectorConstruction::Construct() {
 
     G4cout << "\n=== X17 Full-Experiment Geometry ===" << G4endl;
     G4cout << "  Beam axis    : +Y" << G4endl;
-    G4cout << "  He-3 target  : capsule r=10 mm, cyl L=40 mm + r=10 mm hemispheres, 500 bar" << G4endl;
+    G4cout << "  He-3 target  : r=10 mm bore, L=40 mm + dome + neck fill channel, 500 bar" << G4endl;
     G4cout << "  Al vessel    : STEP profile, z=-35 to +51 mm (tip to valve)" << G4endl;
     G4cout << "  Gas mixture  : " << fConfig.gas
            << "  (rho=" << matGas->GetDensity()/(mg/cm3) << " mg/cm3)" << G4endl;

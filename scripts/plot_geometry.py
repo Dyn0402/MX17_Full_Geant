@@ -26,7 +26,7 @@ except ImportError:
 # SimConfig defaults  (keep in sync with include/SimConfig.hh)
 # ─────────────────────────────────────────────────────────────────────────────
 CFG = dict(
-    mm_distance_cm        = 22.0,
+    mm_distance_cm        = 25.0,   # MM window front face from origin (SimConfig.hh)
     mm_size_u_cm          = 38.0,
     mm_size_v_cm          = 34.0,
     scint_size_u_cm       = 48.0,   # trigger scint wall
@@ -45,7 +45,7 @@ CFG = dict(
     backscint_al_um       =  20.0,  # Al foil on scintillator surface [µm]
     gap_pcb_to_scint_mm   = 20.0,
     gap_scint_to_ls_mm    = 20.0,
-    gap_ls_to_back_mm     = 10.0,
+    gap_ls_to_back_mm     =  1.0,   # gap_ls_to_backscint_mm in SimConfig.hh
 )
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -160,26 +160,41 @@ LAYERS_2D = [
 ]
 
 # ─────────────────────────────────────────────────────────────────────────────
-# He-3 capsule — STEP-derived polycone profiles [cm]
-# (keep in sync with src/DetectorConstruction.cc; axis along beam = Y)
-# Gas: 40 mm cylinder r=10 mm + 10 mm hemispherical ends (60 mm on axis)
-# Al:  0.6 mm barrel wall; ~5 mm dome on axis upstream; neck+valve to +51 mm
+# He-3 capsule — full STEP-derived polycone profiles [cm]
+# (axis along beam = Y; keep in sync with src/DetectorConstruction.cc)
+#
+# Profiles extracted from the CAD master
+#   "MASTINU X17 HPRV 00 01 (Cylinder D20 L40 mm).step"
+# by sectioning the (axisymmetric) Al solid at successive Y levels and
+# recording the outer wall radius and the inner gas-cavity radius.
+# Real dimensions recovered from the STEP:
+#   • He-3 gas bore : r = 10.0 mm, 40 mm cylinder (Y = ±20 mm)
+#                     + lower hemispherical end + upper conical fill channel
+#                     necking to the Ø1.5 mm valve bore (r = 0.75 mm)
+#   • Al vessel     : 0.6 mm barrel wall (OD 21.2 mm); domed solid nose
+#                     (Y −35 → −20 mm); shoulder taper into the Ø7 mm
+#                     neck/valve (r = 3.5 mm), full length Y −35 → +51 mm
+#   • CFRP overwrap : 0.9 mm radial, applied over the whole vessel
 # ─────────────────────────────────────────────────────────────────────────────
-Z_GAS  = np.array([-3.0, -2.8, -2.6, -2.4, -2.2, -2.0,
-                    2.0,  2.2,  2.4,  2.6,  2.8,  3.0])
-RO_GAS = np.array([1e-4, 0.60, 0.80, 0.9165, 0.9798, 1.0,
-                   1.0,  0.9798, 0.9165, 0.80, 0.60, 1e-4])
+Z_GAS  = np.array([-2.9500, -2.8000, -2.6000, -2.4000, -2.2000, -2.0000,
+                   -1.5000, -0.5000,  0.5000,  1.5000,  2.0000,  2.2000,
+                    2.4000,  2.6000,  2.8000,  3.0000,  3.2000,  3.4000,
+                    3.6000,  3.8000,  4.0000,  4.4000,  5.0700])
+RO_GAS = np.array([1e-4,    0.6000,  0.8000,  0.9165,  0.9798,  1.0000,
+                   1.0000,  1.0000,  1.0000,  1.0000,  1.0000,  0.9798,
+                   0.9165,  0.8000,  0.6299,  0.4842,  0.3660,  0.2711,
+                   0.1967,  0.1410,  0.1026,  0.0750,  0.0750])
 
-Z_AL   = np.array([-3.5000, -3.4635, -3.3947, -3.2880, -3.1447,
-                   -2.9693, -2.7688, -2.5521, -2.3288, -2.1075,
-                   -2.0000,  2.0000,
-                    2.2000,  2.4000,  2.6000,  2.6770,
-                    3.1370,  4.0900,  5.0980])
-RO_AL  = np.array([0.0000, 0.2323, 0.3902, 0.5433, 0.6850,
-                   0.8090, 0.9102, 0.9856, 1.0342, 1.0573,
-                   1.0600, 1.0600,
-                   1.0317, 0.9469, 0.8054, 0.7360,
-                   0.6912, 0.3500, 0.3500])
+Z_AL   = np.array([-3.5000, -3.4000, -3.3000, -3.1000, -2.9000, -2.7000,
+                   -2.5000, -2.3000, -2.1000, -2.0000, -1.5000, -0.5000,
+                    0.5000,  1.5000,  2.0000,  2.1000,  2.3000,  2.5000,
+                    2.7000,  2.9000,  3.1000,  3.3000,  3.5000,  3.7000,
+                    3.9000,  4.0000,  4.5000,  5.0000,  5.1000])
+RO_AL  = np.array([0.0000,  0.3803,  0.5287,  0.7206,  0.8480,  0.9375,
+                   0.9994,  1.0386,  1.0600,  1.0600,  1.0600,  1.0600,
+                   1.0600,  1.0600,  1.0600,  1.0600,  1.0386,  0.9994,
+                   0.9375,  0.8480,  0.7206,  0.5747,  0.4708,  0.4015,
+                   0.3621,  0.3500,  0.3500,  0.3500,  0.3500])
 RO_CFRP = np.where(RO_AL > 0, RO_AL + 0.09, 0.0)   # 0.9 mm wrap
 
 he3_r       = 1.0    # gas bore radius [cm]
@@ -246,24 +261,38 @@ def plot_2d_topdown():
     # Beam indicator (no dot — just the label)
     ax.annotate('beam ⊙\n(+Y)', xy=(0, 0), xytext=(3, 3), fontsize=8, zorder=6)
 
-    legend_patches = [
+    # Legend split into four corner boxes (grouped by subsystem) so it sits in
+    # the empty diagonal corners rather than overlapping the cardinal arms.
+    cap_handles = [
         mpatches.Patch(color='#99d8f5',
-                       label='He-3 gas bore  (r = 10 mm, 60 mm on axis)'),
+                       label='He-3 gas bore  (Ø20 × 40 mm + domed ends)'),
         mpatches.Patch(color='#404040',
-                       label='Capsule walls: Al 0.6 mm barrel + CFRP 0.9 mm '
-                             '(5 mm Al dome / ~21 mm neck+valve on axis)'),
-        mpatches.Patch(color='#4a90d9', alpha=0.75, label=f'MM drift gas  ({tDrift*10:.0f} mm drift)'),
-        mpatches.Patch(color='#5cb85c', alpha=0.75, label=f'PCB stack  ({t_PCB*10:.1f} mm)'),
+                       label='Capsule walls  (Al 0.6 mm + CFRP 0.9 mm)'),
+    ]
+    mm_handles = [
+        mpatches.Patch(color='#4a90d9', alpha=0.75,
+                       label=f'MM drift gas  ({tDrift*10:.0f} mm drift)'),
+        mpatches.Patch(color='#5cb85c', alpha=0.75,
+                       label=f'PCB stack  ({t_PCB*10:.1f} mm)'),
+    ]
+    sc_handles = [
         mpatches.Patch(color='#f0c040', alpha=0.75,
                        label=f'Trigger plastic scint  ({tPlScint*10:.0f} mm, 48×48 cm)'),
-        mpatches.Patch(color='#d9534f', alpha=0.75,
-                       label=f'Liq. scint. LAB layers  (2×{tLS*10:.0f} mm, {CFG["ls_size_u_cm"]:.0f}×{CFG["ls_size_v_cm"]:.0f} cm)'),
-        mpatches.Patch(color='#303030', alpha=0.85,
-                       label=f'LS CFRP walls + liners  ({tLSCfrp*10:.0f} mm CFRP + {tLSInnerCfrp*1e3:.0f} µm + {tLSInnerAl*1e3:.0f} µm Al)'),
         mpatches.Patch(color='#e07820', alpha=0.75,
                        label=f'Back plastic scints  ({int(bsc_u)} mm, {int(bsc_v)}×(2×{int(bsc_th*10)}) cm)'),
     ]
-    ax.legend(handles=legend_patches, loc='upper left', fontsize=8, framealpha=0.8)
+    ls_handles = [
+        mpatches.Patch(color='#d9534f', alpha=0.75,
+                       label=f'Liq. scint. LAB  (2×{tLS*10:.0f} mm, {CFG["ls_size_u_cm"]:.0f}×{CFG["ls_size_v_cm"]:.0f} cm)'),
+        mpatches.Patch(color='#303030', alpha=0.85,
+                       label=f'LS CFRP walls + liners  ({tLSCfrp*10:.0f} mm + {tLSInnerCfrp*1e3:.0f} µm + {tLSInnerAl*1e3:.0f} µm Al)'),
+    ]
+    for handles, loc in [(cap_handles, 'upper left'),
+                         (mm_handles,  'upper right'),
+                         (sc_handles,  'lower left'),
+                         (ls_handles,  'lower right')]:
+        leg = ax.legend(handles=handles, loc=loc, fontsize=7.5, framealpha=0.85)
+        ax.add_artist(leg)
 
     lim = dist + stack_depth + 4
     ax.set_xlim(-lim, lim);  ax.set_ylim(-lim, lim)
@@ -275,20 +304,8 @@ def plot_2d_topdown():
     ax.axvline(0, color='0.7', lw=0.5, zorder=1)
     ax.grid(True, lw=0.3, alpha=0.5)
 
-    _annotate_dim(ax, 0,    dist,
-                  y=-(lim - 1.5), label=f'{dist:.0f} cm')
-    _annotate_dim(ax, dist, dist + stack_depth,
-                  y=-(lim - 1.5), label=f'{stack_depth*10:.0f} mm')
-
     fig.tight_layout()
     return fig
-
-
-def _annotate_dim(ax, x1, x2, y, label, color='0.4'):
-    ax.annotate('', xy=(x2, y), xytext=(x1, y),
-                arrowprops=dict(arrowstyle='<->', color=color, lw=1.2))
-    ax.text((x1+x2)/2, y - 0.8, label,
-            ha='center', va='top', fontsize=7, color=color)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -308,8 +325,8 @@ def plot_2d_sideview():
     for z, ro, fc, zo, lab in [
         (Z_AL,  RO_CFRP, '#404040', 3, 'CFRP wrap (0.9 mm)'),
         (Z_AL,  RO_AL,   '#b0b0b0', 4, 'Al vessel (0.6 mm barrel; '
-                                       '5 mm dome / ~21 mm neck+valve on axis)'),
-        (Z_GAS, RO_GAS,  '#99d8f5', 5, 'He-3 gas (r = 10 mm, 60 mm on axis)'),
+                                       'domed nose; Ø7 mm neck/valve)'),
+        (Z_GAS, RO_GAS,  '#99d8f5', 5, 'He-3 gas (Ø20 mm × 40 mm + domed ends)'),
     ]:
         ax.add_patch(plt.Polygon(_profile_polygon(z, ro), closed=True,
                                  fc=fc, ec='k', lw=0.4, zorder=zo, label=lab))
@@ -415,9 +432,9 @@ def plot_3d_pyvista(out_path=None, interactive=True):
     caps = [
         (Z_AL,  RO_CFRP, (0.16, 0.16, 0.16), 0.55, 'CFRP wrap (0.9 mm)'),
         (Z_AL,  RO_AL,   (0.67, 0.67, 0.67), 0.65,
-         'Al vessel (0.6 mm barrel; thick dome/neck on axis)'),
+         'Al vessel (0.6 mm barrel; domed nose; Ø7 mm neck/valve)'),
         (Z_GAS, RO_GAS,  (0.60, 0.85, 0.96), 0.90,
-         'He-3 gas (r = 10 mm, 60 mm on axis)'),
+         'He-3 gas (Ø20 mm × 40 mm + domed ends)'),
     ]
     for z, ro, col, alpha, llabel in caps:
         pl.add_mesh(polycone_mesh(z, ro), color=col, opacity=alpha,
