@@ -119,6 +119,49 @@ def _caveat(slide, l, t, w, h, lines, header="Caveats / assumptions "
     return box
 
 
+def _redbox(slide, l, t, w, h, lines, header):
+    """Prominent red caveat box (must be KEPT — unlike the gold delete-me box)."""
+    box = slide.shapes.add_shape(1, l, t, w, h)
+    box.fill.solid(); box.fill.fore_color.rgb = RGBColor(0xFD, 0xE8, 0xE8)
+    box.line.color.rgb = RGBColor(0xC0, 0x30, 0x30); box.line.width = Pt(1.75)
+    tf = box.text_frame; tf.word_wrap = True
+    tf.margin_left = Pt(9); tf.margin_right = Pt(9); tf.margin_top = Pt(6)
+    p0 = tf.paragraphs[0]; r = p0.add_run(); r.text = header
+    r.font.size = Pt(12.5); r.font.bold = True
+    r.font.color.rgb = RGBColor(0xB0, 0x20, 0x20)
+    for ln in lines:
+        p = tf.add_paragraph(); p.line_spacing = 1.0; p.space_before = Pt(3)
+        rr = p.add_run(); rr.text = "•  " + ln
+        rr.font.size = Pt(11.5); rr.font.color.rgb = RGBColor(0x5A, 0x10, 0x10)
+    return box
+
+
+def _table(slide, l, t, w, h, rows):
+    """rows: list of row-lists of cell strings; row 0 is the header."""
+    nr, nc = len(rows), len(rows[0])
+    gf = slide.shapes.add_table(nr, nc, l, t, w, h)
+    tbl = gf.table
+    for ci, frac in enumerate([0.28, 0.18, 0.21, 0.16, 0.17][:nc]):
+        tbl.columns[ci].width = Emu(int(w * frac))
+    for ri, row in enumerate(rows):
+        for ci, txt in enumerate(row):
+            cell = tbl.cell(ri, ci)
+            cell.margin_left = Pt(6); cell.margin_right = Pt(6)
+            cell.margin_top = Pt(2); cell.margin_bottom = Pt(2)
+            p = cell.text_frame.paragraphs[0]
+            p.alignment = PP_ALIGN.CENTER if ci else PP_ALIGN.LEFT
+            r = p.add_run(); r.text = txt
+            r.font.size = Pt(13 if ri else 12.5)
+            r.font.bold = bool(ri == 0)
+            r.font.color.rgb = RGBColor(0xFF, 0xFF, 0xFF) if ri == 0 else NAVY
+            cell.fill.solid()
+            cell.fill.fore_color.rgb = (
+                NAVY if ri == 0 else
+                RGBColor(0xEE, 0xF2, 0xF7) if ri % 2 else
+                RGBColor(0xFF, 0xFF, 0xFF))
+    return gf
+
+
 def _notes(slide, text):
     slide.notes_slide.notes_text_frame.text = text
 
@@ -385,6 +428,59 @@ _notes(s, "From docs/report/e0_final_metric_note + e0_branch docs. Addresses "
        "background pairs/day; right: X17 signal. Gold/blue = thermal vs flash "
        "trigger regions.")
 
+# 10b — EXPECTED SIGNIFICANCE (statistical ceiling) --------------------------
+s = add("Expected significance — a statistical ceiling, not the final CL",
+        "Profile-likelihood (template-fit) Asimov significance, with the IPC "
+        "background shape & normalisation taken as exactly known")
+_table(s, Inches(0.5), Inches(1.5), Inches(12.3), Inches(1.45), [
+    ["Scenario (30-day run)", "Recorded  S / B",
+     "Shape-fit Z  (smeared, realistic)", "Z if no smearing",
+     "Naïve S/√B  (whole spectrum)"],
+    ["July  ·  0.2–0.7 MeV", "64 / 3 093", "2.6 σ", "3.9 σ", "1.2"],
+    ["Post-LS3  ·  0.2–2 MeV", "220 / 10 600", "4.9 σ", "7.3 σ", "2.1"],
+])
+_txbox(s, Inches(0.5), Inches(3.05), Inches(5.85), Inches(4.1), [
+    ("What IS in these numbers", {"size": 15, "bold": True, "color": NAVY}),
+    "Binned profile-likelihood ratio (Cowan et al. Asimov formula) — the "
+    "rigorous form of “count in a region”, optimally weighted over "
+    "all bins.",
+    "Same templates as slides 4–5: best-estimator (target-centre chord) "
+    "capsule multiple-scattering smearing; α_IPC = 3.5×10⁻³, X17/IPC = 2.5%, "
+    "MM-double acceptance.",
+    "Binning-independent: 2° and 8° (×4) bins agree to <1%.",
+    "Background normalisation can be floated from the θ ≲ 90° region (X17-free) "
+    "to ~2% — negligible. The shape fit ~doubles the naïve whole-spectrum "
+    "S/√B by weighting the high-θ shoulder.",
+], size=12, color=GREY, line_spacing=1.03)
+_redbox(s, Inches(6.55), Inches(3.05), Inches(6.28), Inches(4.1), [
+    "The IPC angular SHAPE is assumed equal to the simulation truth; its "
+    "uncertainty — which will dominate the real CL — is NOT propagated.",
+    "Physics: a single E1 transition is assumed (probably fair, unquantified "
+    "here).",
+    "Detector/acceptance shape distortion is omitted: poor separation of "
+    "near-collinear tracks (small θ), and finite active area shaping the catch "
+    "probability for wide-angle pairs (large θ) — the signal region.",
+    "With B ≈ 3 000–10 000, a few-% shape error in the high-θ signal region "
+    "already rivals the statistical fluctuation — by post-LS3 the IPC shape, "
+    "not statistics, sets the achievable CL.",
+    "Read 2.6σ / 4.9σ as a best-case ceiling. A defensible CL needs the "
+    "MEASURED IPC shape + full detector response folded in (open work).",
+], header="⚠  Why this is a ceiling, not a confidence level  (keep this box)")
+_notes(s, "Significance projection (open item from the summary slide). Numbers "
+       "from scripts/make_slides_figures.py templates fed through an Asimov "
+       "binned profile-likelihood: Z = sqrt(2 sum[(s+b)ln(1+s/b)-s]). July "
+       "smeared Z=2.64 (truth 3.94), LS3 smeared Z=4.89 (truth 7.29); 2deg vs "
+       "8deg binning agree to <1%; a best single theta-window cut-and-count "
+       "gives ~2.5 / 4.7 sigma (the broad shoulder makes counting nearly as "
+       "good as the full fit). CRITICAL CAVEAT (the red box): these assume the "
+       "IPC angular shape equals MC truth. Not included: physics shape "
+       "uncertainty (single-E1 assumption), and — emphasised by D.N. — detector "
+       "/ acceptance shape distortion: track-pair separation inefficiency at "
+       "small opening angle, and active-area geometric acceptance falling off "
+       "for wide-angle pairs (the signal region). These reshape the IPC "
+       "template where the signal sits and will dominate the final CL. Do not "
+       "quote these as a final confidence level.")
+
 # 11 — SUMMARY ----------------------------------------------------------------
 s = add("Summary & status")
 _txbox(s, Inches(0.7), Inches(1.6), Inches(12.0), Inches(5.4), [
@@ -415,6 +511,66 @@ _notes(s, "Wrap-up. The program is now an acceptance-and-backgrounds problem, "
        "not a production one. Next analysis step: wire the smeared templates "
        "into the fast-MC likelihood fit and quote expected significance vs run "
        "time.")
+
+# ════════════════════════════════════════════════════════════════════════════
+# BACKUP — factor-4 rebinned spectra (colleague request)
+# ════════════════════════════════════════════════════════════════════════════
+
+# B1 — BACKUP DIVIDER ---------------------------------------------------------
+s = add()
+band = s.shapes.add_shape(1, 0, Inches(3.0), SW, Inches(1.5))
+band.fill.solid(); band.fill.fore_color.rgb = NAVY; band.line.fill.background()
+_txbox(s, Inches(0.8), Inches(3.25), Inches(11.7), Inches(1.0),
+       "Backup: factor-4 rebinned spectra", size=34, bold=True,
+       color=RGBColor(0xFF, 0xFF, 0xFF))
+_txbox(s, Inches(0.8), Inches(4.7), Inches(11.7), Inches(0.7),
+       "The slides 4–5 stacked spectra with 4 base bins merged into one "
+       "(2° → 8° opening-angle bins) — same events, coarser binning.",
+       size=16, color=GREY)
+_notes(s, "Backup versions of the slide 4 (July) and slide 5 (July vs LS3) "
+       "stacked opening-angle spectra, rebinned by a factor of 4 (2 deg -> 8 "
+       "deg bins) per collaborator request. Identical event samples, yields and "
+       "normalisation as the main slides; only the histogram binning differs. "
+       "90 base bins are not divisible by 4, so the final 176-180 deg bin holds "
+       "the 2 leftover base bins (negligible -- the distribution is empty "
+       "there). Figures: scripts/make_slides_figures.py (rebin=4).")
+
+# B2 — JULY, REBINNED ---------------------------------------------------------
+s = add("July run, rebinned ×4 (8° bins)",
+        "Same as slide 4 — window 0.2–0.7 MeV, 30-day run — with 4 base "
+        "bins merged into one")
+_img_fit(s, SF / "fig_stacked_july_rebin4.png",
+         Inches(0.25), Inches(1.5), Inches(8.0), Inches(4.6))
+_txbox(s, Inches(8.4), Inches(1.6), Inches(4.7), Inches(4.6), [
+    ("≈ 64 X17 on ≈ 3 100 IPC", {"size": 20, "bold": True, "color": NAVY}),
+    "recorded in 30 days (S/B ≈ 0.021) — yields unchanged from slide 4.",
+    ("Coarser binning, same statistics.", {"size": 15, "bold": True,
+                                            "color": RED, "space_before": 8}),
+    "Merging 4 base bins (2° → 8°) smooths the per-bin fluctuations and "
+    "makes the smeared 109° excess (red, over green-dotted truth) easier "
+    "to read by eye — but it adds no information. Significance is set by the "
+    "template fit, which is binning-independent.",
+], size=14, color=GREY)
+_notes(s, "Backup rebinned (x4) twin of slide 4. Same recorded yields (64 X17 / "
+       "3093 IPC, S/B 0.021); only the display binning is coarser. Use to "
+       "answer the collaborator's rebinning request; do not read a confidence "
+       "level off the binning -- that comes from the template-fit / "
+       "counting analysis (see notes).")
+
+# B3 — JULY vs LS3, REBINNED --------------------------------------------------
+s = add("July vs post-LS3, rebinned ×4 (8° bins)",
+        "Same as slide 5 — the two windows side by side — with 4 base "
+        "bins merged into one")
+_img_fit(s, SF / "fig_stacked_compare_rebin4.png",
+         Inches(0.2), Inches(1.6), Inches(12.9), Inches(4.55))
+_txbox(s, Inches(0.5), Inches(6.2), Inches(12.4), Inches(1.1), [
+    ("July 64 X17 → post-LS3 220 X17 recorded (30 d), same "
+     "S/B ≈ 0.021.", {"size": 17, "bold": True, "color": NAVY}),
+    "Rebinned ×4 (2° → 8°) for readability; the shape and yields are "
+    "identical to slide 5. The post-LS3 gain is purely statistical.",
+], size=14, color=GREY)
+_notes(s, "Backup rebinned (x4) twin of slide 5 (fig_stacked_compare_rebin4). "
+       "Identical to slide 5 apart from the 8 deg display binning.")
 
 prs.save(str(OUT))
 print(f"wrote {OUT}  ({len(prs.slides.__iter__.__self__._sldIdLst)} slides)")

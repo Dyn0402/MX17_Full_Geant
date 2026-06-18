@@ -82,9 +82,26 @@ def window_yields(E, w, lo, hi):
 
 
 # ── the stacked smeared spectrum (one scenario) ──────────────────────────────
-def stacked_panel(ax, d, n_x17, n_ipc, n=2_000_000, seed=44, show_truth=True):
+#   Base binning is 90 uniform 2° bins over 0-180°.  `rebin` groups that many
+#   adjacent base bins into one (rebin=4 -> 8° bins): 90 is not divisible by 4,
+#   so the final coarse bin (176-180°) holds the 2 leftover base bins; the
+#   opening-angle distribution is empty there, so this edge effect is cosmetic.
+BASE_BIN_DEG = 2.0
+
+
+def rebinned_edges(rebin):
+    """Bin edges for the requested rebin factor (1 -> the native 2° grid)."""
+    fine = np.linspace(0, 180, 91)
+    if rebin <= 1:
+        return fine
+    return np.unique(np.append(fine[::rebin], 180.0))
+
+
+def stacked_panel(ax, d, n_x17, n_ipc, n=2_000_000, seed=44, show_truth=True,
+                  rebin=1):
     """Draw IPC + X17 stacked, both smeared by the measured P(psi|KE) response
-    (best estimator = target-centre chord), normalised to recorded yields."""
+    (best estimator = target-centre chord), normalised to recorded yields.
+    `rebin` coarsens the 2° base binning by that integer factor."""
     rng = np.random.default_rng(seed)
     sampler = make_psi_sampler(d, "nomline")
     th_x, ke1x, ke2x, u1x, u2x = sample_pairs(M_X17, n, rng)
@@ -93,7 +110,7 @@ def stacked_panel(ax, d, n_x17, n_ipc, n=2_000_000, seed=44, show_truth=True):
     th_x_s = smear_pair_response(ke1x, ke2x, u1x, u2x, sampler, rng)
     th_i_s = smear_pair_response(ke1i, ke2i, u1i, u2i, sampler, rng)
 
-    bins = np.linspace(0, 180, 91)
+    bins = rebinned_edges(rebin)
     cen = 0.5 * (bins[:-1] + bins[1:])
 
     def counts(th, total):
@@ -120,11 +137,12 @@ def stacked_panel(ax, d, n_x17, n_ipc, n=2_000_000, seed=44, show_truth=True):
     return cen, b, s
 
 
-def fig_stacked(scenario, d, E, w, lo, hi, title_extra=""):
+def fig_stacked(scenario, d, E, w, lo, hi, title_extra="", rebin=1):
     y = window_yields(E, w, lo, hi)
     fig, ax = plt.subplots(figsize=(8.6, 5.6))
-    stacked_panel(ax, d, y["x17_rec"], y["ipc_rec"])
-    ax.set_ylabel("recorded events / 2$^\\circ$  (30-day run)")
+    stacked_panel(ax, d, y["x17_rec"], y["ipc_rec"], rebin=rebin)
+    bw = BASE_BIN_DEG * rebin
+    ax.set_ylabel(f"recorded events / {bw:g}$^\\circ$  (30-day run)")
     ax.set_title(
         f"{scenario}: stacked e$^+$e$^-$ opening-angle spectrum{title_extra}\n"
         f"$E_n$ = {lo/1e6:g}-{hi/1e6:g} MeV  (TOF {y['tof_lo']:.1f}-{y['tof_hi']:.1f} "
@@ -133,12 +151,14 @@ def fig_stacked(scenario, d, E, w, lo, hi, title_extra=""):
         fontsize=10.5)
     ax.legend(fontsize=10, loc="upper right")
     fig.tight_layout()
-    fig.savefig(OUT / f"fig_stacked_{scenario.lower().split()[0]}.png", dpi=160)
+    suffix = f"_rebin{rebin}" if rebin > 1 else ""
+    fig.savefig(OUT / f"fig_stacked_{scenario.lower().split()[0]}{suffix}.png",
+                dpi=160)
     plt.close(fig)
     return y
 
 
-def fig_compare(d, E, w):
+def fig_compare(d, E, w, rebin=1):
     yj = window_yields(E, w, 2e5, 7e5)
     yl = window_yields(E, w, 2e5, 2e6)
     fig, axes = plt.subplots(1, 2, figsize=(15.5, 5.7), sharey=False)
@@ -146,19 +166,21 @@ def fig_compare(d, E, w):
         (axes[0], yj, "July (current hardware, optimistic)", 2e5, 7e5),
         (axes[1], yl, "Post-LS3 (reach extended to 2 MeV)", 2e5, 2e6),
     ]:
-        stacked_panel(ax, d, y["x17_rec"], y["ipc_rec"])
+        stacked_panel(ax, d, y["x17_rec"], y["ipc_rec"], rebin=rebin)
         ax.set_title(
             f"{lab}\n$E_n$ {lo/1e6:g}-{hi/1e6:g} MeV "
             f"(TOF {y['tof_lo']:.1f}-{y['tof_hi']:.1f} $\\mu$s)  |  "
             f"{y['x17_rec']:.0f} X17 / {y['ipc_rec']:.0f} IPC", fontsize=10.5)
         ax.legend(fontsize=9.5, loc="upper right")
-    axes[0].set_ylabel("recorded events / 2$^\\circ$  (30-day run)")
+    bw = BASE_BIN_DEG * rebin
+    axes[0].set_ylabel(f"recorded events / {bw:g}$^\\circ$  (30-day run)")
     fig.suptitle(
         "Expected recorded opening-angle spectrum: July vs post-LS3   "
         "($\\alpha_{IPC}=3.5\\times10^{-3}$, MM-double acceptance, "
         "best-estimator smearing)", fontsize=12)
     fig.tight_layout(rect=[0, 0, 1, 0.97])
-    fig.savefig(OUT / "fig_stacked_compare.png", dpi=160)
+    suffix = f"_rebin{rebin}" if rebin > 1 else ""
+    fig.savefig(OUT / f"fig_stacked_compare{suffix}.png", dpi=160)
     plt.close(fig)
     return yj, yl
 
@@ -224,6 +246,11 @@ def main():
     yl = fig_stacked("LS3", d, E, w, 2e5, 2e6)
     fig_compare(d, E, w)
     fig_production_windows(E, w)
+
+    # rebin-by-4 versions (8° bins) for the backup slides (colleague request)
+    fig_stacked("July", d, E, w, 2e5, 7e5, rebin=4)
+    fig_stacked("LS3", d, E, w, 2e5, 2e6, rebin=4)
+    fig_compare(d, E, w, rebin=4)
 
     print("Recorded yields (30-day run, alpha_IPC = 3.5e-3):")
     for nm, y in [("July 0.2-0.7 MeV", yj), ("LS3 0.2-2 MeV", yl)]:
