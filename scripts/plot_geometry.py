@@ -2,7 +2,7 @@
 """
 plot_geometry.py
 Visualise the MX17 4-arm detector geometry.
-  Figure 1 — top-down 2D (XZ plane, beam/Y axis into the page)  [matplotlib]
+  Figure 1 — top-down 2D (+Z right, +X up, beam +Y ⊙ out of page)  [matplotlib]
   Figure 2 — 3D isometric view                                   [pyvista/VTK]
 
 No Geant4 dependency; dimensions are taken directly from SimConfig defaults.
@@ -26,7 +26,12 @@ except ImportError:
 # SimConfig defaults  (keep in sync with include/SimConfig.hh)
 # ─────────────────────────────────────────────────────────────────────────────
 CFG = dict(
-    mm_distance_cm        = 25.0,   # MM window front face from origin (SimConfig.hh)
+    # MM window front face from origin — per axis (beam at mylar-box centre):
+    #   ±X arms (D,B) 40.8 cm span → 20.40;  ±Z arms (A,C) 40.9 cm span → 20.45.
+    mm_distance_x_cm      = 20.40,  # ±X arms (D,B)  (SimConfig.hh)
+    mm_distance_z_cm      = 20.45,  # ±Z arms (A,C)  (SimConfig.hh)
+    # Per-MM tangential pinwheel shift [cm], arm order 0=D(+X) 1=B(−X) 2=A(+Z) 3=C(−Z):
+    mm_pinwheel_shift_cm  = (1.55, 1.575, 1.635, 1.73),
     mm_size_u_cm          = 38.0,
     mm_size_v_cm          = 34.0,
     scint_size_u_cm       = 48.0,   # trigger scint wall
@@ -123,17 +128,25 @@ _lsDivRear_b  = w_LS_b                                            # rear CFRP wa
 # ─────────────────────────────────────────────────────────────────────────────
 # Arm geometry
 # ─────────────────────────────────────────────────────────────────────────────
-dist = CFG['mm_distance_cm']
+DIST_X   = CFG['mm_distance_x_cm']      # ±X arms (D, B) front-face distance
+DIST_Z   = CFG['mm_distance_z_cm']      # ±Z arms (A, C) front-face distance
+PINWHEEL = CFG['mm_pinwheel_shift_cm']  # per arm 0..3 = D,B,A,C; tangential along −u_hat
+dist     = max(DIST_X, DIST_Z)          # representative extent (world sizing / limits)
+
+
+def _arm(idx, label, w_hat, u_hat, d):
+    """Arm def with front-face centre shifted tangentially (pinwheel, −u_hat)."""
+    w = np.array(w_hat, dtype=float)
+    u = np.array(u_hat, dtype=float)
+    ff = w * d + (-u) * PINWHEEL[idx]
+    return dict(id=idx, label=label, ff=ff, u_hat=u, w_hat=w)
+
 
 ARM_DEF = [
-    dict(id=0, label='+X', ff=np.array([ dist, 0,    0   ]),
-         u_hat=np.array([0,0,-1]), w_hat=np.array([ 1,0,0])),
-    dict(id=1, label='−X', ff=np.array([-dist, 0,    0   ]),
-         u_hat=np.array([0,0, 1]), w_hat=np.array([-1,0,0])),
-    dict(id=2, label='+Z', ff=np.array([   0,  0,  dist  ]),
-         u_hat=np.array([1,0, 0]), w_hat=np.array([0,0, 1])),
-    dict(id=3, label='−Z', ff=np.array([   0,  0, -dist  ]),
-         u_hat=np.array([-1,0,0]), w_hat=np.array([0,0,-1])),
+    _arm(0, '+X (D)', ( 1, 0, 0), (0, 0, -1), DIST_X),
+    _arm(1, '−X (B)', (-1, 0, 0), (0, 0,  1), DIST_X),
+    _arm(2, '+Z (A)', ( 0, 0, 1), (1, 0,  0), DIST_Z),
+    _arm(3, '−Z (C)', ( 0, 0, -1), (-1, 0, 0), DIST_Z),
 ]
 V_HAT = np.array([0, 1, 0])
 
@@ -234,14 +247,15 @@ def plot_2d_topdown():
     for arm in ARM_DEF:
         for lname, w_f, w_b, ukey, vkey, col in LAYERS_2D:
             cen, hs = arm_box_world(arm, w_f, w_b, HW_U[ukey], 0)
-            x0, z0 = cen[0] - hs[0], cen[2] - hs[2]
-            ax.add_patch(Rectangle((x0, z0), 2*hs[0], 2*hs[2],
+            # screen mapping (adopted convention): x = Z (East →), y = X (North ↑)
+            sx0, sy0 = cen[2] - hs[2], cen[0] - hs[0]
+            ax.add_patch(Rectangle((sx0, sy0), 2*hs[2], 2*hs[0],
                                     linewidth=0.5, edgecolor='k',
                                     facecolor=col, alpha=0.75, zorder=2))
         ff  = arm['ff']
         mid = ff + arm['w_hat'] * (stack_depth / 2)
         loff = ff / np.linalg.norm(ff) * 2.5
-        ax.text(mid[0]+loff[0], mid[2]+loff[2],
+        ax.text(mid[2]+loff[2], mid[0]+loff[0],
                 f"Arm {arm['id']}\n({arm['label']})",
                 ha='center', va='center', fontsize=9, fontweight='bold', zorder=5,
                 bbox=dict(boxstyle='round,pad=0.3', facecolor='white',
@@ -253,13 +267,14 @@ def plot_2d_topdown():
             cen, hs = arm_box_world(arm, w_bsc_f, w_bsc_b,
                                     bscTape_hu, bscTape_hv,
                                     u_offset=u_sign * bsc_u_offset)
-            x0, z0 = cen[0] - hs[0], cen[2] - hs[2]
-            ax.add_patch(Rectangle((x0, z0), 2*hs[0], 2*hs[2],
+            sx0, sy0 = cen[2] - hs[2], cen[0] - hs[0]   # screen: x=Z, y=X
+            ax.add_patch(Rectangle((sx0, sy0), 2*hs[2], 2*hs[0],
                                     linewidth=0.5, edgecolor='k',
                                     facecolor='#e07820', alpha=0.80, zorder=2))
 
-    # Beam indicator (no dot — just the label)
-    ax.annotate('beam ⊙\n(+Y)', xy=(0, 0), xytext=(3, 3), fontsize=8, zorder=6)
+    # Beam indicator (⊙ = +Y out of the page toward viewer)
+    ax.annotate('beam ⊙\n(+Y, out of page)', xy=(0, 0), xytext=(2.5, 2.5),
+                fontsize=8, zorder=6)
 
     # Legend split into four corner boxes (grouped by subsystem) so it sits in
     # the empty diagonal corners rather than overlapping the cardinal arms.
@@ -296,10 +311,10 @@ def plot_2d_topdown():
 
     lim = dist + stack_depth + 4
     ax.set_xlim(-lim, lim);  ax.set_ylim(-lim, lim)
-    ax.set_xlabel('X  [cm]', fontsize=12)
-    ax.set_ylabel('Z  [cm]', fontsize=12)
-    ax.set_title('MX17 Detector Geometry — Top-Down View (XZ plane)\n'
-                 'Beam along +Y (into page)', fontsize=12)
+    ax.set_xlabel('Z  [cm]  (East →)', fontsize=12)
+    ax.set_ylabel('X  [cm]  (North ↑)', fontsize=12)
+    ax.set_title('MX17 Detector Geometry — Top-Down View\n'
+                 '+Z right · +X up · beam +Y ⊙ out of page (right-handed)', fontsize=12)
     ax.axhline(0, color='0.7', lw=0.5, zorder=1)
     ax.axvline(0, color='0.7', lw=0.5, zorder=1)
     ax.grid(True, lw=0.3, alpha=0.5)
@@ -475,12 +490,18 @@ def plot_3d_pyvista(out_path=None, interactive=True):
                  'Arms 0,1 at ±X  |  Arms 2,3 at ±Z  |  Beam along +Y',
                  font_size=12, color='black')
 
-    # Camera: from well outside the −X,+Y,−Z corner looking at origin; Y is "up"
+    # Camera: look down a diagonal gap between two arms at the target; Y is "up".
+    # Azimuth 225° = straight down the −X,−Z gap; rotated a little to the left so
+    # the He-3 target sits centred in the gap between the detectors.
     lim = dist + stack_depth + 5
+    cam_az_deg = 227.0            # XZ-plane azimuth of the camera (225 = −X,−Z)
+    cam_el     = 1.55            # camera height above mid-plane (× lim)
+    r_xz       = 3.96 * lim      # camera radius in the XZ plane
+    az = np.radians(cam_az_deg)
     pl.camera_position = [
-        (-lim * 2.8,  lim * 1.2, -lim * 2.8),  # camera position
-        (0, 0, 0),                                # focal point
-        (0, 1, 0),                                # up vector (beam axis)
+        (r_xz*np.cos(az), lim*cam_el, r_xz*np.sin(az)),  # camera position
+        (0, 0, 0),                                        # focal point (target)
+        (0, 1, 0),                                        # up vector (beam axis)
     ]
 
     if interactive:
@@ -498,7 +519,8 @@ if __name__ == '__main__':
     no_3d       = '--no-3d' in sys.argv or pv is None
     _here = os.path.dirname(os.path.abspath(__file__))
 
-    print(f"MM front face distance : {dist:.1f} cm")
+    print(f"MM front face distance : ±X (D,B) {DIST_X:.2f} cm | ±Z (A,C) {DIST_Z:.2f} cm")
+    print(f"Pinwheel shift [D,B,A,C]: {PINWHEEL} cm")
     print(f"MM stack depth         : {t_MM*10:.2f} mm")
     print(f"PCB stack depth        : {t_PCB*10:.2f} mm")
     print(f"Trigger scint depth    : {t_scint*10:.2f} mm")

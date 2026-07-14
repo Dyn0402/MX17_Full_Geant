@@ -10,6 +10,7 @@
 #include "EventData.hh"
 #include <memory>
 #include <string>
+#include <fstream>   // hitFile / evtFile are std::ofstream members
 
 class G4Run;
 

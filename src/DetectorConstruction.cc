@@ -241,7 +241,11 @@ G4VPhysicalVolume* DetectorConstruction::Construct() {
     G4double bscTape_hw = (bsc_th + 2*tBscAl + 2*tTape) / 2;
 
     // ── World volume ─────────────────────────────────────────
-    G4double dist      = fConfig.mm_distance_cm * cm;
+    // Per-axis MM front-face distances (target at mylar-box centre) and the
+    // per-arm tangential pinwheel shift.  Arm order: 0=D(+X) 1=B(−X) 2=A(+Z) 3=C(−Z).
+    G4double distX     = fConfig.mm_distance_x_cm * cm;
+    G4double distZ     = fConfig.mm_distance_z_cm * cm;
+    G4double distMax   = std::max(distX, distZ);
 
     // Compute total stack depth to size the world
     G4double tMM   = tMylar+tAlWin+tKapCath+tCuCath+tDrift+tMesh+tAmp+tResPaste;
@@ -253,7 +257,7 @@ G4VPhysicalVolume* DetectorConstruction::Construct() {
 
     G4double scintV_hf  = std::max(scU_hf, scV_hf);  // max half-size for world
     G4double bsc_max_hu = bscTape_hu * 2 + bsc_gap / 2;  // half total pair width
-    G4double worldHalfXZ = dist + stackDepth + 5.0*cm;
+    G4double worldHalfXZ = distMax + stackDepth + 5.0*cm;
     G4double worldHalfY  = std::max({scintV_hf, lsV_hf, bscTape_hv}) + 5.0*cm;
 
     auto* worldBox = new G4Box("World", worldHalfXZ, worldHalfY, worldHalfXZ);
@@ -513,18 +517,24 @@ G4VPhysicalVolume* DetectorConstruction::Construct() {
     auto* rot3 = new G4RotationMatrix(); rot3->rotateY(180.*deg);
 
     ArmDef armDefs[4] = {
-        {rot0, {dist,0,0},  {0,0,-1}, {1,0,0}},
-        {rot1, {-dist,0,0}, {0,0, 1}, {-1,0,0}},
-        {nullptr, {0,0,dist}, {1,0,0}, {0,0,1}},
-        {rot3, {0,0,-dist}, {-1,0,0}, {0,0,-1}},
+        {rot0, {distX,0,0},  {0,0,-1}, {1,0,0}},   // Arm0 +X = D
+        {rot1, {-distX,0,0}, {0,0, 1}, {-1,0,0}},  // Arm1 −X = B
+        {nullptr, {0,0,distZ}, {1,0,0}, {0,0,1}},  // Arm2 +Z = A
+        {rot3, {0,0,-distZ}, {-1,0,0}, {0,0,-1}},  // Arm3 −Z = C
     };
 
     // ── Place arms ────────────────────────────────────────────
     for (int arm = 0; arm < 4; ++arm) {
         const auto& ad = armDefs[arm];
 
+        // Pinwheel: slide the whole arm tangentially (⟂ its normal) along
+        // −uHat by the measured per-MM amount.  This translates the arm's
+        // local coordinate origin too, so hit u-coordinates stay centred.
+        G4ThreeVector pinShift = -ad.uHat * (fConfig.mm_pinwheel_shift_cm[arm] * cm);
+        G4ThreeVector armFront = ad.frontFace + pinShift;
+
         // Store arm axes for SteppingAction coordinate transforms
-        fArmAxes[arm].frontFace = ad.frontFace;
+        fArmAxes[arm].frontFace = armFront;
         fArmAxes[arm].uHat      = ad.uHat;
         fArmAxes[arm].vHat      = G4ThreeVector(0, 1, 0);
         fArmAxes[arm].wHat      = ad.wHat;
@@ -536,7 +546,7 @@ G4VPhysicalVolume* DetectorConstruction::Construct() {
             if (!s.lv) continue;
             G4double zCen = zLocal - s.thickness / 2.0;
             G4ThreeVector localOff(0, 0, zCen);
-            G4ThreeVector worldCen = ad.frontFace +
+            G4ThreeVector worldCen = armFront +
                 (ad.rot ? (*ad.rot)*localOff : localOff);
             std::string pvName = "Arm" + std::to_string(arm) + "_" + s.lv->GetName();
             new G4PVPlacement(ad.rot, worldCen, s.lv,
@@ -551,7 +561,7 @@ G4VPhysicalVolume* DetectorConstruction::Construct() {
             G4ThreeVector localW(0, 0, bscWCenter);
             G4ThreeVector localU = uSign * uOff * G4ThreeVector(1, 0, 0);  // local x = arm u
             G4ThreeVector localPos = localW + localU;
-            G4ThreeVector worldPos = ad.frontFace +
+            G4ThreeVector worldPos = armFront +
                 (ad.rot ? (*ad.rot)*localPos : localPos);
 
             G4LogicalVolume* tapeLV = (side == 0) ? bscTapeLLV : bscTapeRLV;
@@ -562,7 +572,8 @@ G4VPhysicalVolume* DetectorConstruction::Construct() {
         }
 
         G4cout << "  Arm " << arm << " placed, front face at "
-               << ad.frontFace/cm << " cm" << G4endl;
+               << armFront/cm << " cm  (pinwheel "
+               << fConfig.mm_pinwheel_shift_cm[arm] << " cm)" << G4endl;
     }
 
     G4cout << "=====================================" << G4endl;

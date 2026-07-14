@@ -64,7 +64,20 @@ struct SimConfig {
     double he3_half_length_cm = 2.0;   // half-length of cylinder section [cm]  (L=40 mm per STEP)
 
     // ── MM + trigger scint wall geometry ────────────────────
-    double mm_distance_cm  = 25.0;   // MM window front face from origin [cm]
+    // MM window front-face distance from origin.  Measured 2026-06-30: the
+    // beam/target sit at the centre of the (roughly square) box formed by the
+    // four inner mylar faces, so each face is half its opposing pair-span from
+    // the origin — ±X arms (D,B): 40.8 cm span → 20.40 cm; ±Z arms (A,C):
+    // 40.9 cm span → 20.45 cm.  (See GEOMETRY_COORDINATE_CONVENTION.md.)
+    double mm_distance_x_cm = 20.40;  // ±X arm (D,B) window front face from origin [cm]
+    double mm_distance_z_cm = 20.45;  // ±Z arm (A,C) window front face from origin [cm]
+
+    // Per-MM tangential "pinwheel" shift [cm]: each MM is slid ⟂ its outward
+    // normal in a clockwise (top-down) sense, along −uHat.  Indexed by sim arm:
+    //   [0]=D(+X)  [1]=B(−X)  [2]=A(+Z)  [3]=C(−Z).
+    // Measured 2026-06-30, halved 2026-07-14 (earlier values were 2× too large).
+    double mm_pinwheel_shift_cm[4] = {1.55, 1.575, 1.635, 1.73};
+
     double mm_size_u_cm    = 38.0;   // MM active area: u [cm]
     double mm_size_v_cm    = 34.0;   // MM active area: v (along beam) [cm]
     double scint_size_u_cm = 48.0;   // Trigger plastic scint: u [cm]

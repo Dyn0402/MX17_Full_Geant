@@ -65,7 +65,9 @@ int main(int argc, char** argv) {
         else if (a == "--mass"   && i+1<argc) config.x17Mass_MeV           = std::stod(argv[++i]);
         else if (a == "--energy" && i+1<argc) config.transition_energy_MeV  = std::stod(argv[++i]);
         else if (a == "--ipc"    && i+1<argc) config.ipc_fraction            = std::stod(argv[++i]);
-        else if (a == "--dist"   && i+1<argc) config.mm_distance_cm          = std::stod(argv[++i]);
+        else if (a == "--dist"   && i+1<argc) {   // uniform override of both MM front-face distances
+            config.mm_distance_x_cm = config.mm_distance_z_cm = std::stod(argv[++i]);
+        }
         else if (a == "--single" && i+4<argc) {
             config.singleParticle           = true;
             config.singleParticleName       = argv[++i];
