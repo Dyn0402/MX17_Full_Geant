@@ -24,11 +24,10 @@
 const std::map<std::string, bool> SteppingAction::kScoredVolumes = {
     {"DriftGas",    true},
     {"AmpGas",      true},
-    {"PlasticScint",true},   // 3mm trigger scintillator
-    {"LiqScint_1",  true},   // 2cm LAB layer 1
-    {"LiqScint_2",  true},   // 2cm LAB layer 2
-    {"BackScintL",  true},   // 2cm back plastic scint, left bar
-    {"BackScintR",  true},   // 2cm back plastic scint, right bar
+    {"PlasticScint",true},   // SiPM wall scint bars (3 mm)
+    {"LiqScint_1",  true},   // single 2cm LAB layer
+    {"BackScintL",  true},   // 2.5cm plastic scint, left bar
+    {"BackScintR",  true},   // 2.5cm plastic scint, right bar
 };
 
 // Particles drawn by the trajectory dump: the neutron itself plus the charged

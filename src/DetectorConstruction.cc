@@ -2,18 +2,20 @@
 // 4-arm X17 experiment geometry.
 // Beam axis = +Y. Arms at ±X (arm 0,1) and ±Z (arm 2,3).
 //
-// Stack per arm (front face at mm_distance from origin, outward):
-//   MM window layers
-//   MM drift gas (30 mm, scored)
-//   Amplification gas + resistive paste
+// Stack per arm, inside → out (measured 2026-07-15; depths from the MM
+// drift-mylar front face; see GEOMETRY_CHANGE_CHECKLIST.md):
+//   MM window layers | MM drift gas (30 mm, scored) | amp gas | resistive paste
 //   PCB stack
-//   [gap_pcb_to_scint] air
-//   Trigger scint wall: black-mylar tape | 3mm plastic scint | tape | Al foil
-//   [gap_scint_to_ls] air
-//   LS stack: 2mm CFRP | 2cm LAB (scored) | 2mm CFRP | 2cm LAB (scored) | 2mm CFRP
-//   [gap_ls_to_backscint] air
-//   Back scints: 2× (black-mylar tape envelope | 25×30×2cm plastic scint (scored))
-//                placed side-by-side in u, 3mm gap between wrapped bars
+//   [air]  — gap grows so the SiPM container front lands 11 cm from mylar front
+//   SiPM trigger wall: 16 of 20 plastic scint bars (2.5 cm each), scored as
+//     "PlasticScint", centered on the STRUCTURE (u=0), read-out window shifted
+//     1 bar toward the MM.  3 mm scint centered in a 3.3 cm container.
+//   [gap_sipm_to_plastic] air
+//   Plastics: 2× (black-mylar tape envelope | 20×30×2.5cm plastic scint (scored))
+//     side-by-side in u, centered on the MM (pinwheel-shifted).
+//   [gap_plastic_to_ls] air
+//   LS box (centered on the MM): 2mm CFRP | 600µm CFRP + 40µm Al liner |
+//     2cm LAB (scored) | 2mm CFRP  — a single liquid layer.
 
 #include "DetectorConstruction.hh"
 #include "SensitiveDetector.hh"
@@ -197,36 +199,31 @@ G4VPhysicalVolume* DetectorConstruction::Construct() {
     G4double tPCBRoh  = 5.0   * mm;
     G4double tPCBAl   = 50.0  * um;
 
-    // Trigger scint wall
-    G4double tBlkTape = 200.0 * um;   // black mylar tape
-    G4double tPlScint = 3.0   * mm;
-    G4double tScAl    = 50.0  * um;
-    G4double scintWallT = 2*tBlkTape + tPlScint + tScAl;
+    // SiPM trigger wall: bare plastic scint bar (2.5 cm wide, 50 cm long)
+    G4double tSipmScint = fConfig.sipm_scint_thick_cm * cm;  // 3 mm active depth
 
-    // LS stack
+    // LS box (single layer)
     G4double tLSCfrp       = fConfig.ls_cfrp_mm      * mm;   // 2 mm structural CFRP wall
     G4double tLSInnerCfrp  = fConfig.ls_inner_cfrp_um * um;  // 600 µm inner CFRP liner
     G4double tLSInnerAl    = fConfig.ls_inner_al_um   * um;  // 40 µm Al liner
-    G4double tLS           = fConfig.ls_thick_cm      * cm;  // 2 cm LAB per layer
+    G4double tLS           = fConfig.ls_thick_cm      * cm;  // 2 cm LAB layer
 
-    // Back scint wrapping: tape (outer) → Al foil → PVT
+    // Plastic scint wrapping: tape (outer) → Al foil → PVT
     G4double tTape    = fConfig.backscint_tape_um * um;  // 200 µm black mylar
     G4double tBscAl   = fConfig.backscint_al_um   * um;  // 20 µm Al foil
-
-    // Air gaps
-    G4double gapPCBtoScint  = fConfig.gap_pcb_to_scint_mm    * mm;
-    G4double gapScintToLS   = fConfig.gap_scint_to_ls_mm     * mm;
-    G4double gapLStoBack    = fConfig.gap_ls_to_backscint_mm * mm;
 
     // ── Half-sizes in arm local frame (u, v) ────────────────
     G4double mmU_hf  = fConfig.mm_size_u_cm    * cm / 2;
     G4double mmV_hf  = fConfig.mm_size_v_cm    * cm / 2;
-    G4double scU_hf  = fConfig.scint_size_u_cm * cm / 2;
-    G4double scV_hf  = fConfig.scint_size_v_cm * cm / 2;
     G4double lsU_hf  = fConfig.ls_size_u_cm    * cm / 2;
     G4double lsV_hf  = fConfig.ls_size_v_cm    * cm / 2;
 
-    // Back scint bar: PVT wrapped in Al foil then black mylar tape
+    // SiPM bar half-sizes
+    G4double sipmBar_hu = fConfig.sipm_bar_width_cm * cm / 2;  // 1.25 cm
+    G4double sipmBar_hv = fConfig.sipm_size_v_cm    * cm / 2;  // 25 cm
+    G4double sipmBar_hw = tSipmScint / 2;
+
+    // Plastic bar: PVT wrapped in Al foil then black mylar tape
     G4double bsc_u  = fConfig.backscint_u_cm     * cm;
     G4double bsc_v  = fConfig.backscint_v_cm     * cm;
     G4double bsc_th = fConfig.backscint_thick_cm * cm;
@@ -247,18 +244,28 @@ G4VPhysicalVolume* DetectorConstruction::Construct() {
     G4double distZ     = fConfig.mm_distance_z_cm * cm;
     G4double distMax   = std::max(distX, distZ);
 
-    // Compute total stack depth to size the world
+    // ── Depth chain (all measured from the MM drift-mylar front face) ────────
     G4double tMM   = tMylar+tAlWin+tKapCath+tCuCath+tDrift+tMesh+tAmp+tResPaste;
     G4double tPCB  = tPCBKap + 4*(tPCBCu+tPCBFR4) + tPCBRoh + tPCBAl;
-    G4double tLS_stack = 3*tLSCfrp + 2*(tLSInnerCfrp + tLSInnerAl + tLS);
-    G4double tBack = 2*bscTape_hw;   // depth of tape envelope
-    G4double stackDepth = tMM + tPCB + gapPCBtoScint + scintWallT
-                        + gapScintToLS + tLS_stack + gapLStoBack + tBack;
+    G4double mmPcbBack   = tMM + tPCB;                                  // ≈ 3.60 cm
+    // SiPM wall: container front measured 11 cm from mylar; scint plane centered.
+    G4double sipmFront   = fConfig.sipm_front_from_mylar_cm * cm;       // 11 cm
+    G4double sipmContD   = fConfig.sipm_container_depth_cm  * cm;       // 3.3 cm
+    G4double sipmScintW  = sipmFront + sipmContD / 2.0;                 // scint depth (center)
+    G4double sipmBack    = sipmFront + sipmContD;                       // container back
+    // Plastics (behind SiPM), centered on the MM.
+    G4double plasticEnvD = 2 * bscTape_hw;                             // wrapped-bar depth
+    G4double plasticFront= sipmBack + fConfig.gap_sipm_to_plastic_cm * cm;
+    G4double plasticW    = plasticFront + plasticEnvD / 2.0;            // plastics depth (center)
+    G4double plasticBack = plasticFront + plasticEnvD;
+    // Single LS box, centered on the MM.
+    G4double tLS_box     = 2*tLSCfrp + tLSInnerCfrp + tLSInnerAl + tLS; // front+rear wall + liner + LAB
+    G4double lsFront     = plasticBack + fConfig.gap_plastic_to_ls_cm * cm;
+    G4double lsBack      = lsFront + tLS_box;
+    G4double stackDepth  = lsBack;                                      // outermost extent
 
-    G4double scintV_hf  = std::max(scU_hf, scV_hf);  // max half-size for world
-    G4double bsc_max_hu = bscTape_hu * 2 + bsc_gap / 2;  // half total pair width
     G4double worldHalfXZ = distMax + stackDepth + 5.0*cm;
-    G4double worldHalfY  = std::max({scintV_hf, lsV_hf, bscTape_hv}) + 5.0*cm;
+    G4double worldHalfY  = std::max({sipmBar_hv, lsV_hf, bscTape_hv}) + 5.0*cm;
 
     auto* worldBox = new G4Box("World", worldHalfXZ, worldHalfY, worldHalfXZ);
     auto* worldLV  = new G4LogicalVolume(worldBox, matAir, "World");
@@ -411,26 +418,18 @@ G4VPhysicalVolume* DetectorConstruction::Construct() {
     auto* pcbRohLV  = MakeLV("PCB_Rohacell", mmU_hf,mmV_hf,tPCBRoh/2,  GetMat("Rohacell51"),G4Color(0.9,0.9,0.6,0.5));
     auto* pcbAlLV   = MakeLV("PCB_AlFoil",   mmU_hf,mmV_hf,tPCBAl/2,   matAl,             G4Color(0.7,0.7,0.7,0.8));
 
-    // Trigger scint wall (48×48 cm face) — black mylar tape
-    auto* bkTape1LV = MakeLV("ScintWall_BlackTape1", scU_hf,scV_hf,tBlkTape/2, matBlkMylar, G4Color(0.1,0.1,0.1,0.9));
-    fPlScintLV      = MakeLV("PlasticScint",          scU_hf,scV_hf,tPlScint/2, matPlScint,  G4Color(0.9,0.9,0.2,0.7));
-    auto* bkTape2LV = MakeLV("ScintWall_BlackTape2", scU_hf,scV_hf,tBlkTape/2, matBlkMylar, G4Color(0.1,0.1,0.1,0.9));
-    auto* scAlLV    = MakeLV("ScintWall_AlFoil",     scU_hf,scV_hf,tScAl/2,    matAl,       G4Color(0.7,0.7,0.7,0.8));
+    // SiPM trigger wall — one plastic scint bar (2.5 cm wide, 50 cm long),
+    // placed 16× per arm along u (copyNo = arm).  Scored as "PlasticScint".
+    fPlScintLV = MakeLV("PlasticScint", sipmBar_hu, sipmBar_hv, sipmBar_hw,
+                         matPlScint, G4Color(0.9,0.9,0.2,0.7));
 
-    // LS stack (45×45 cm face)
-    // Structural CFRP walls (2 mm)
+    // LS box (45×45 cm face) — single LAB layer inside a CFRP box:
+    //   front CFRP wall | inner CFRP liner | Al liner | LAB (scored) | rear CFRP wall
     auto* lsCFRP1LV      = MakeLV("LS_CFRP_1",      lsU_hf,lsV_hf,tLSCfrp/2,      GetMat("CFRP"),G4Color(0.15,0.15,0.15,0.9));
     auto* lsCFRP2LV      = MakeLV("LS_CFRP_2",      lsU_hf,lsV_hf,tLSCfrp/2,      GetMat("CFRP"),G4Color(0.15,0.15,0.15,0.9));
-    auto* lsCFRP3LV      = MakeLV("LS_CFRP_3",      lsU_hf,lsV_hf,tLSCfrp/2,      GetMat("CFRP"),G4Color(0.15,0.15,0.15,0.9));
-    // Inner CFRP liner (600 µm, before each LAB layer)
     auto* lsInnerCFRP1LV = MakeLV("LS_InnerCFRP_1", lsU_hf,lsV_hf,tLSInnerCfrp/2, GetMat("CFRP"),G4Color(0.25,0.25,0.25,0.8));
-    auto* lsInnerCFRP2LV = MakeLV("LS_InnerCFRP_2", lsU_hf,lsV_hf,tLSInnerCfrp/2, GetMat("CFRP"),G4Color(0.25,0.25,0.25,0.8));
-    // Al liner (40 µm, between inner CFRP and LAB)
     auto* lsAl1LV        = MakeLV("LS_Al_1",         lsU_hf,lsV_hf,tLSInnerAl/2,   matAl,         G4Color(0.7,0.7,0.7,0.8));
-    auto* lsAl2LV        = MakeLV("LS_Al_2",         lsU_hf,lsV_hf,tLSInnerAl/2,   matAl,         G4Color(0.7,0.7,0.7,0.8));
-    // LAB layers (scored)
     fLS1LV               = MakeLV("LiqScint_1",      lsU_hf,lsV_hf,tLS/2,          GetMat("LAB"), G4Color(0.3,0.8,0.9,0.4));
-    fLS2LV               = MakeLV("LiqScint_2",      lsU_hf,lsV_hf,tLS/2,          GetMat("LAB"), G4Color(0.3,0.8,0.9,0.4));
 
     // Back plastic scint bars: tape (outer, 200µm mylar) → Al foil (20µm) → PVT scint
     // Two LVs per component (L/R) so volume name encodes which bar.
@@ -456,10 +455,10 @@ G4VPhysicalVolume* DetectorConstruction::Construct() {
     fDriftGasLV->SetUserLimits(new G4UserLimits(100.*um));
     fAmpGasLV  ->SetUserLimits(new G4UserLimits(100.*um));
 
-    // ── Build ordered slab list ───────────────────────────────
-    // nullptr entries = air gaps (world volume fills them)
+    // ── Ordered slab lists (depths accumulate from each group's front) ────────
     struct Slab { G4LogicalVolume* lv; G4double thickness; };
-    std::vector<Slab> slabs = {
+    // MM + PCB stack — placed relative to the arm front face (pinwheel-shifted).
+    std::vector<Slab> mmSlabs = {
         // MM
         {mylarLV,   tMylar},
         {alWinLV,   tAlWin},
@@ -477,32 +476,28 @@ G4VPhysicalVolume* DetectorConstruction::Construct() {
         {pcbCu4LV,  tPCBCu}, {pcbFR44LV, tPCBFR4},
         {pcbRohLV,  tPCBRoh},
         {pcbAlLV,   tPCBAl},
-        // Air gap → trigger scint wall
-        {nullptr,   gapPCBtoScint},
-        {bkTape1LV, tBlkTape},
-        {fPlScintLV,tPlScint},
-        {bkTape2LV, tBlkTape},
-        {scAlLV,    tScAl},
-        // Air gap → LS stack (structural CFRP → inner CFRP liner → Al liner → LAB)
-        {nullptr,        gapScintToLS},
+    };
+    // Single LS box — front CFRP wall | inner CFRP liner | Al liner | LAB | rear CFRP wall
+    std::vector<Slab> lsSlabs = {
         {lsCFRP1LV,      tLSCfrp},
         {lsInnerCFRP1LV, tLSInnerCfrp},
         {lsAl1LV,        tLSInnerAl},
         {fLS1LV,         tLS},
-        {lsCFRP2LV,      tLSCfrp},
-        {lsInnerCFRP2LV, tLSInnerCfrp},
-        {lsAl2LV,        tLSInnerAl},
-        {fLS2LV,         tLS},
-        {lsCFRP3LV,      tLSCfrp},
-        // Air gap → back scints (back scints placed separately below)
-        {nullptr,   gapLStoBack},
+        {lsCFRP2LV,      tLSCfrp},   // rear wall
     };
 
-    // Compute total depth of slab list (= depth of back-scint front face)
-    G4double slabsTotalDepth = 0.0;
-    for (const auto& s : slabs) slabsTotalDepth += s.thickness;
-    // Back-scint tape envelope centre depth from arm front face
-    G4double bscWCenter = slabsTotalDepth + bscTape_hw;
+    // ── SiPM read-out window: which of the 20 bars are instrumented ───────────
+    // Bars are centered on the STRUCTURE (u = 0).  The MM sits at local −u
+    // (pinwheel shift is along −uHat), so "toward the MM" = −u.  Keep the 16
+    // bars whose window centre is offset sipm_readout_shift_bars toward −u:
+    // drop 3 bars on the far (+u) side and 1 on the near (−u) side.
+    const int    Nb  = fConfig.sipm_n_bars;
+    const int    Nr  = fConfig.sipm_n_readout;
+    const double bw  = fConfig.sipm_bar_width_cm * cm;
+    const double barHalf   = (Nr - 1) / 2.0;
+    const double barCenter = (Nb - 1) / 2.0 - fConfig.sipm_readout_shift_bars;
+    const int    barLo = static_cast<int>(std::lround(barCenter - barHalf));
+    const int    barHi = static_cast<int>(std::lround(barCenter + barHalf));
 
     // ── Arm placement definitions ─────────────────────────────
     struct ArmDef {
@@ -533,47 +528,56 @@ G4VPhysicalVolume* DetectorConstruction::Construct() {
         G4ThreeVector pinShift = -ad.uHat * (fConfig.mm_pinwheel_shift_cm[arm] * cm);
         G4ThreeVector armFront = ad.frontFace + pinShift;
 
-        // Store arm axes for SteppingAction coordinate transforms
+        // The SiPM wall is centred on the mechanical STRUCTURE (un-shifted),
+        // while MM / plastics / LS are centred on the pinwheel-shifted MM.
+        G4ThreeVector structFront = ad.frontFace;
+
+        // Store arm axes for SteppingAction coordinate transforms (MM frame)
         fArmAxes[arm].frontFace = armFront;
         fArmAxes[arm].uHat      = ad.uHat;
         fArmAxes[arm].vHat      = G4ThreeVector(0, 1, 0);
         fArmAxes[arm].wHat      = ad.wHat;
 
-        // Place each slab
-        G4double zLocal = 0.0;
-        for (const auto& s : slabs) {
-            zLocal += s.thickness;
-            if (!s.lv) continue;
-            G4double zCen = zLocal - s.thickness / 2.0;
-            G4ThreeVector localOff(0, 0, zCen);
-            G4ThreeVector worldCen = armFront +
-                (ad.rot ? (*ad.rot)*localOff : localOff);
-            std::string pvName = "Arm" + std::to_string(arm) + "_" + s.lv->GetName();
-            new G4PVPlacement(ad.rot, worldCen, s.lv,
-                               pvName, worldLV, false, arm, true);
-        }
-
-        // Place back-scint tape envelopes (left and right bars)
-        // u-offset from arm centre = ±(half_u_tape + gap/2)
-        G4double uOff = bscTape_hu + bsc_gap / 2.0;
-        for (int side = 0; side < 2; ++side) {
-            G4double uSign = (side == 0) ? -1.0 : +1.0;
-            G4ThreeVector localW(0, 0, bscWCenter);
-            G4ThreeVector localU = uSign * uOff * G4ThreeVector(1, 0, 0);  // local x = arm u
-            G4ThreeVector localPos = localW + localU;
-            G4ThreeVector worldPos = armFront +
+        // Helper: place lv at local (u, 0, w) relative to `base` (arm front).
+        auto place = [&](G4LogicalVolume* lv, const G4ThreeVector& base,
+                          G4double u, G4double w, const std::string& tag) {
+            G4ThreeVector localPos(u, 0, w);
+            G4ThreeVector worldPos = base +
                 (ad.rot ? (*ad.rot)*localPos : localPos);
+            new G4PVPlacement(ad.rot, worldPos, lv,
+                               "Arm" + std::to_string(arm) + "_" + tag,
+                               worldLV, false, arm, true);
+        };
 
-            G4LogicalVolume* tapeLV = (side == 0) ? bscTapeLLV : bscTapeRLV;
-            std::string pvName = "Arm" + std::to_string(arm) +
-                                  (side == 0 ? "_BackTapeL" : "_BackTapeR");
-            new G4PVPlacement(ad.rot, worldPos, tapeLV,
-                               pvName, worldLV, false, arm, true);
+        // 1) MM + PCB stack — relative to the (shifted) arm front face.
+        G4double zLocal = 0.0;
+        for (const auto& s : mmSlabs) {
+            zLocal += s.thickness;
+            place(s.lv, armFront, 0.0, zLocal - s.thickness / 2.0, s.lv->GetName());
         }
 
-        G4cout << "  Arm " << arm << " placed, front face at "
-               << armFront/cm << " cm  (pinwheel "
-               << fConfig.mm_pinwheel_shift_cm[arm] << " cm)" << G4endl;
+        // 2) SiPM wall — 16 instrumented bars, centred on the STRUCTURE.
+        for (int i = barLo; i <= barHi; ++i) {
+            G4double u_i = bw * (i - (Nb - 1) / 2.0);   // bar centre from structure centre
+            place(fPlScintLV, structFront, u_i, sipmScintW,
+                  "PlasticScint_bar" + std::to_string(i));
+        }
+
+        // 3) Plastics — two wrapped bars side-by-side, centred on the MM.
+        G4double uOff = bscTape_hu + bsc_gap / 2.0;
+        place(bscTapeLLV, armFront, -uOff, plasticW, "BackTapeL");
+        place(bscTapeRLV, armFront, +uOff, plasticW, "BackTapeR");
+
+        // 4) LS box — single LAB layer inside a CFRP box, centred on the MM.
+        G4double zLS = lsFront;
+        for (const auto& s : lsSlabs) {
+            zLS += s.thickness;
+            place(s.lv, armFront, 0.0, zLS - s.thickness / 2.0, s.lv->GetName());
+        }
+
+        G4cout << "  Arm " << arm << " front face at " << armFront/cm
+               << " cm  (pinwheel " << fConfig.mm_pinwheel_shift_cm[arm]
+               << " cm); SiPM bars " << barLo << "-" << barHi << G4endl;
     }
 
     G4cout << "=====================================" << G4endl;
@@ -593,7 +597,6 @@ void DetectorConstruction::ConstructSDandField() {
     RegisterSD(fAmpGasLV,     "AmpGasSD");
     RegisterSD(fPlScintLV,    "PlasticScintSD");
     RegisterSD(fLS1LV,        "LiqScint1SD");
-    RegisterSD(fLS2LV,        "LiqScint2SD");
     RegisterSD(fBackScintLLV, "BackScintLSD");
     RegisterSD(fBackScintRLV, "BackScintRSD");
 }

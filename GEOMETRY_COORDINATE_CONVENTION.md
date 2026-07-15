@@ -106,9 +106,28 @@ i.e. a clockwise pinwheel in the top-down view. (User-specified examples:
 
 ---
 
-## 5. Propagation status
+## 5. Detector stack, inside → out (arrangement flip, 2026-07-15)
 
-**Propagated into the code 2026-07-14:**
+The layer order was flipped and the liquid reduced to a single layer.  New
+order: **MM → SiPM wall → plastics → 1 LS layer.**  All depths are quoted from
+the **MM drift-mylar front face** (w = 0).  The MM/PCB build is unchanged; the
+air gap after the PCB simply grows so the SiPM container lands at the measured
+distance.
+
+| Layer | Depth (front → back) | Centered on | Notes |
+|-------|----------------------|-------------|-------|
+| MM + PCB | 0 → 3.60 cm | MM (pinwheel) | unchanged internal build |
+| **SiPM wall** | **11.0 → 14.3 cm** (container; scint centered) | **STRUCTURE** (u=0) | 50×50 cm, 20 bars × 2.5 cm; **16 read out**, window shifted 1 bar toward the MM (drop 3 far, 1 near); un-read bars removed in sim / transparent in plots |
+| Plastics | 21.3 → 23.8 cm | MM (pinwheel) | 2×(20×30 cm) bars, **2.5 cm** thick (nominal 2.0); gap after SiPM = **7 cm** (measure later) |
+| LS layer | 28.8 → 31.3 cm | MM (pinwheel) | single 2 cm LAB in a CFRP box; gap after plastics = **5 cm** (measure later); MM-centering assumed (measure later) |
+
+Measured values: SiPM container front 11 cm from mylar front, container depth
+3.3 cm.  Gaps flagged "measure later" are rough.  See
+`GEOMETRY_CHANGE_CHECKLIST.md` for the full list of files that must move together.
+
+## 6. Propagation status
+
+**Propagated into the code 2026-07-14 (coord convention + pinwheel):**
 
 - [x] `include/SimConfig.hh` — replaced `mm_distance_cm=25` with per-axis
       `mm_distance_x_cm=20.40` / `mm_distance_z_cm=20.45`, added
@@ -124,15 +143,26 @@ i.e. a clockwise pinwheel in the top-down view. (User-specified examples:
 - [x] `include/RunAction.hh` — added missing `#include <fstream>` (latent bug
       surfaced when the SimConfig change forced a recompile; unrelated to geometry).
 
+**Propagated into the code 2026-07-15 (stack flip; see §5):**
+
+- [x] `include/SimConfig.hh` — new SiPM/plastics/LS-gap fields; removed the old
+      `scint_size_*` and `gap_*` fields; plastics thickness 2.0→2.5 cm.
+- [x] `src/DetectorConstruction.cc` — SiPM wall = 16 bars on the structure,
+      plastics + single LS box on the MM; per-axis absolute depths.
+- [x] `include/DetectorConstruction.hh` / `src/SteppingAction.cc` — dropped the
+      2nd LS layer (`fLS2LV` / `LiqScint_2`).
+- [x] `scripts/plot_geometry.py`, `plot_buildup.py` — new stack, structure-vs-MM
+      centering, transparent un-read SiPM bars; 2D top-down now uses the adopted
+      +Z-right/+X-up orientation (legacy-orientation note resolved).
+
 **Still open:**
 
 - [ ] Re-run simulations & acceptance with the new geometry — existing sim
-      outputs used the old 25 cm symmetric placement and are now stale.
-- [ ] Slides / reports quoting the 25 cm front face or symmetric arm placement.
-- [ ] `plot_geometry.py`'s 2D top-down still uses its legacy orientation
-      (X→right, Z→up, beam into page), not the adopted +Z-right/+X-up view —
-      geometry is correct, only the on-page orientation differs from the
-      canonical `plot_mm_layout.py` / `plot_buildup.py`.
+      outputs are now stale.
+- [ ] Trim analysis scripts that reference `LiqScint_2` (harmless: no hits now).
+- [ ] Measure & update the "measure later" gaps (SiPM→plastics 7 cm,
+      plastics→LS 5 cm) and the LS MM-centering.
+- [ ] Slides / reports quoting the old stack (25 cm front face, 2 LS layers).
 
 Note: values were 41 cm / uniform 30 mm in the first pass (2026-06-30 early),
 then 3.10–3.46 cm shifts; the current numbers above supersede them.

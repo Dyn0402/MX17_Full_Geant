@@ -43,9 +43,8 @@ private:
     // Sensitive logical volumes (shared across all 4 arms via copy numbers)
     G4LogicalVolume* fDriftGasLV    = nullptr;
     G4LogicalVolume* fAmpGasLV      = nullptr;
-    G4LogicalVolume* fPlScintLV     = nullptr;   // 3mm trigger scint
-    G4LogicalVolume* fLS1LV         = nullptr;   // 2cm LAB layer 1
-    G4LogicalVolume* fLS2LV         = nullptr;   // 2cm LAB layer 2
+    G4LogicalVolume* fPlScintLV     = nullptr;   // SiPM wall scint bar (placed 16×/arm)
+    G4LogicalVolume* fLS1LV         = nullptr;   // single 2cm LAB layer
     // Back plastic scints: two bars per arm (L=left/−u, R=right/+u in arm frame)
     // Each placed 4× (copyNo = armID); separate LVs so volume name encodes L/R.
     G4LogicalVolume* fBackScintLLV  = nullptr;

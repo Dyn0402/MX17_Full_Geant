@@ -5,25 +5,24 @@ plot_buildup.py — MX17 inside-out detector build-up (top-down slides).
 Renders a 4-frame sequence showing the detector assembled from the INSIDE OUT,
 for "building the detector" presentation slides:
   1. Micromegas (MM) only
-  2. + SiPM trigger-scintillator walls
-  3. + Liquid-scintillator (LS) layers
-  4. + Back plastic-scintillator (PMT) bars     [full detector]
+  2. + SiPM trigger-scintillator wall (16 of 20 bars read out)
+  3. + Plastic scintillators
+  4. + Liquid-scintillator layer                 [full detector]
 
 Two visual styles (choose with --style; default renders BOTH):
   clean    — flat blocks, coordinate axes, compass, big A/B/C/D labels
-             (matches scripts/plot_mm_layout.py)
-  detailed — every sub-layer shown (PCB, LS CFRP walls + 2 LAB layers,
-             twin PMT bars with gap), richer legend
-             (matches scripts/plot_geometry.py palette)
+  detailed — every sub-layer shown (PCB, LS CFRP box + LAB, twin plastic bars),
+             richer legend
 
 Coordinate convention (adopted 2026-06-30; see GEOMETRY_COORDINATE_CONVENTION.md):
   true top-down, +Z → right, +X → up, beam +Y ⊙ out of the page (right-handed).
 
-Geometry (measured 2026-06-30; pinwheel shifts halved 2026-07-14):
+Geometry (measured 2026-07-15; see GEOMETRY_CHANGE_CHECKLIST.md):
   • Opposing mylar (window) faces: B↔D = 40.8 cm, C↔A = 40.9 cm.  Beam/target at
-    the centre of the (roughly square) mylar box ⇒ faces at ±20.40 / ±20.45 cm.
+    the centre of the mylar box ⇒ faces at ±20.40 / ±20.45 cm.
   • Per-MM pinwheel (tangential) shift: D=1.55, B=1.575, A=1.635, C=1.73 cm.
-  Layer thicknesses are imported from plot_geometry.py (SimConfig-derived).
+  • SiPM wall centered on the STRUCTURE (not the MM); plastics + LS centered on
+    the MM.  Layer depths are imported from plot_geometry.py (SimConfig-derived).
 
 Run:  python scripts/plot_buildup.py                 # both styles, 4 frames each
       python scripts/plot_buildup.py --style clean    # one style only
@@ -41,7 +40,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import plot_geometry as G   # noqa: E402
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Geometry (measured; NEW spacing + halved pinwheel shift)
+# Geometry
 # ─────────────────────────────────────────────────────────────────────────────
 SPAN_BD, SPAN_CA = 40.8, 40.9         # opposing mylar-face spans [cm]
 
@@ -59,19 +58,25 @@ def S(px, pz):
 # Face-relative layer-depth boundaries (from plot_geometry / SimConfig) [cm]
 wMMf,  wMMb  = G.w_MM_f,  G.w_MM_b        # Micromegas stack (incl. drift)
 wPCBf, wPCBb = G.w_PCB_f, G.w_PCB_b       # readout PCB
-wSCf,  wSCb  = G.w_sc_f,  G.w_sc_b        # SiPM trigger scint wall
-wLSf,  wLSb  = G.w_LS_f,  G.w_LS_b        # liquid-scintillator stack
-wBSf,  wBSb  = G.w_bsc_f, G.w_bsc_b       # back plastic (PMT) scint bars
-# LS internal sub-layers (CFRP walls + 2 LAB layers)
+wSCcf, wSCcb = G.w_sipm_f, G.w_sipm_b     # SiPM container (3.3 cm, mostly empty)
+wSCf,  wSCb  = G.w_sipm_sc_f, G.w_sipm_sc_b   # SiPM scint bars (thin, 3 mm)
+SIPM_WALL_HU = G.sipm_wall_hu             # full wall half-width (u)
+wBSf,  wBSb  = G.w_bsc_f, G.w_bsc_b       # plastics (wrapped bars)
+wLSf,  wLSb  = G.w_LS_f,  G.w_LS_b        # single liquid-scintillator box
+# LS internal sub-layers (front CFRP wall | LAB | rear CFRP wall)
 LS_SUBS = [
     (G._lsDivFront_f, G._lsDivFront_b, 'cfrp'),
     (G._wLS1_f,       G._wLS1_b,       'lab'),
-    (G._lsDivMid_f,   G._lsDivMid_b,   'cfrp'),
-    (G._wLS2_f,       G._wLS2_b,       'lab'),
     (G._lsDivRear_f,  G._lsDivRear_b,  'cfrp'),
 ]
-HU = dict(mm=G.HW_U['mm'], scint=G.HW_U['scint'], ls=G.HW_U['ls'])
+HU = dict(mm=G.HW_U['mm'], ls=G.HW_U['ls'])
 BS_HU, BS_OFF = G.bscTape_hu, G.bsc_u_offset
+
+# SiPM bars
+BW = G.bw
+N_BARS = G.CFG['sipm_n_bars']
+SIPM_READOUT = G.SIPM_READOUT
+SIPM_OFFSETS = [(i, BW * (i - (N_BARS - 1) / 2.0)) for i in range(N_BARS)]
 
 # He-3 capsule cross-section radii [cm]
 HE3 = [(1.15, '#404040', 3), (1.06, '#b0b0b0', 4), (1.00, '#99d8f5', 5)]
@@ -83,30 +88,32 @@ C_MYLAR = '#c0392b'
 
 STAGE_NAME = {
     1: 'Micromegas (MM)',
-    2: '+ SiPM trigger-scintillator walls',
-    3: '+ Liquid-scintillator layers',
-    4: '+ Back plastic-scintillator (PMT) bars   —   full detector',
+    2: '+ SiPM trigger-scintillator wall  (16 / 20 bars read out)',
+    3: '+ Plastic scintillators',
+    4: '+ Liquid-scintillator layer   —   full detector',
 }
 
 # outermost radius (mylar face + full stack) → fixed frame extent for all frames
-R_OUT = max(SPAN_BD, SPAN_CA) / 2.0 + wBSb
+R_OUT = max(SPAN_BD, SPAN_CA) / 2.0 + wLSb
 LIM = R_OUT + 6.0
 
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Slab drawing
 # ─────────────────────────────────────────────────────────────────────────────
-def _slab(ax, arm, w_f, w_b, hu, color, u0=0.0, alpha=0.85, lw=0.6, z=2, ec='k'):
+def _slab(ax, arm, w_f, w_b, hu, color, u0=0.0, base=None, alpha=0.85,
+          lw=0.6, z=2, ec='k', ls='-'):
     """One layer slab for an arm, spanning depth [w_f, w_b] (from mylar face)
-    and ±hu about the arm's tangential centre (shift + u0)."""
+    and ±hu about a tangential centre (base + u0).  base defaults to the MM
+    pinwheel shift; pass base=0.0 to centre on the mechanical structure."""
     n = np.array(arm['n'])
     t = np.array([-n[1], n[0]])
-    u = arm['shift'] + u0
+    u = (arm['shift'] if base is None else base) + u0
     d = arm['dist']
     pts = [n*(d+w_f) + t*(u+hu), n*(d+w_f) + t*(u-hu),
            n*(d+w_b) + t*(u-hu), n*(d+w_b) + t*(u+hu)]
     ax.add_patch(Polygon([S(*p) for p in pts], closed=True, facecolor=color,
-                         edgecolor=ec, lw=lw, alpha=alpha, zorder=z))
+                         edgecolor=ec, lw=lw, alpha=alpha, zorder=z, linestyle=ls))
 
 
 def _mylar_front(ax, arm, hu):
@@ -132,12 +139,28 @@ def _draw_arm_layers(ax, arm, stage, style):
     if stage < 2:
         return
 
-    # Stage 2 — SiPM trigger-scintillator wall
-    _slab(ax, arm, wSCf, wSCb, HU['scint'], C_SC, alpha=0.85, z=3)
+    # Stage 2 — SiPM wall centred on the STRUCTURE (base=0): a light container
+    # outline (3.3 cm, mostly empty) with thin (3 mm) scint bars inside.
+    #   16 read out (solid) + 4 un-read (transparent, dashed).
+    _slab(ax, arm, wSCcf, wSCcb, SIPM_WALL_HU, 'none', base=0.0, alpha=1.0,
+          lw=0.8, z=3, ec='0.6')
+    for i, u_i in SIPM_OFFSETS:
+        if i in SIPM_READOUT:
+            _slab(ax, arm, wSCf, wSCb, BW/2, C_SC, u0=u_i, base=0.0,
+                  alpha=0.90, lw=0.4, z=3)
+        else:
+            _slab(ax, arm, wSCf, wSCb, BW/2, C_SC, u0=u_i, base=0.0,
+                  alpha=0.15, lw=0.6, z=3, ec='0.6', ls='--')
     if stage < 3:
         return
 
-    # Stage 3 — Liquid scintillator
+    # Stage 3 — Plastic scintillators: two bars, centred on the MM.
+    for sgn in (-1.0, +1.0):
+        _slab(ax, arm, wBSf, wBSb, BS_HU, C_BS, u0=sgn*BS_OFF, alpha=0.85, z=3)
+    if stage < 4:
+        return
+
+    # Stage 4 — Liquid scintillator: single layer, centred on the MM.
     if detailed:
         for lf, lb, kind in LS_SUBS:
             _slab(ax, arm, lf, lb, HU['ls'],
@@ -145,12 +168,6 @@ def _draw_arm_layers(ax, arm, stage, style):
                   alpha=0.85 if kind == 'cfrp' else 0.75, z=3)
     else:
         _slab(ax, arm, wLSf, wLSb, HU['ls'], C_LS, alpha=0.8, z=3)
-    if stage < 4:
-        return
-
-    # Stage 4 — Back plastic (PMT) scint bars: two per arm with a gap
-    for sgn in (-1.0, +1.0):
-        _slab(ax, arm, wBSf, wBSb, BS_HU, C_BS, u0=sgn*BS_OFF, alpha=0.85, z=3)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -165,7 +182,7 @@ def _decorate(ax, stage, style):
     for arm in MMS:
         n = np.array(arm['n'])
         t = np.array([-n[1], n[0]])
-        pos = n*(arm['dist'] + wBSb + 3.2) + t*arm['shift']
+        pos = n*(arm['dist'] + wLSb + 3.2) + t*arm['shift']
         sx, sy = S(*pos)
         ax.text(sx, sy, f"MM {arm['letter']}\n{arm['coord']} · {arm['card']}",
                 ha='center', va='center', fontsize=11.5, fontweight='bold',
@@ -209,15 +226,15 @@ def _decorate(ax, stage, style):
     handles.append(mpatches.Patch(color=C_MYLAR, label='MM mylar window (faces target)'))
     if stage >= 2:
         handles.append(mpatches.Patch(color=C_SC, alpha=0.85,
-                                      label='SiPM trigger scint  (48×48 cm)'))
+                                      label='SiPM wall  (16/20 bars read out, on structure)'))
     if stage >= 3:
-        handles.append(mpatches.Patch(color=C_LS, alpha=0.78,
-                                      label='Liquid scint LAB  (2×2 cm, 45×45 cm)'))
-        if style == 'detailed':
-            handles.append(mpatches.Patch(color=C_CFRP, alpha=0.85, label='LS CFRP walls + liners'))
-    if stage >= 4:
         handles.append(mpatches.Patch(color=C_BS, alpha=0.85,
-                                      label='Back plastic scint / PMT bars  (2×[20×30] cm)'))
+                                      label='Plastic scint bars  (2×[20×30] cm, on MM)'))
+    if stage >= 4:
+        handles.append(mpatches.Patch(color=C_LS, alpha=0.78,
+                                      label='Liquid scint LAB  (1×2 cm, 45×45 cm, on MM)'))
+        if style == 'detailed':
+            handles.append(mpatches.Patch(color=C_CFRP, alpha=0.85, label='LS CFRP box walls + liners'))
     handles.append(mpatches.Patch(color='#99d8f5', label='He-3 target gas bore (Ø20 mm)'))
     ax.legend(handles=handles, loc='lower left', fontsize=8, framealpha=0.92)
 
@@ -251,8 +268,10 @@ if __name__ == '__main__':
     if '--style' in sys.argv:
         styles = [sys.argv[sys.argv.index('--style') + 1]]
 
-    tags = {1: '1_mm', 2: '2_sipm', 3: '3_ls', 4: '4_full'}
+    tags = {1: '1_mm', 2: '2_sipm', 3: '3_plastic', 4: '4_full'}
     print(f"Outer stack radius : {R_OUT:.1f} cm   (frame ±{LIM:.0f} cm)")
+    print(f"SiPM read-out bars : {sorted(SIPM_READOUT)[0]}–{sorted(SIPM_READOUT)[-1]} "
+          f"of 0–{N_BARS-1}")
     for style in styles:
         for stage in (1, 2, 3, 4):
             fig = make_frame(stage, style)

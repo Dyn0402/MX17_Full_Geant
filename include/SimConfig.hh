@@ -80,29 +80,50 @@ struct SimConfig {
 
     double mm_size_u_cm    = 38.0;   // MM active area: u [cm]
     double mm_size_v_cm    = 34.0;   // MM active area: v (along beam) [cm]
-    double scint_size_u_cm = 48.0;   // Trigger plastic scint: u [cm]
-    double scint_size_v_cm = 48.0;   // Trigger plastic scint: v [cm]
 
-    // ── Liquid scintillator stack (2 layers, 45×45 cm face) ─
+    // ══════════════════════════════════════════════════════════════════════
+    //  Detector stack, inside → out (measured 2026-07-15; see
+    //  GEOMETRY_CHANGE_CHECKLIST.md):  MM → SiPM wall → plastics → 1 LS layer.
+    //  Depths below are quoted from the MM drift-mylar FRONT face (w = 0).
+    //  The MM + PCB build is unchanged; the air gap after the PCB simply grows
+    //  so the SiPM container front lands at the measured distance.
+    // ══════════════════════════════════════════════════════════════════════
+
+    // ── SiPM trigger-scintillator wall (50×50 cm, 20 bars of 2.5 cm) ────────
+    // Centered on the mechanical STRUCTURE (u = 0), NOT on the pinwheel-shifted
+    // MM.  Only 16 of the 20 bars are instrumented; the read-out window is
+    // shifted 1 bar toward the MM (drop 3 bars on the far side, 1 on the MM
+    // side).  Un-read bars are omitted from the sim (drawn transparent in the
+    // diagrams).  Bars run along beam (v); array runs along the tangent (u).
+    double sipm_front_from_mylar_cm = 11.0;  // mylar front → SiPM container front (measured)
+    double sipm_container_depth_cm  = 3.3;   // SiPM wall container depth; scint centered inside
+    double sipm_bar_width_cm        = 2.5;   // one bar width (u)
+    int    sipm_n_bars              = 20;    // total bars across the 50 cm wall
+    int    sipm_n_readout           = 16;    // instrumented bars (rest removed from sim)
+    int    sipm_readout_shift_bars  = 1;     // read-out window shift toward the MM [bars]
+    double sipm_scint_thick_cm      = 0.3;   // active scint depth (centered in container)
+    double sipm_size_v_cm           = 50.0;  // bar length along beam (v)
+
+    // ── Plastic scintillators (2 bars per arm, individually tape-wrapped) ───
+    // Two 20×30 cm bars side-by-side in u, behind the SiPM wall.  Centered on
+    // the MM (inherit the per-arm pinwheel shift) both horizontally (u) and
+    // vertically (v = 0).
+    double backscint_u_cm      = 20.0;  // each bar: u [cm]
+    double backscint_v_cm      = 30.0;  // each bar: v (along beam) [cm]
+    double backscint_thick_cm  = 2.5;   // each bar: depth [cm]  (measured ~2.5, nominal 2.0)
+    double backscint_gap_cm    = 0.3;   // gap between wrapped bars [cm]
+    double backscint_tape_um   = 200.0; // black mylar tape (outermost) [µm]
+    double backscint_al_um     = 20.0;  // Al foil on scintillator surface [µm]
+    double gap_sipm_to_plastic_cm = 7.0; // SiPM container back → plastics front [cm] (MEASURE LATER)
+
+    // ── Liquid scintillator (1 layer, 45×45 cm face) ───────────────────────
+    // Single LAB layer inside a CFRP box (front wall + liner | LAB | rear wall).
+    // Centered on the MM (assumed for now — MEASURE & UPDATE LATER).
     double ls_size_u_cm        = 45.0;  // LS active face: u [cm]
     double ls_size_v_cm        = 45.0;  // LS active face: v [cm]
     double ls_thick_cm         = 2.0;   // LAB layer thickness [cm]
     double ls_cfrp_mm          = 2.0;   // structural CFRP wall thickness [mm]
-    // Inner liner before each LAB layer (inside the structural walls):
     double ls_inner_cfrp_um    = 600.0; // inner CFRP liner [µm]
     double ls_inner_al_um      = 40.0;  // Al liner [µm]
-
-    // ── Back plastic scintillators (2 per arm, individually tape-wrapped) ──
-    // Two 20×30 cm bars placed side-by-side in the u direction.
-    double backscint_u_cm      = 20.0;  // each bar: u [cm]
-    double backscint_v_cm      = 30.0;  // each bar: v (along beam) [cm]
-    double backscint_thick_cm  = 2.0;   // each bar: depth [cm]
-    double backscint_gap_cm    = 0.3;   // gap between wrapped bars [cm]
-    double backscint_tape_um   = 200.0; // black mylar tape (outermost) [µm]
-    double backscint_al_um     = 20.0;  // Al foil on scintillator surface [µm]
-
-    // ── Clearances (air gaps) ──────────────────────────────
-    double gap_pcb_to_scint_mm   = 20.0;  // PCB → trigger scint [mm]
-    double gap_scint_to_ls_mm    = 20.0;  // trigger scint → LS stack [mm]
-    double gap_ls_to_backscint_mm = 1.0;  // LS stack → back plastic scints [mm]
+    double gap_plastic_to_ls_cm = 5.0;  // plastics back → liquid front [cm] (MEASURE LATER)
 };
