@@ -685,19 +685,21 @@ G4VPhysicalVolume* DetectorConstruction::Construct() {
         place(bscTapeLLV, armFront, -uOff, plasticWA[arm], "BackTapeL");
         place(bscTapeRLV, armFront, +uOff, plasticWA[arm], "BackTapeR");
 
-        // 4) LS vessel — surveyed 2026-07-17: flat slab front face at the
-        //    measured per-arm depth, slab centre at the surveyed height
-        //    (ls_offset_v), slab centred on the MM in u (ASSUMED, not
-        //    measured).  ls_rot_deg rotates the vessel about its depth axis:
-        //    0 = vertical, neck/PMT up (B, C); −90 = horizontal, neck/PMT
-        //    along +u (A, D).  Placed with G4Transform3D (the direct/active-
+        // 4) LS vessel — surveyed 2026-07-17/18: flat slab front face at the
+        //    measured per-arm depth; slab centre at the surveyed height
+        //    (ls_offset_v) and surveyed tangential position (ls_center_u,
+        //    referenced to the STRUCTURE, not the pinwheel-shifted MM).
+        //    ls_rot_deg rotates the vessel about its depth axis: 0 =
+        //    vertical, neck/PMT up (B, C); −90 = horizontal, neck/PMT along
+        //    +u (A, D).  Placed with G4Transform3D (the direct/active-
         //    rotation constructor), matching the active use of ad.rot in the
         //    position math above.
         G4RotationMatrix lsRz; lsRz.rotateZ(fConfig.ls_rot_deg[arm] * deg);
         G4RotationMatrix lsArmR = (ad.rot ? *ad.rot : G4RotationMatrix()) * lsRz;
         G4double lsSlabCenW = lsSlabFrontA[arm] + lsTo;
-        G4ThreeVector lsLocal(0, fConfig.ls_offset_v_cm[arm] * cm, lsSlabCenW);
-        G4ThreeVector lsOrigin = armFront + (ad.rot ? (*ad.rot)*lsLocal : lsLocal);
+        G4ThreeVector lsLocal(fConfig.ls_center_u_cm[arm] * cm,
+                              fConfig.ls_offset_v_cm[arm] * cm, lsSlabCenW);
+        G4ThreeVector lsOrigin = structFront + (ad.rot ? (*ad.rot)*lsLocal : lsLocal);
         new G4PVPlacement(G4Transform3D(lsArmR, lsOrigin), lsShellLV,
                           "Arm" + std::to_string(arm) + "_LS_Vessel",
                           worldLV, false, arm, true);

@@ -141,7 +141,16 @@ struct SimConfig {
     //     slab centre v = −31 + 6.8 + bottom + (slab half-height), where the
     //     half-height is 45.06/2 (vertical, B/C) or 45.12/2 (horizontal,
     //     A/D).  All four land within ±0.7 mm of v = 0.
-    //   • Tangential (u): NOT measured — slab centred on the MM assumed.
+    //   • Tangential (u), surveyed 2026-07-18: measured against a 60 cm
+    //     horizontal reference centred on the SiPM wall (structure u = 0),
+    //     left/right as seen from behind the wall (right = +u).  Left-edge
+    //     distances (reference left edge → slab left edge) D/B/A/C =
+    //     8.3/6.1/8.1/5.7 cm ⇒ slab centre u = d_L − 30 + half-width
+    //     (22.53 horizontal A/D, 22.56 vertical B/C).  Right-edge
+    //     cross-checks close the 60 cm to within 0.2–1.2 mm (B, C) and
+    //     2.6–6.6 mm (D, A — likely the rounded slab corner); left trusted.
+    //     B/C land on their pinwheel MM centres (≤2.4 mm); A/D sit ~2.3 cm
+    //     right of theirs.
     double ls_slab_u_cm        = 45.12;  // slab outer width, u [cm]   (STEP 451.2 mm)
     double ls_slab_v_cm        = 45.06;  // slab outer length, v [cm]  (STEP 450.6 mm)
     double ls_slab_thick_cm    = 2.12;   // slab outer thickness, unbulged [cm] (STEP 21.2 mm)
@@ -163,4 +172,8 @@ struct SimConfig {
     // Slab-centre height relative to the beam (v = 0), from the bottom-bar
     // survey chain above:
     double ls_offset_v_cm[4] = {-0.04, +0.03, +0.06, -0.07};
+    // Slab-centre u relative to the STRUCTURE (SiPM-wall centre, u = 0),
+    // from the 60-cm-reference survey above (2026-07-18).  NB: the LS is
+    // placed against the STRUCTURE, not the pinwheel-shifted MM.
+    double ls_center_u_cm[4] = {+0.83, -1.34, +0.63, -1.74};
 };

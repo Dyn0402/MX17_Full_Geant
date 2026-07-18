@@ -155,14 +155,15 @@ def _draw_arm_layers(ax, arm, stage, style):
     if stage < 4:
         return
 
-    # Stage 4 — Liquid scintillator: STEP vessel, surveyed 2026-07-17.
+    # Stage 4 — Liquid scintillator: STEP vessel, surveyed 2026-07-17/18.
     # Top-down section at beam height: vertical vessels (B, C) show the bulged
     # slab lens (funnel/neck up, out of plane); horizontal vessels (A, D) show
-    # the full axis silhouette with funnel/neck/PMT along +u.
-    # NB this script's tangent t = −uHat(sim), so u_sim = −(t-coord − shift).
+    # the full axis silhouette with funnel/neck/PMT along +u.  Slab centred at
+    # the surveyed u on the STRUCTURE (not the MM).
+    # NB this script's tangent t = −uHat(sim), so u_sim = −(t-coord).
     def _ls_poly(pts_uw, color, alpha, z):
         n = np.array(arm['n']); t = np.array([-n[1], n[0]])
-        pts = [n*(arm['dist'] + w) + t*(arm['shift'] - u) for u, w in pts_uw]
+        pts = [n*(arm['dist'] + w) - t*(G.LS_OFF_U[i] + u) for u, w in pts_uw]
         ax.add_patch(Polygon([S(*p) for p in pts], closed=True, facecolor=color,
                              edgecolor='k', lw=0.6, alpha=alpha, zorder=z))
     if G.LS_ROT[i] == 0:        # vertical (B, C): lens
@@ -251,7 +252,7 @@ def _decorate(ax, stage, style):
     if stage >= 4:
         handles.append(mpatches.Patch(color=C_LS, alpha=0.78,
                                       label='Liquid scint LAB  (6.5 L, 45×45 cm slab, '
-                                            f'bulged ±{G.hCap*10:.0f} mm, on MM)'))
+                                            f'bulged ±{G.hCap*10:.0f} mm; surveyed, on structure)'))
         if style == 'detailed':
             handles.append(mpatches.Patch(color=C_CFRP, alpha=0.85,
                                           label='LS CFRP vessel (STEP; funnel + PMT at +Y)'))

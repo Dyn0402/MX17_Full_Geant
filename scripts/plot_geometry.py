@@ -84,6 +84,10 @@ CFG = dict(
     # (62 cm enclosure, SiPMs centred; bar 6.8 cm above bottom — DOUBLE-CHECK;
     #  LS bottoms above bar D/B/A/C = 1.6/1.7/1.7/1.6 cm):
     ls_offset_v_cm        = (-0.04, +0.03, +0.06, -0.07),
+    # slab-centre u rel. the STRUCTURE (SiPM-wall centre; +u = right seen from
+    # behind the wall), from the 60-cm-reference survey 2026-07-18 (left-edge
+    # distances D/B/A/C = 8.3/6.1/8.1/5.7 cm; right edges cross-check):
+    ls_center_u_cm        = (+0.83, -1.34, +0.63, -1.74),
 )
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -184,6 +188,7 @@ w_LS_mid    = (w_LS_slab_f + w_LS_slab_b) / 2
 t_LS_box    = 2*lsTo + 2*hCap
 LS_ROT      = CFG['ls_rot_deg']                       # 0 = vertical; −90 = horizontal
 LS_OFF_V    = CFG['ls_offset_v_cm']
+LS_OFF_U    = CFG['ls_center_u_cm']                   # rel. STRUCTURE (not the MM)
 
 # MM + PCB depths (from mylar front)
 w_MM_f  = 0.0;        w_MM_b  = t_MM
@@ -368,9 +373,11 @@ def plot_2d_topdown():
         # LS vessel — cross-section at beam height.  Vertical vessels (B, C):
         # the bulged slab lens (funnel/neck at +v, out of plane).  Horizontal
         # vessels (A, D): the full axis silhouette — funnel/neck/PMT along +u.
+        # Positioned on the STRUCTURE at the surveyed u centre (NOT on the MM);
+        # the u in pts_uw is relative to the slab centre.
         def _uw_poly(pts_uw, col, alpha, zo):
-            P = np.array([arm['ff'] + arm['u_hat']*u + arm['w_hat']*w
-                          for u, w in pts_uw])
+            P = np.array([arm['ff_struct'] + arm['u_hat']*(LS_OFF_U[i] + u)
+                          + arm['w_hat']*w for u, w in pts_uw])
             ax.add_patch(plt.Polygon(np.column_stack([P[:, 2], P[:, 0]]),
                                      closed=True, fc=col, ec='k', lw=0.5,
                                      alpha=alpha, zorder=zo))
@@ -424,9 +431,9 @@ def plot_2d_topdown():
         mpatches.Patch(color=C_LS, alpha=0.90,
                        label=f'Liq. scint. LAB  ({CFG["ls_fill_liters"]:.1f} L; '
                              f'{CFG["ls_slab_u_cm"]:.0f}×{CFG["ls_slab_v_cm"]:.0f} cm slab, '
-                             f'bulged ±{hCap*10:.0f} mm, on MM)'),
+                             f'bulged ±{hCap*10:.0f} mm; surveyed, on structure)'),
         mpatches.Patch(color=C_CFRP, alpha=0.85,
-                       label='LS CFRP vessel (STEP shape; funnel + PMT at +Y)'),
+                       label='LS CFRP vessel (STEP; vert PMT-up B/C, horiz PMT+u A/D)'),
     ]
     for handles, loc in [(cap_handles, 'upper left'), (mm_handles, 'upper right'),
                          (sc_handles, 'lower left'), (ls_handles, 'lower right')]:
@@ -613,21 +620,23 @@ def plot_3d_pyvista(out_path=None, interactive=True):
         vOff  = V_HAT * LS_OFF_V[i]
         lbl = once('LS', f'LS vessel (STEP; {CFG["ls_fill_liters"]:.1f} L LAB, '
                          f'slab bulged ±{hCap*10:.0f} mm; vert B/C, horiz A/D)')
+        lsBase = arm['ff_struct'] + uh*LS_OFF_U[i] + vOff   # slab centre (u,v)
         cen, hs = arm_box_world(arm, w_LS_slab_f[i], w_LS_slab_b[i],
                                 lsUo if vert else lsVo,
-                                lsVo if vert else lsUo)
+                                lsVo if vert else lsUo,
+                                u_offset=LS_OFF_U[i], ff=arm['ff_struct'])
         _add_box(pl, cen + vOff, hs, C3_CFRP, 0.80, lbl)
         # bulge domes: full ellipsoids half-buried in the slab (as in the sim)
         for w_face in (w_LS_slab_f[i], w_LS_slab_b[i]):
             semi = np.abs(wh)*hCap + np.abs(wdHat)*lsUo + np.abs(aHat)*lsVo
             ell = pv.ParametricEllipsoid(*semi)
-            ell.translate(arm['ff'] + wh*w_face + vOff, inplace=True)
+            ell.translate(lsBase + wh*w_face, inplace=True)
             pl.add_mesh(ell, color=C3_CFRP, opacity=0.80, smooth_shading=True)
         # funnel: hexahedral loft, slab cross-section → square(Ø-neck)
         corners = []
         for a, hwd, ht in [(lsVo, lsUo, lsTo), (lsVo + lsFunL, lsNkR, lsNkR)]:
             for su, st in [(-1, -1), (1, -1), (1, 1), (-1, 1)]:
-                corners.append(arm['ff'] + vOff + wdHat*(su*hwd) + aHat*a
+                corners.append(lsBase + wdHat*(su*hwd) + aHat*a
                                + wh*(w_LS_mid[i] + st*ht))
         hexa = pv.UnstructuredGrid(
             np.array([8, 0, 1, 2, 3, 4, 5, 6, 7]),
@@ -638,8 +647,7 @@ def plot_3d_pyvista(out_path=None, interactive=True):
             (lsNkR, lsVo + lsFunL, lsVo + lsFunL + lsNkL, C3_CFRP),
             (CFG['ls_pmt_r_cm'], pmtFaceV, pmtFaceV + CFG['ls_pmt_len_cm'], C3_PMT),
         ]:
-            cyl = pv.Cylinder(center=arm['ff'] + vOff + wh*w_LS_mid[i]
-                              + aHat*(a0+a1)/2,
+            cyl = pv.Cylinder(center=lsBase + wh*w_LS_mid[i] + aHat*(a0+a1)/2,
                               direction=tuple(aHat), radius=r, height=a1 - a0)
             pl.add_mesh(cyl, color=col, opacity=0.85, smooth_shading=True,
                         label=once('PMT', 'LS PMT (half-inserted)')
@@ -721,7 +729,8 @@ if __name__ == '__main__':
                                      ('A', 'horiz'), ('C', 'vert')]):
         print(f"Arm {k} ({letter:1s}) plastics     : {w_bsc_f[k]:.2f} → {w_bsc_b[k]:.2f} cm | "
               f"LS slab {w_LS_slab_f[k]:.2f} → {w_LS_slab_b[k]:.2f} cm "
-              f"(apex {w_LS_f[k]:.2f}/{w_LS_b[k]:.2f}), {o}, v-off {LS_OFF_V[k]:+.2f} cm")
+              f"(apex {w_LS_f[k]:.2f}/{w_LS_b[k]:.2f}), {o}, "
+              f"u {LS_OFF_U[k]:+.2f} / v {LS_OFF_V[k]:+.2f} cm (on structure)")
     print(f"LS vessel              : slab {2*lsTo*10:.1f} mm + 2×{hCap*10:.1f} mm bulge; "
           f"{CFG['ls_fill_liters']:.1f} L LAB; funnel+neck+PMT reach "
           f"{pmtFaceV + CFG['ls_pmt_len_cm']:.1f} cm along the vessel axis")

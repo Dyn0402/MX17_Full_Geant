@@ -123,12 +123,24 @@ distance.
 
 ### Per-arm survey 2026-07-17 (all from the SiPM container back = 14.5 cm)
 
-| Arm | Wall | SiPM back → plastics front | Plastics (abs) | SiPM back → LS flat slab face | LS slab (abs; apex ±1.25 cm more) | LS orientation | LS slab-centre v |
-|-----|------|---------------------------|----------------|-------------------------------|------------------------------------|----------------|------------------|
-| 0 | D (+X) | 6.5 cm | 21.0 → 23.5 cm | 12.3 cm | 26.8 → 28.9 cm | HORIZONTAL, PMT +u (−Z, West) | −0.04 cm |
-| 1 | B (−X) | 6.1 cm | 20.6 → 23.1 cm | 12.7 cm | 27.2 → 29.3 cm | VERTICAL, PMT up (+v) | +0.03 cm |
-| 2 | A (+Z) | 6.3 cm | 20.8 → 23.3 cm | 12.3 cm | 26.8 → 28.9 cm | HORIZONTAL, PMT +u (+X, North) | +0.06 cm |
-| 3 | C (−Z) | 6.1 cm | 20.6 → 23.1 cm | 12.7 cm | 27.2 → 29.3 cm | VERTICAL, PMT up (+v) | −0.07 cm |
+| Arm | Wall | SiPM back → plastics front | Plastics (abs) | SiPM back → LS flat slab face | LS slab (abs; apex ±1.25 cm more) | LS orientation | LS slab-centre v | LS slab-centre u (structure) |
+|-----|------|---------------------------|----------------|-------------------------------|------------------------------------|----------------|------------------|------------------------------|
+| 0 | D (+X) | 6.5 cm | 21.0 → 23.5 cm | 12.3 cm | 26.8 → 28.9 cm | HORIZONTAL, PMT +u (−Z, West) | −0.04 cm | +0.83 cm |
+| 1 | B (−X) | 6.1 cm | 20.6 → 23.1 cm | 12.7 cm | 27.2 → 29.3 cm | VERTICAL, PMT up (+v) | +0.03 cm | −1.34 cm |
+| 2 | A (+Z) | 6.3 cm | 20.8 → 23.3 cm | 12.3 cm | 26.8 → 28.9 cm | HORIZONTAL, PMT +u (+X, North) | +0.06 cm | +0.63 cm |
+| 3 | C (−Z) | 6.1 cm | 20.6 → 23.1 cm | 12.7 cm | 27.2 → 29.3 cm | VERTICAL, PMT up (+v) | −0.07 cm | −1.74 cm |
+
+**LS u survey (2026-07-18):** measured against a 60 cm horizontal reference
+centred on the SiPM wall (structure u = 0); left/right as seen from behind the
+wall (right = +u).  Reference-left-edge → slab-left-edge: D 8.3, B 6.1, A 8.1,
+C 5.7 cm ⇒ slab centre u = d_L − 30 + slab half-width (22.53 cm horizontal
+A/D, 22.56 cm vertical B/C).  Right-edge cross-checks (reference-right-edge →
+slab-right-edge: D 6.9, B 8.8, A 7.5, C 9.3 cm) close the 60 cm to within
+0.2 mm (B), 1.2 mm (C), 2.6 mm (D), 6.6 mm (A) — left side trusted per the
+survey note (right-side excess likely the rounded slab corner).  Result: B/C
+sit on their pinwheel MM centres (within 2.4 / 0.1 mm); A/D sit ~2.3 cm to
+the right of theirs — so the LS is placed relative to the STRUCTURE in the
+sim, no longer "centred on the MM".
 
 LS depth reference = the **flat slab front face** (measured at the vessel edge,
 off the bulge); the front bulge apex sits 1.25 cm (=hCap) closer to the target.
@@ -229,11 +241,8 @@ Measured values: SiPM container front 11 cm from mylar front, container depth
 - [ ] Re-run simulations & acceptance with the new geometry — existing sim
       outputs are now stale (again after the 2026-07-17 changes).
 - [ ] **Double-check the 6.8 cm bar height** used as the LS-bottom reference.
-- [ ] Measure the LS horizontal positions along each wall (u) — slab
-      horizontally-centred-on-MM is assumed; for the horizontal vessels (A/D)
-      this also fixes where the funnel/PMT sit.  (E.g. measure SiPM-enclosure
-      edge → LS slab edge per wall.)  NB: the bottom-bar survey fixed the
-      VERTICAL (v) positions; u is the left–right direction along the wall.
+- [x] LS horizontal (u) positions MEASURED 2026-07-18 (60 cm reference; see
+      §5 table) — LS now placed on the structure at the surveyed centres.
 - [x] PMT directions CONFIRMED 2026-07-18: D→West/−Z, A→North/+X, B/C up.
 - [ ] `sipm_front_from_mylar_cm = 11.0` not re-measured in this survey.
 - [ ] Trim analysis scripts that reference `LiqScint_2` (harmless: no hits now).
