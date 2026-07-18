@@ -117,9 +117,52 @@ distance.
 | Layer | Depth (front → back) | Centered on | Notes |
 |-------|----------------------|-------------|-------|
 | MM + PCB | 0 → 3.60 cm | MM (pinwheel) | unchanged internal build |
-| **SiPM wall** | **11.0 → 14.3 cm** (container; scint centered) | **STRUCTURE** (u=0) | 50×50 cm, 20 bars × 2.5 cm; **16 read out**, window shifted 1 bar toward the MM (drop 3 far, 1 near); un-read bars removed in sim / transparent in plots |
-| Plastics | 21.3 → 23.8 cm | MM (pinwheel) | 2×(20×30 cm) bars, **2.5 cm** thick (nominal 2.0); gap after SiPM = **7 cm** (measure later) |
-| LS layer | 28.8 → 31.3 cm | MM (pinwheel) | single 2 cm LAB in a CFRP box; gap after plastics = **5 cm** (measure later); MM-centering assumed (measure later) |
+| **SiPM wall** | **11.0 → 14.5 cm** (container 3.5 cm, measured 2026-07-17; scint centered) | **STRUCTURE** (u=0) | 50×50 cm, 20 bars × 2.5 cm; **16 read out**, window shifted 1 bar toward the MM (drop 3 far, 1 near); un-read bars removed in sim / transparent in plots |
+| Plastics | per arm (see below) | MM (pinwheel) | 2×(20×30 cm) bars, **2.5 cm** thick (nominal 2.0) |
+| LS vessel | per arm (see below) | MM (pinwheel) in u — **u NOT measured, assumed** | STEP-derived shape; per-arm depth/orientation/height surveyed 2026-07-17 |
+
+### Per-arm survey 2026-07-17 (all from the SiPM container back = 14.5 cm)
+
+| Arm | Wall | SiPM back → plastics front | Plastics (abs) | SiPM back → LS flat slab face | LS slab (abs; apex ±1.25 cm more) | LS orientation | LS slab-centre v |
+|-----|------|---------------------------|----------------|-------------------------------|------------------------------------|----------------|------------------|
+| 0 | D (+X) | 6.5 cm | 21.0 → 23.5 cm | 12.3 cm | 26.8 → 28.9 cm | HORIZONTAL, PMT +u (−Z, West) | −0.04 cm |
+| 1 | B (−X) | 6.1 cm | 20.6 → 23.1 cm | 12.7 cm | 27.2 → 29.3 cm | VERTICAL, PMT up (+v) | +0.03 cm |
+| 2 | A (+Z) | 6.3 cm | 20.8 → 23.3 cm | 12.3 cm | 26.8 → 28.9 cm | HORIZONTAL, PMT +u (+X, North) | +0.06 cm |
+| 3 | C (−Z) | 6.1 cm | 20.6 → 23.1 cm | 12.7 cm | 27.2 → 29.3 cm | VERTICAL, PMT up (+v) | −0.07 cm |
+
+LS depth reference = the **flat slab front face** (measured at the vessel edge,
+off the bulge); the front bulge apex sits 1.25 cm (=hCap) closer to the target.
+"PMT +u" = "to the right when looking from behind the wall toward the target"
+(up = sky).  Heights from the bottom-bar chain: SiPM enclosures 62 cm tall
+(SiPM bars assumed centred → enclosure bottom at v = −31); a bar sits
+**6.8 cm** above the enclosure bottom (**DOUBLE-CHECK this 6.8**); LS vessel
+bottoms above that bar: D 1.6, B 1.7, A 1.7, C 1.6 cm.  With slab half-heights
+22.53 (vertical) / 22.56 cm (horizontal), all four slab centres land within
+±0.7 mm of v = 0 — a strong consistency check.  B/C PMT-up is *derived* from
+this chain (PMT-down would put the slabs ~27 cm off-centre).
+
+### LS vessel (STEP-derived, 2026-07-17)
+
+Source: `LS X17.step` (Shapr3D export 2026-06-10, `/media/dylan/data/x17/LS_Stuff/`;
+single solid 'Corpo 03', products SCINT1/SCINT2).  Modelled in
+`src/DetectorConstruction.cc` + `scripts/plot_geometry.py` (kept in sync):
+
+- **Slab**: 45.12 × 45.06 cm face, 21.2 mm outer thickness; CFRP wall 2.6 mm
+  (2.0 structural + 0.6 liner; the 40 µm Al liner is neglected).
+- **Funnel**: 9 cm loft from the slab cross-section down to the Ø50 mm neck
+  (STEP B-spline loft approximated as a G4Trd; square→circle mismatch at the
+  neck end is negligible).
+- **Neck**: r = 25 mm × 12.97 cm; **PMT inserted halfway** (window 6.5 cm into
+  the neck, r = 2.2 cm borosilicate envelope + vacuum, ~11.5 cm long).
+- **Liquid (scored `LiqScint_1`)**: LAB filling slab + funnel + neck up to the
+  PMT window.  The **6.5 L fill** exceeds the flat interior (~3.9 L), so the
+  slab faces **bulge** — modelled as two ellipsoidal domes whose height is
+  solved from the fill volume: **12.5 mm per side** (volume-exact; footprint
+  is elliptical instead of the true rounded-square pillow).
+- **Orientation** (surveyed 2026-07-17): VERTICAL with PMT up on B/C,
+  HORIZONTAL with PMT along +u on A/D (`ls_rot_deg` in `SimConfig.hh`).
+- Dropped STEP details: r=3.5 mm fill tube along the face, r=9 mm boss,
+  r=4–10 mm edge fillets.
 
 Measured values: SiPM container front 11 cm from mylar front, container depth
 3.3 cm.  Gaps flagged "measure later" are rough.  See
@@ -155,10 +198,43 @@ Measured values: SiPM container front 11 cm from mylar front, container depth
       centering, transparent un-read SiPM bars; 2D top-down now uses the adopted
       +Z-right/+X-up orientation (legacy-orientation note resolved).
 
+**Propagated into the code 2026-07-17 (STEP LS vessel; see §5):**
+
+- [x] `include/SimConfig.hh` — box-LS fields replaced by STEP vessel fields
+      (`ls_slab_*`, `ls_wall_mm`, `ls_funnel_len_cm`, `ls_neck_*`,
+      `ls_fill_liters`, `ls_pmt_*`, `ls_neck_dir`).
+- [x] `src/DetectorConstruction.cc` — CFRP shell union (slab+funnel+neck+2
+      bulge domes), LAB liquid daughter, PMT bore/glass/vacuum; overlap checks
+      clean; hit u/v ranges verified (liquid reaches the PMT window at
+      v = +380 mm, +v only).
+- [x] `src/SteppingAction.cc` — `LiqScint_1` arm ID now walked 1 level up
+      (nested in the vessel shell).
+- [x] `scripts/plot_geometry.py` / `plot_buildup.py` — vessel outlines (bulge
+      lens in top-down, full silhouette in side view, 3D vessel); regenerated.
+
+**Propagated into the code 2026-07-17 evening (placement survey; see §5):**
+
+- [x] `include/SimConfig.hh` — SiPM container 3.3→3.5 cm; per-arm
+      `gap_sipm_to_plastic_cm[4]`, `ls_front_from_sipm_back_cm[4]`,
+      `ls_rot_deg[4]`, `ls_offset_v_cm[4]`; removed `gap_plastic_to_ls_cm`
+      and `ls_neck_dir`.
+- [x] `src/DetectorConstruction.cc` — per-arm plastics/LS depths, vessel
+      rotation about w (vertical B/C, horizontal A/D), surveyed v offsets;
+      overlap checks clean; per-arm hit u/v ranges verified.
+- [x] `scripts/plot_geometry.py` / `plot_buildup.py` — per-arm depths,
+      orientation-aware LS drawing; all figures regenerated.
+
 **Still open:**
 
 - [ ] Re-run simulations & acceptance with the new geometry — existing sim
-      outputs are now stale.
+      outputs are now stale (again after the 2026-07-17 changes).
+- [ ] **Double-check the 6.8 cm bar height** used as the LS-bottom reference.
+- [ ] Measure the LS tangential (u) positions — slab-centred-on-MM is assumed;
+      for the horizontal vessels (A/D) this also fixes where funnel/PMT sit.
+- [ ] Confirm the "PMT to the right looking from the back" reading
+      (interpreted as: observer outside the wall facing the target ⇒ D's PMT
+      points West/−Z, A's points North/+X), and confirm B/C PMTs point UP.
+- [ ] `sipm_front_from_mylar_cm = 11.0` not re-measured in this survey.
 - [ ] Trim analysis scripts that reference `LiqScint_2` (harmless: no hits now).
 - [ ] Measure & update the "measure later" gaps (SiPM→plastics 7 cm,
       plastics→LS 5 cm) and the LS MM-centering.

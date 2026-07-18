@@ -45,10 +45,10 @@ import plot_geometry as G   # noqa: E402
 SPAN_BD, SPAN_CA = 40.8, 40.9         # opposing mylar-face spans [cm]
 
 MMS = [
-    dict(letter='D', coord='+X', card='North', n=(+1.0, 0.0), dist=SPAN_BD/2, shift=1.55),
-    dict(letter='B', coord='−X', card='South', n=(-1.0, 0.0), dist=SPAN_BD/2, shift=1.575),
-    dict(letter='A', coord='+Z', card='East',  n=(0.0, +1.0), dist=SPAN_CA/2, shift=1.635),
-    dict(letter='C', coord='−Z', card='West',  n=(0.0, -1.0), dist=SPAN_CA/2, shift=1.73),
+    dict(id=0, letter='D', coord='+X', card='North', n=(+1.0, 0.0), dist=SPAN_BD/2, shift=1.55),
+    dict(id=1, letter='B', coord='−X', card='South', n=(-1.0, 0.0), dist=SPAN_BD/2, shift=1.575),
+    dict(id=2, letter='A', coord='+Z', card='East',  n=(0.0, +1.0), dist=SPAN_CA/2, shift=1.635),
+    dict(id=3, letter='C', coord='−Z', card='West',  n=(0.0, -1.0), dist=SPAN_CA/2, shift=1.73),
 ]
 
 def S(px, pz):
@@ -58,17 +58,11 @@ def S(px, pz):
 # Face-relative layer-depth boundaries (from plot_geometry / SimConfig) [cm]
 wMMf,  wMMb  = G.w_MM_f,  G.w_MM_b        # Micromegas stack (incl. drift)
 wPCBf, wPCBb = G.w_PCB_f, G.w_PCB_b       # readout PCB
-wSCcf, wSCcb = G.w_sipm_f, G.w_sipm_b     # SiPM container (3.3 cm, mostly empty)
+wSCcf, wSCcb = G.w_sipm_f, G.w_sipm_b     # SiPM container (3.5 cm, mostly empty)
 wSCf,  wSCb  = G.w_sipm_sc_f, G.w_sipm_sc_b   # SiPM scint bars (thin, 3 mm)
 SIPM_WALL_HU = G.sipm_wall_hu             # full wall half-width (u)
-wBSf,  wBSb  = G.w_bsc_f, G.w_bsc_b       # plastics (wrapped bars)
-wLSf,  wLSb  = G.w_LS_f,  G.w_LS_b        # single liquid-scintillator box
-# LS internal sub-layers (front CFRP wall | LAB | rear CFRP wall)
-LS_SUBS = [
-    (G._lsDivFront_f, G._lsDivFront_b, 'cfrp'),
-    (G._wLS1_f,       G._wLS1_b,       'lab'),
-    (G._lsDivRear_f,  G._lsDivRear_b,  'cfrp'),
-]
+wBSf,  wBSb  = G.w_bsc_f, G.w_bsc_b       # plastics (wrapped bars), per arm [D,B,A,C]
+wLSf,  wLSb  = G.w_LS_f,  G.w_LS_b        # LS vessel depth extent (incl. bulge), per arm
 HU = dict(mm=G.HW_U['mm'], ls=G.HW_U['ls'])
 BS_HU, BS_OFF = G.bscTape_hu, G.bsc_u_offset
 
@@ -94,7 +88,7 @@ STAGE_NAME = {
 }
 
 # outermost radius (mylar face + full stack) → fixed frame extent for all frames
-R_OUT = max(SPAN_BD, SPAN_CA) / 2.0 + wLSb
+R_OUT = max(SPAN_BD, SPAN_CA) / 2.0 + float(wLSb.max())
 LIM = R_OUT + 6.0
 
 
@@ -140,7 +134,7 @@ def _draw_arm_layers(ax, arm, stage, style):
         return
 
     # Stage 2 — SiPM wall centred on the STRUCTURE (base=0): a light container
-    # outline (3.3 cm, mostly empty) with thin (3 mm) scint bars inside.
+    # outline (3.5 cm, mostly empty) with thin (3 mm) scint bars inside.
     #   16 read out (solid) + 4 un-read (transparent, dashed).
     _slab(ax, arm, wSCcf, wSCcb, SIPM_WALL_HU, 'none', base=0.0, alpha=1.0,
           lw=0.8, z=3, ec='0.6')
@@ -154,20 +148,44 @@ def _draw_arm_layers(ax, arm, stage, style):
     if stage < 3:
         return
 
-    # Stage 3 — Plastic scintillators: two bars, centred on the MM.
+    # Stage 3 — Plastic scintillators: two bars, centred on the MM (per-arm depth).
+    i = arm['id']
     for sgn in (-1.0, +1.0):
-        _slab(ax, arm, wBSf, wBSb, BS_HU, C_BS, u0=sgn*BS_OFF, alpha=0.85, z=3)
+        _slab(ax, arm, wBSf[i], wBSb[i], BS_HU, C_BS, u0=sgn*BS_OFF, alpha=0.85, z=3)
     if stage < 4:
         return
 
-    # Stage 4 — Liquid scintillator: single layer, centred on the MM.
-    if detailed:
-        for lf, lb, kind in LS_SUBS:
-            _slab(ax, arm, lf, lb, HU['ls'],
-                  C_CFRP if kind == 'cfrp' else C_LS,
-                  alpha=0.85 if kind == 'cfrp' else 0.75, z=3)
-    else:
-        _slab(ax, arm, wLSf, wLSb, HU['ls'], C_LS, alpha=0.8, z=3)
+    # Stage 4 — Liquid scintillator: STEP vessel, surveyed 2026-07-17.
+    # Top-down section at beam height: vertical vessels (B, C) show the bulged
+    # slab lens (funnel/neck up, out of plane); horizontal vessels (A, D) show
+    # the full axis silhouette with funnel/neck/PMT along +u.
+    # NB this script's tangent t = −uHat(sim), so u_sim = −(t-coord − shift).
+    def _ls_poly(pts_uw, color, alpha, z):
+        n = np.array(arm['n']); t = np.array([-n[1], n[0]])
+        pts = [n*(arm['dist'] + w) + t*(arm['shift'] - u) for u, w in pts_uw]
+        ax.add_patch(Polygon([S(*p) for p in pts], closed=True, facecolor=color,
+                             edgecolor='k', lw=0.6, alpha=alpha, zorder=z))
+    if G.LS_ROT[i] == 0:        # vertical (B, C): lens
+        if detailed:
+            _ls_poly(G.ls_outline_uw(G.lsUo, G.w_LS_slab_f[i], G.w_LS_slab_b[i]),
+                     C_CFRP, 0.85, 3)
+            _ls_poly(G.ls_outline_uw(G.lsUi, G.w_LS_slab_f[i] + G.lsWall,
+                                     G.w_LS_slab_b[i] - G.lsWall), C_LS, 0.90, 3)
+        else:
+            _ls_poly(G.ls_outline_uw(G.lsUo, G.w_LS_slab_f[i], G.w_LS_slab_b[i]),
+                     C_LS, 0.8, 3)
+    else:                       # horizontal (A, D): full profile, (w,a) → (u=a, w)
+        if detailed:
+            _ls_poly(G.ls_profile_aw(i, outer=True)[:, ::-1], C_CFRP, 0.85, 3)
+            _ls_poly(G.ls_profile_aw(i, outer=False)[:, ::-1], C_LS, 0.90, 3)
+        else:
+            _ls_poly(G.ls_profile_aw(i, outer=True)[:, ::-1], C_LS, 0.8, 3)
+        pR, pL = G.CFG['ls_pmt_r_cm'], G.CFG['ls_pmt_len_cm']
+        _ls_poly(np.array([[G.pmtFaceV,      G.w_LS_mid[i] - pR],
+                           [G.pmtFaceV + pL, G.w_LS_mid[i] - pR],
+                           [G.pmtFaceV + pL, G.w_LS_mid[i] + pR],
+                           [G.pmtFaceV,      G.w_LS_mid[i] + pR]]),
+                 '#888888', 0.9, 4)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -182,7 +200,7 @@ def _decorate(ax, stage, style):
     for arm in MMS:
         n = np.array(arm['n'])
         t = np.array([-n[1], n[0]])
-        pos = n*(arm['dist'] + wLSb + 3.2) + t*arm['shift']
+        pos = n*(arm['dist'] + float(wLSb.max()) + 3.2) + t*arm['shift']
         sx, sy = S(*pos)
         ax.text(sx, sy, f"MM {arm['letter']}\n{arm['coord']} · {arm['card']}",
                 ha='center', va='center', fontsize=11.5, fontweight='bold',
@@ -232,9 +250,11 @@ def _decorate(ax, stage, style):
                                       label='Plastic scint bars  (2×[20×30] cm, on MM)'))
     if stage >= 4:
         handles.append(mpatches.Patch(color=C_LS, alpha=0.78,
-                                      label='Liquid scint LAB  (1×2 cm, 45×45 cm, on MM)'))
+                                      label='Liquid scint LAB  (6.5 L, 45×45 cm slab, '
+                                            f'bulged ±{G.hCap*10:.0f} mm, on MM)'))
         if style == 'detailed':
-            handles.append(mpatches.Patch(color=C_CFRP, alpha=0.85, label='LS CFRP box walls + liners'))
+            handles.append(mpatches.Patch(color=C_CFRP, alpha=0.85,
+                                          label='LS CFRP vessel (STEP; funnel + PMT at +Y)'))
     handles.append(mpatches.Patch(color='#99d8f5', label='He-3 target gas bore (Ø20 mm)'))
     ax.legend(handles=handles, loc='lower left', fontsize=8, framealpha=0.92)
 

@@ -96,7 +96,7 @@ struct SimConfig {
     // side).  Un-read bars are omitted from the sim (drawn transparent in the
     // diagrams).  Bars run along beam (v); array runs along the tangent (u).
     double sipm_front_from_mylar_cm = 11.0;  // mylar front → SiPM container front (measured)
-    double sipm_container_depth_cm  = 3.3;   // SiPM wall container depth; scint centered inside
+    double sipm_container_depth_cm  = 3.5;   // SiPM container depth (measured 2026-07-17, all walls; was 3.3)
     double sipm_bar_width_cm        = 2.5;   // one bar width (u)
     int    sipm_n_bars              = 20;    // total bars across the 50 cm wall
     int    sipm_n_readout           = 16;    // instrumented bars (rest removed from sim)
@@ -114,16 +114,53 @@ struct SimConfig {
     double backscint_gap_cm    = 0.3;   // gap between wrapped bars [cm]
     double backscint_tape_um   = 200.0; // black mylar tape (outermost) [µm]
     double backscint_al_um     = 20.0;  // Al foil on scintillator surface [µm]
-    double gap_sipm_to_plastic_cm = 7.0; // SiPM container back → plastics front [cm] (MEASURE LATER)
+    // SiPM container back → plastics front, per arm [0]=D [1]=B [2]=A [3]=C
+    // (measured 2026-07-17; was a uniform 7 cm placeholder)
+    double gap_sipm_to_plastic_cm[4] = {6.5, 6.1, 6.3, 6.1};
 
-    // ── Liquid scintillator (1 layer, 45×45 cm face) ───────────────────────
-    // Single LAB layer inside a CFRP box (front wall + liner | LAB | rear wall).
-    // Centered on the MM (assumed for now — MEASURE & UPDATE LATER).
-    double ls_size_u_cm        = 45.0;  // LS active face: u [cm]
-    double ls_size_v_cm        = 45.0;  // LS active face: v [cm]
-    double ls_thick_cm         = 2.0;   // LAB layer thickness [cm]
-    double ls_cfrp_mm          = 2.0;   // structural CFRP wall thickness [mm]
-    double ls_inner_cfrp_um    = 600.0; // inner CFRP liner [µm]
-    double ls_inner_al_um      = 40.0;  // Al liner [µm]
-    double gap_plastic_to_ls_cm = 5.0;  // plastics back → liquid front [cm] (MEASURE LATER)
+    // ── Liquid scintillator vessel (1 per arm, STEP-derived) ───────────────
+    // Source: STEP "LS X17.step" (Shapr3D export 2026-06-10, solid 'Corpo 03',
+    // products SCINT1/SCINT2).  CFRP vessel: flat slab (45×45 cm face) +
+    // 9 cm funnel lofting the slab cross-section down to a Ø50 mm neck where
+    // the PMT is inserted halfway.  Liquid = slab + funnel + neck up to the
+    // PMT face; filled with 6.5 L, so the slab faces bulge outward — modelled
+    // as two ellipsoid domes whose height is solved from the fill volume
+    // (≈13 mm/side).  STEP fine details dropped: r=3.5 mm fill tube along the
+    // face, r=9 mm boss, r=4–10 mm edge fillets.  Wall = 2.6 mm CFRP
+    // (2.0 structural + 0.6 liner; the 40 µm Al liner is neglected).
+    // Placement surveyed 2026-07-17 (see the per-arm fields below):
+    //   • Orientation: vessels VERTICAL on B and C (neck+PMT up, +v) and
+    //     HORIZONTAL on A and D (neck+PMT along +u = "to the right when
+    //     looking from behind the wall toward the target").
+    //   • Depth: measured SiPM-container back → FLAT slab front face (taken
+    //     at the vessel edge, off the bulge), per arm.
+    //   • Height (v): from the bottom-bar survey — SiPM enclosures 62 cm
+    //     tall with the SiPM bars assumed centred; a bar sits 6.8 cm above
+    //     the enclosure bottom (DOUBLE-CHECK this 6.8); LS vessel bottoms
+    //     measured above that bar: D 1.6, B 1.7, A 1.7, C 1.6 cm.  Chain:
+    //     slab centre v = −31 + 6.8 + bottom + (slab half-height), where the
+    //     half-height is 45.06/2 (vertical, B/C) or 45.12/2 (horizontal,
+    //     A/D).  All four land within ±0.7 mm of v = 0.
+    //   • Tangential (u): NOT measured — slab centred on the MM assumed.
+    double ls_slab_u_cm        = 45.12;  // slab outer width, u [cm]   (STEP 451.2 mm)
+    double ls_slab_v_cm        = 45.06;  // slab outer length, v [cm]  (STEP 450.6 mm)
+    double ls_slab_thick_cm    = 2.12;   // slab outer thickness, unbulged [cm] (STEP 21.2 mm)
+    double ls_wall_mm          = 2.6;    // CFRP wall [mm] (2.0 structural + 0.6 liner)
+    double ls_funnel_len_cm    = 9.0;    // funnel length: slab → neck [cm] (STEP 90 mm)
+    double ls_neck_len_cm      = 12.97;  // neck cylinder length [cm]  (STEP 129.7 mm)
+    double ls_neck_r_cm        = 2.5;    // neck outer radius [cm]     (STEP r=25 mm)
+    double ls_fill_liters      = 6.5;    // liquid fill volume [L] → sets bulge dome height
+    double ls_pmt_insert_frac  = 0.5;    // PMT window depth into the neck (fraction of neck)
+    double ls_pmt_r_cm         = 2.2;    // PMT envelope radius [cm] (fits Ø44.8 neck bore)
+    double ls_pmt_len_cm       = 11.5;   // PMT envelope length [cm]
+    double ls_pmt_glass_mm     = 2.0;    // PMT borosilicate wall [mm]
+    // Per-arm placement, arm order [0]=D [1]=B [2]=A [3]=C (measured 2026-07-17):
+    // SiPM container back → FLAT slab front face (edge measurement, off the bulge):
+    double ls_front_from_sipm_back_cm[4] = {12.3, 12.7, 12.3, 12.7};
+    // Vessel rotation about the local w (depth) axis:
+    //   0 = long axis vertical, neck/PMT up (+v);  −90 = horizontal, neck +u.
+    double ls_rot_deg[4] = {-90.0, 0.0, -90.0, 0.0};
+    // Slab-centre height relative to the beam (v = 0), from the bottom-bar
+    // survey chain above:
+    double ls_offset_v_cm[4] = {-0.04, +0.03, +0.06, -0.07};
 };

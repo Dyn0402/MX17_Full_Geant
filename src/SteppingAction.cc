@@ -92,13 +92,15 @@ void SteppingAction::UserSteppingAction(const G4Step* step) {
     const G4StepPoint* pre = step->GetPreStepPoint();
 
     // For most volumes the arm copy number is on the physical volume itself.
-    // BackScintL/R are nested: BackScint → BackScintAl → BackScintTape[arm copy]
-    // Their own copy number is always 0 (wrong for arms 1-3), so we must walk
-    // 2 levels up the touchable to reach the tape envelope that carries the
-    // correct arm copy number.
+    // Nested volumes carry copy number 0 (wrong for arms 1-3), so we walk up
+    // the touchable to the ancestor that has the arm copy number:
+    //   BackScintL/R: BackScint → BackScintAl → BackScintTape[arm copy]
+    //   LiqScint_1:   LiqScint_1 → LS_VesselCFRP[arm copy]
     int armID;
     if (volName == "BackScintL" || volName == "BackScintR") {
         armID = pre->GetTouchable()->GetVolume(2)->GetCopyNo();
+    } else if (volName == "LiqScint_1") {
+        armID = pre->GetTouchable()->GetVolume(1)->GetCopyNo();
     } else {
         armID = pv->GetCopyNo();
     }

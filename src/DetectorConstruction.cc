@@ -10,12 +10,15 @@
 //   SiPM trigger wall: 16 of 20 plastic scint bars (2.5 cm each), scored as
 //     "PlasticScint", centered on the STRUCTURE (u=0), read-out window shifted
 //     1 bar toward the MM.  3 mm scint centered in a 3.3 cm container.
-//   [gap_sipm_to_plastic] air
+//   [air, per-arm gap measured 2026-07-17]
 //   Plastics: 2× (black-mylar tape envelope | 20×30×2.5cm plastic scint (scored))
 //     side-by-side in u, centered on the MM (pinwheel-shifted).
-//   [gap_plastic_to_ls] air
-//   LS box (centered on the MM): 2mm CFRP | 600µm CFRP + 40µm Al liner |
-//     2cm LAB (scored) | 2mm CFRP  — a single liquid layer.
+//   [air]
+//   LS vessel (STEP "LS X17.step"): 2.6 mm CFRP shell — 45×45 cm slab +
+//     funnel + Ø50 mm neck with half-inserted PMT; LAB liquid (scored) fills
+//     slab+funnel+neck and bulges the slab faces (6.5 L fill).  Surveyed
+//     2026-07-17: per-arm depth (flat slab face from SiPM back), per-arm
+//     height offset, VERTICAL (PMT up) on B/C, HORIZONTAL (PMT +u) on A/D.
 
 #include "DetectorConstruction.hh"
 #include "SensitiveDetector.hh"
@@ -26,7 +29,11 @@
 #include "G4Isotope.hh"
 #include "G4Box.hh"
 #include "G4Tubs.hh"
+#include "G4Trd.hh"
+#include "G4Ellipsoid.hh"
 #include "G4Polycone.hh"
+#include "G4UnionSolid.hh"
+#include "G4Transform3D.hh"
 #include "G4LogicalVolume.hh"
 #include "G4PVPlacement.hh"
 #include "G4RotationMatrix.hh"
@@ -202,11 +209,46 @@ G4VPhysicalVolume* DetectorConstruction::Construct() {
     // SiPM trigger wall: bare plastic scint bar (2.5 cm wide, 50 cm long)
     G4double tSipmScint = fConfig.sipm_scint_thick_cm * cm;  // 3 mm active depth
 
-    // LS box (single layer)
-    G4double tLSCfrp       = fConfig.ls_cfrp_mm      * mm;   // 2 mm structural CFRP wall
-    G4double tLSInnerCfrp  = fConfig.ls_inner_cfrp_um * um;  // 600 µm inner CFRP liner
-    G4double tLSInnerAl    = fConfig.ls_inner_al_um   * um;  // 40 µm Al liner
-    G4double tLS           = fConfig.ls_thick_cm      * cm;  // 2 cm LAB layer
+    // LS vessel (STEP "LS X17.step"; see SimConfig.hh note).  Vessel local
+    // frame: x = u (slab width), y = v (long axis, neck at +v), z = w (depth).
+    G4double lsUo   = fConfig.ls_slab_u_cm     * cm / 2;  // slab outer half-width
+    G4double lsVo   = fConfig.ls_slab_v_cm     * cm / 2;  // slab outer half-length
+    G4double lsTo   = fConfig.ls_slab_thick_cm * cm / 2;  // slab outer half-thickness
+    G4double lsWall = fConfig.ls_wall_mm       * mm;      // CFRP wall
+    G4double lsFunL = fConfig.ls_funnel_len_cm * cm;      // funnel length
+    G4double lsNkL  = fConfig.ls_neck_len_cm   * cm;      // neck length
+    G4double lsNkR  = fConfig.ls_neck_r_cm     * cm;      // neck outer radius
+    // Interior (liquid) dims: outer shrunk by the wall
+    G4double lsUi   = lsUo - lsWall;
+    G4double lsTi   = lsTo - lsWall;
+    G4double lsNkRi = lsNkR - lsWall;
+    G4double lsSlabInHV  = lsVo - lsWall/2;   // interior slab half-length (v)
+    G4double lsSlabInCen = lsWall/2;          // its centre offset toward the neck
+    // PMT: window inserted ls_pmt_insert_frac into the neck
+    G4double pmtR     = fConfig.ls_pmt_r_cm     * cm;
+    G4double pmtGlass = fConfig.ls_pmt_glass_mm * mm;
+    G4double pmtIns   = fConfig.ls_pmt_insert_frac * lsNkL;
+    G4double pmtOut   = std::max(0.0, fConfig.ls_pmt_len_cm * cm - pmtIns);
+    G4double pmtFaceV = lsVo + lsFunL + pmtIns;   // PMT window plane (from slab centre)
+    // Interior funnel: the outer loft shrunk by the wall, truncated one wall
+    // thickness before the neck so the funnel's square end keeps CFRP at the
+    // corners; a round stub bridges from there to the PMT window.
+    G4double stubStartV = lsVo + lsFunL - lsWall;
+    G4double funSlopeU  = (lsUi - lsNkRi) / lsFunL;
+    G4double funSlopeT  = (lsNkRi - lsTi) / lsFunL;
+    G4double iFunHL = (lsFunL - lsWall) / 2;           // interior funnel half-length
+    G4double iFunU2 = lsNkRi + funSlopeU * lsWall;     // half-width at its narrow end
+    G4double iFunT2 = lsNkRi - funSlopeT * lsWall;     // half-thickness at its narrow end
+    // Bulge: the fill volume exceeds the flat interior; the excess is carried
+    // by two ellipsoidal domes on the slab faces (height solved from volume).
+    G4double vSlabIn = (2*lsUi) * (2*lsSlabInHV) * (2*lsTi);
+    G4double fA1 = (2*lsUi)*(2*lsTi), fA2 = (2*iFunU2)*(2*iFunT2);
+    G4double fAm = (lsUi + iFunU2) * (lsTi + iFunT2);
+    G4double vFunIn  = (2*iFunHL)/6.0 * (fA1 + 4*fAm + fA2);   // prismatoid
+    G4double vStubIn = pi * lsNkRi*lsNkRi * (pmtFaceV - stubStartV);
+    G4double vFill   = fConfig.ls_fill_liters * 1000.0 * cm3;
+    G4double hCap    = std::max(0.5*mm,
+        (vFill - vSlabIn - vFunIn - vStubIn) / 2.0 / (2.0/3.0 * pi * lsUi * lsSlabInHV));
 
     // Plastic scint wrapping: tape (outer) → Al foil → PVT
     G4double tTape    = fConfig.backscint_tape_um * um;  // 200 µm black mylar
@@ -215,8 +257,6 @@ G4VPhysicalVolume* DetectorConstruction::Construct() {
     // ── Half-sizes in arm local frame (u, v) ────────────────
     G4double mmU_hf  = fConfig.mm_size_u_cm    * cm / 2;
     G4double mmV_hf  = fConfig.mm_size_v_cm    * cm / 2;
-    G4double lsU_hf  = fConfig.ls_size_u_cm    * cm / 2;
-    G4double lsV_hf  = fConfig.ls_size_v_cm    * cm / 2;
 
     // SiPM bar half-sizes
     G4double sipmBar_hu = fConfig.sipm_bar_width_cm * cm / 2;  // 1.25 cm
@@ -253,19 +293,22 @@ G4VPhysicalVolume* DetectorConstruction::Construct() {
     G4double sipmContD   = fConfig.sipm_container_depth_cm  * cm;       // 3.3 cm
     G4double sipmScintW  = sipmFront + sipmContD / 2.0;                 // scint depth (center)
     G4double sipmBack    = sipmFront + sipmContD;                       // container back
-    // Plastics (behind SiPM), centered on the MM.
+    // Plastics + LS vessel: per-arm depths (measured 2026-07-17 from the SiPM
+    // container back; arm order 0=D 1=B 2=A 3=C).  The LS reference plane is
+    // the FLAT slab front face — the front bulge apex sits hCap closer in.
     G4double plasticEnvD = 2 * bscTape_hw;                             // wrapped-bar depth
-    G4double plasticFront= sipmBack + fConfig.gap_sipm_to_plastic_cm * cm;
-    G4double plasticW    = plasticFront + plasticEnvD / 2.0;            // plastics depth (center)
-    G4double plasticBack = plasticFront + plasticEnvD;
-    // Single LS box, centered on the MM.
-    G4double tLS_box     = 2*tLSCfrp + tLSInnerCfrp + tLSInnerAl + tLS; // front+rear wall + liner + LAB
-    G4double lsFront     = plasticBack + fConfig.gap_plastic_to_ls_cm * cm;
-    G4double lsBack      = lsFront + tLS_box;
-    G4double stackDepth  = lsBack;                                      // outermost extent
+    G4double plasticWA[4], lsSlabFrontA[4];
+    G4double stackDepth = 0.0;                                          // outermost extent
+    for (int i = 0; i < 4; ++i) {
+        G4double pf = sipmBack + fConfig.gap_sipm_to_plastic_cm[i] * cm;
+        plasticWA[i]    = pf + plasticEnvD / 2.0;                       // plastics centre depth
+        lsSlabFrontA[i] = sipmBack + fConfig.ls_front_from_sipm_back_cm[i] * cm;
+        stackDepth = std::max(stackDepth, lsSlabFrontA[i] + 2*lsTo + hCap);
+    }
 
+    G4double lsVExtent   = lsVo + lsFunL + lsNkL + pmtOut;  // vessel+PMT reach along v
     G4double worldHalfXZ = distMax + stackDepth + 5.0*cm;
-    G4double worldHalfY  = std::max({sipmBar_hv, lsV_hf, bscTape_hv}) + 5.0*cm;
+    G4double worldHalfY  = std::max({sipmBar_hv, lsVExtent, bscTape_hv}) + 5.0*cm;
 
     auto* worldBox = new G4Box("World", worldHalfXZ, worldHalfY, worldHalfXZ);
     auto* worldLV  = new G4LogicalVolume(worldBox, matAir, "World");
@@ -379,6 +422,11 @@ G4VPhysicalVolume* DetectorConstruction::Construct() {
     G4cout << "  Gas mixture  : " << fConfig.gas
            << "  (rho=" << matGas->GetDensity()/(mg/cm3) << " mg/cm3)" << G4endl;
     G4cout << "  Stack depth  : " << stackDepth/cm << " cm" << G4endl;
+    G4cout << "  LS vessel    : slab " << 2*lsUo/cm << "x" << 2*lsVo/cm << " cm, "
+           << 2*lsTo/mm << " mm + bulge domes h=" << hCap/mm << " mm/side; "
+           << "funnel " << lsFunL/cm << " cm; neck r=" << lsNkR/mm << " mm x "
+           << lsNkL/cm << " cm, PMT in " << pmtIns/cm << " cm"
+           << " (fill target " << fConfig.ls_fill_liters << " L)" << G4endl;
 
     // ── Helper: create a named logical volume (box) ──────────
     auto MakeLV = [&](const std::string& name, G4double hu, G4double hv,
@@ -423,13 +471,89 @@ G4VPhysicalVolume* DetectorConstruction::Construct() {
     fPlScintLV = MakeLV("PlasticScint", sipmBar_hu, sipmBar_hv, sipmBar_hw,
                          matPlScint, G4Color(0.9,0.9,0.2,0.7));
 
-    // LS box (45×45 cm face) — single LAB layer inside a CFRP box:
-    //   front CFRP wall | inner CFRP liner | Al liner | LAB (scored) | rear CFRP wall
-    auto* lsCFRP1LV      = MakeLV("LS_CFRP_1",      lsU_hf,lsV_hf,tLSCfrp/2,      GetMat("CFRP"),G4Color(0.15,0.15,0.15,0.9));
-    auto* lsCFRP2LV      = MakeLV("LS_CFRP_2",      lsU_hf,lsV_hf,tLSCfrp/2,      GetMat("CFRP"),G4Color(0.15,0.15,0.15,0.9));
-    auto* lsInnerCFRP1LV = MakeLV("LS_InnerCFRP_1", lsU_hf,lsV_hf,tLSInnerCfrp/2, GetMat("CFRP"),G4Color(0.25,0.25,0.25,0.8));
-    auto* lsAl1LV        = MakeLV("LS_Al_1",         lsU_hf,lsV_hf,tLSInnerAl/2,   matAl,         G4Color(0.7,0.7,0.7,0.8));
-    fLS1LV               = MakeLV("LiqScint_1",      lsU_hf,lsV_hf,tLS/2,          GetMat("LAB"), G4Color(0.3,0.8,0.9,0.4));
+    // ── LS vessel (STEP "LS X17.step") ───────────────────────
+    // CFRP shell = slab + funnel loft (Trd approximation of the STEP B-spline
+    // loft) + neck + two ellipsoid bulge domes; the LAB liquid (scored) is the
+    // matching interior union placed as a daughter of the shell; the neck bore
+    // beyond the liquid holds the half-inserted PMT.  All solids are built in
+    // the arm local frame (x=u, y=v with the neck at +v, z=w).  Placements and
+    // boolean displacements below use G4Transform3D, which is the DIRECT
+    // (active) transform of the solid — unlike the pRot constructor, which
+    // rotates the frame.  kToV turns the Trd/Tubs z-axes onto local +v.
+    const G4Transform3D kToV = G4RotateX3D(-90.*deg);
+
+    auto* oSlab = new G4Box("LS_oSlab", lsUo, lsVo, lsTo);
+    auto* oFun  = new G4Trd("LS_oFunnel", lsUo, lsNkR, lsTo, lsNkR, lsFunL/2);
+    auto* oNeck = new G4Tubs("LS_oNeck", 0, lsNkR, lsNkL/2, 0, twopi);
+    auto* oCap  = new G4Ellipsoid("LS_oCap", lsUo, lsVo, hCap);
+    G4VSolid* lsShellS = new G4UnionSolid("LS_v1", oSlab, oFun,
+        G4Translate3D(0, lsVo + lsFunL/2, 0) * kToV);
+    lsShellS = new G4UnionSolid("LS_v2", lsShellS, oNeck,
+        G4Translate3D(0, lsVo + lsFunL + lsNkL/2, 0) * kToV);
+    lsShellS = new G4UnionSolid("LS_v3", lsShellS, oCap, G4Translate3D(0, 0, +lsTo));
+    lsShellS = new G4UnionSolid("LS_Vessel", lsShellS, oCap, G4Translate3D(0, 0, -lsTo));
+
+    // Liquid interior — built in the frame of its first solid (the interior
+    // slab, whose centre sits at +lsSlabInCen in the vessel frame; the daughter
+    // placement below restores that offset).
+    G4double stubHalf = (pmtFaceV - stubStartV) / 2;
+    auto* iSlab = new G4Box("LS_iSlab", lsUi, lsSlabInHV, lsTi);
+    auto* iFun  = new G4Trd("LS_iFunnel", lsUi, iFunU2, lsTi, iFunT2, iFunHL);
+    auto* iStub = new G4Tubs("LS_iStub", 0, lsNkRi, stubHalf, 0, twopi);
+    auto* iCap  = new G4Ellipsoid("LS_iCap", lsUi, lsSlabInHV, hCap);
+    G4VSolid* lsLiqS = new G4UnionSolid("LS_l1", iSlab, iFun,
+        G4Translate3D(0, lsVo + iFunHL - lsSlabInCen, 0) * kToV);
+    lsLiqS = new G4UnionSolid("LS_l2", lsLiqS, iStub,
+        G4Translate3D(0, stubStartV + stubHalf - lsSlabInCen, 0) * kToV);
+    lsLiqS = new G4UnionSolid("LS_l3", lsLiqS, iCap, G4Translate3D(0, 0, +lsTi));
+    lsLiqS = new G4UnionSolid("LiqScint_1", lsLiqS, iCap, G4Translate3D(0, 0, -lsTi));
+
+    auto* lsShellLV = new G4LogicalVolume(lsShellS, GetMat("CFRP"), "LS_VesselCFRP");
+    lsShellLV->SetVisAttributes(new G4VisAttributes(G4Color(0.15,0.15,0.15,0.9)));
+    fLS1LV = new G4LogicalVolume(lsLiqS, GetMat("LAB"), "LiqScint_1");
+    fLS1LV->SetVisAttributes(new G4VisAttributes(G4Color(0.3,0.8,0.9,0.4)));
+
+    // PMT bore (air) fills the neck from just past the liquid to just short of
+    // the neck opening (0.05 mm insets keep daughter surfaces off the shell
+    // boundary; the resulting ~0.1 mm CFRP films are negligible).
+    G4double boreLen = lsNkL - pmtIns - 0.1*mm;
+    auto* boreS  = new G4Tubs("LS_PMTBore", 0, lsNkRi, boreLen/2, 0, twopi);
+    auto* boreLV = new G4LogicalVolume(boreS, matAir, "LS_PMTBoreAir");
+    boreLV->SetVisAttributes(G4VisAttributes::GetInvisible());
+
+    // PMT: borosilicate envelope + vacuum, split at the neck opening into an
+    // inserted segment (daughter of the bore) and a protruding segment (world).
+    G4Material* matPyrex = nist->FindOrBuildMaterial("G4_Pyrex_Glass");
+    G4Material* matVac   = nist->FindOrBuildMaterial("G4_Galactic");
+    G4double pmtInsHL = boreLen/2 - 0.05*mm;
+    auto* pmtInGlassLV = new G4LogicalVolume(
+        new G4Tubs("LS_PMTGlassIn", 0, pmtR, pmtInsHL, 0, twopi),
+        matPyrex, "LS_PMTGlassIn");
+    auto* pmtInVacLV = new G4LogicalVolume(
+        new G4Tubs("LS_PMTVacIn", 0, pmtR - pmtGlass, pmtInsHL - pmtGlass, 0, twopi),
+        matVac, "LS_PMTVacIn");
+    auto* pmtOutGlassLV = new G4LogicalVolume(
+        new G4Tubs("LS_PMTGlassOut", 0, pmtR, pmtOut/2, 0, twopi),
+        matPyrex, "LS_PMTGlassOut");
+    auto* pmtOutVacLV = new G4LogicalVolume(
+        new G4Tubs("LS_PMTVacOut", 0, pmtR - pmtGlass, pmtOut/2 - pmtGlass, 0, twopi),
+        matVac, "LS_PMTVacOut");
+    for (auto* lv : {pmtInGlassLV, pmtOutGlassLV})
+        lv->SetVisAttributes(new G4VisAttributes(G4Color(0.75,0.75,0.78,0.8)));
+    for (auto* lv : {pmtInVacLV, pmtOutVacLV})
+        lv->SetVisAttributes(G4VisAttributes::GetInvisible());
+
+    // Vessel-internal nesting (shared by all four arms)
+    new G4PVPlacement(nullptr, G4ThreeVector(0, lsSlabInCen, 0), fLS1LV,
+                      "LiqScint_1_in_vessel", lsShellLV, false, 0, true);
+    new G4PVPlacement(G4Translate3D(0, pmtFaceV + 0.05*mm + boreLen/2, 0) * kToV,
+                      boreLV, "LS_PMTBore_in_vessel", lsShellLV, false, 0, true);
+    new G4PVPlacement(nullptr, G4ThreeVector(), pmtInGlassLV,
+                      "LS_PMTGlassIn_in_bore", boreLV, false, 0, true);
+    new G4PVPlacement(nullptr, G4ThreeVector(), pmtInVacLV,
+                      "LS_PMTVacIn_in_glass", pmtInGlassLV, false, 0, true);
+    new G4PVPlacement(nullptr, G4ThreeVector(), pmtOutVacLV,
+                      "LS_PMTVacOut_in_glass", pmtOutGlassLV, false, 0, true);
 
     // Back plastic scint bars: tape (outer, 200µm mylar) → Al foil (20µm) → PVT scint
     // Two LVs per component (L/R) so volume name encodes which bar.
@@ -476,14 +600,6 @@ G4VPhysicalVolume* DetectorConstruction::Construct() {
         {pcbCu4LV,  tPCBCu}, {pcbFR44LV, tPCBFR4},
         {pcbRohLV,  tPCBRoh},
         {pcbAlLV,   tPCBAl},
-    };
-    // Single LS box — front CFRP wall | inner CFRP liner | Al liner | LAB | rear CFRP wall
-    std::vector<Slab> lsSlabs = {
-        {lsCFRP1LV,      tLSCfrp},
-        {lsInnerCFRP1LV, tLSInnerCfrp},
-        {lsAl1LV,        tLSInnerAl},
-        {fLS1LV,         tLS},
-        {lsCFRP2LV,      tLSCfrp},   // rear wall
     };
 
     // ── SiPM read-out window: which of the 20 bars are instrumented ───────────
@@ -563,16 +679,35 @@ G4VPhysicalVolume* DetectorConstruction::Construct() {
                   "PlasticScint_bar" + std::to_string(i));
         }
 
-        // 3) Plastics — two wrapped bars side-by-side, centred on the MM.
+        // 3) Plastics — two wrapped bars side-by-side, centred on the MM;
+        //    per-arm front distance (measured 2026-07-17).
         G4double uOff = bscTape_hu + bsc_gap / 2.0;
-        place(bscTapeLLV, armFront, -uOff, plasticW, "BackTapeL");
-        place(bscTapeRLV, armFront, +uOff, plasticW, "BackTapeR");
+        place(bscTapeLLV, armFront, -uOff, plasticWA[arm], "BackTapeL");
+        place(bscTapeRLV, armFront, +uOff, plasticWA[arm], "BackTapeR");
 
-        // 4) LS box — single LAB layer inside a CFRP box, centred on the MM.
-        G4double zLS = lsFront;
-        for (const auto& s : lsSlabs) {
-            zLS += s.thickness;
-            place(s.lv, armFront, 0.0, zLS - s.thickness / 2.0, s.lv->GetName());
+        // 4) LS vessel — surveyed 2026-07-17: flat slab front face at the
+        //    measured per-arm depth, slab centre at the surveyed height
+        //    (ls_offset_v), slab centred on the MM in u (ASSUMED, not
+        //    measured).  ls_rot_deg rotates the vessel about its depth axis:
+        //    0 = vertical, neck/PMT up (B, C); −90 = horizontal, neck/PMT
+        //    along +u (A, D).  Placed with G4Transform3D (the direct/active-
+        //    rotation constructor), matching the active use of ad.rot in the
+        //    position math above.
+        G4RotationMatrix lsRz; lsRz.rotateZ(fConfig.ls_rot_deg[arm] * deg);
+        G4RotationMatrix lsArmR = (ad.rot ? *ad.rot : G4RotationMatrix()) * lsRz;
+        G4double lsSlabCenW = lsSlabFrontA[arm] + lsTo;
+        G4ThreeVector lsLocal(0, fConfig.ls_offset_v_cm[arm] * cm, lsSlabCenW);
+        G4ThreeVector lsOrigin = armFront + (ad.rot ? (*ad.rot)*lsLocal : lsLocal);
+        new G4PVPlacement(G4Transform3D(lsArmR, lsOrigin), lsShellLV,
+                          "Arm" + std::to_string(arm) + "_LS_Vessel",
+                          worldLV, false, arm, true);
+        if (pmtOut > 0.1*mm) {   // protruding PMT segment beyond the neck opening
+            G4RotationMatrix rxm90; rxm90.rotateX(-90.*deg);   // solid z → vessel +y
+            G4ThreeVector pmtPos = lsOrigin +
+                lsArmR * G4ThreeVector(0, lsVo + lsFunL + lsNkL + pmtOut/2, 0);
+            new G4PVPlacement(G4Transform3D(lsArmR * rxm90, pmtPos), pmtOutGlassLV,
+                              "Arm" + std::to_string(arm) + "_LS_PMT",
+                              worldLV, false, arm, true);
         }
 
         G4cout << "  Arm " << arm << " front face at " << armFront/cm
