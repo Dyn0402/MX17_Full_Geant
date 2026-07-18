@@ -215,15 +215,19 @@ def scan(obs, mip_sipm, mip_plastic):
     nA, nB = len(A_GRID), len(B_GRID)
     n1 = np.zeros((nA, nB), np.int64)
     n2 = np.zeros((nA, nB), np.int64)
+    n2m = np.zeros((nA, nB), np.int64)   # 2 SiPM arms + >=1 plastic confirm
     for ia, a in enumerate(A_GRID):
         sa = S >= a
+        two_sipm = sa.sum(axis=1) >= 2
         for ib, b in enumerate(B_GRID):
-            nlegs = (sa & (P >= b)).sum(axis=1)
+            legs = sa & (P >= b)
+            nlegs = legs.sum(axis=1)
             n1[ia, ib] = (nlegs >= 1).sum()
             n2[ia, ib] = (nlegs >= 2).sum()
+            n2m[ia, ib] = (two_sipm & (nlegs >= 1)).sum()
     n2s = np.array([((S >= a).sum(axis=1) >= 2).sum() for a in A_GRID])
     n2p = np.array([((P >= b).sum(axis=1) >= 2).sum() for b in B_GRID])
-    return n1, n2, n2s, n2p
+    return n1, n2, n2m, n2s, n2p
 
 
 def main():
@@ -311,10 +315,11 @@ def main():
     for label, obs, norm in classes:
         if norm == 0:
             continue
-        n1, n2, n2s, n2p = scan(obs, mips["sipm"], mips["plastic"])
+        n1, n2, n2m, n2s, n2p = scan(obs, mips["sipm"], mips["plastic"])
         res[label] = {"n": int(norm),
                       "leg1": (n1 / norm).tolist(),
                       "leg2": (n2 / norm).tolist(),
+                      "leg2_confirm1": (n2m / norm).tolist(),
                       "leg2_sipm_only": (n2s / norm).tolist(),
                       "leg2_plastic_only": (n2p / norm).tolist()}
 
@@ -330,13 +335,19 @@ def main():
     if "epi" in res:
         bg1 = bg1 + np.array(res["epi"]["leg1"]) * N_PULSE_EPI
         bg2 = bg2 + np.array(res["epi"]["leg2"]) * N_PULSE_EPI
-    print("\n a[MIP] b[MIP]  eff(X17)  eff(IPC)  pairBG/pulse  legBG/pulse")
+    em2  = np.array(res["x17"]["leg2_confirm1"])
+    bgm2 = np.array(res["thermal"]["leg2_confirm1"]) * N_PULSE_THERMAL
+    if "epi" in res:
+        bgm2 = bgm2 + np.array(res["epi"]["leg2_confirm1"]) * N_PULSE_EPI
+    print("\n a[MIP] b[MIP]  eff2(X17) eff2c(X17) eff2(IPC)  "
+          "pairBG/pulse  confBG/pulse  legBG/pulse")
     show = (0.2, 0.5, 1.0)
     for ia, a in enumerate(A_GRID):
         for ib, b in enumerate(B_GRID):
             if a in show and b in show:
                 print(f"  {a:4.1f}  {b:4.1f}   {e2[ia,ib]:.3f}     "
-                      f"{ei2[ia,ib]:.3f}     {bg2[ia,ib]:.3e}    "
+                      f"{em2[ia,ib]:.3f}     {ei2[ia,ib]:.3f}     "
+                      f"{bg2[ia,ib]:.3e}    {bgm2[ia,ib]:.3e}    "
                       f"{bg1[ia,ib]:.3e}")
 
     # ── Figures ───────────────────────────────────────────────────────────
@@ -365,7 +376,9 @@ def main():
     for ia, a in enumerate(A_GRID):
         if a in (0.2, 0.3, 0.5, 1.0):
             ax.plot(bg2[ia], e2[ia], marker="o", ms=3,
-                    label=f"SiPM ≥ {a:.1f} MIP, plastic scanned")
+                    label=f"2 full legs, SiPM ≥ {a:.1f} MIP")
+            ax.plot(bgm2[ia], em2[ia], marker="s", ms=3, ls="--",
+                    label=f"2 SiPM + 1 confirm, SiPM ≥ {a:.1f} MIP")
     ax.set_xscale("log")
     ax.set_xlabel("pair-tag background / pulse (>1 ms gate)")
     ax.set_ylabel("X17 pair-tag efficiency")
