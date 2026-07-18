@@ -48,6 +48,12 @@ def main():
     ap.add_argument("-o", "--outfile", default="capture_lib.csv")
     ap.add_argument("--max-rows", type=int, default=500_000,
                     help="cap on library rows (uniform thinning above)")
+    ap.add_argument("--gas-lib", default=None, metavar="GAS_CSV",
+                    help="also write a He3Gas capture-position library "
+                         "(pair-vertex sampling: mx17_full_sim --pair-vertex-lib)")
+    ap.add_argument("--gas-emax", type=float, default=2.0,
+                    help="max neutron energy [eV] for --gas-lib rows "
+                         "(default 2 eV ~ TOF > 1 ms at 19.5 m)")
     args = ap.parse_args()
 
     files = collect_files(args.inputs)
@@ -60,6 +66,7 @@ def main():
     # capture counts per (volume, log10(E) decade)
     decade_counts = Counter()
     lib_rows = []   # (vol, x, y, z)
+    gas_rows = []   # He3Gas capture positions with E_n <= gas_emax
 
     def _clean(arr):
         return np.array([v.rstrip("\x00") if isinstance(v, str)
@@ -91,6 +98,16 @@ def main():
                               t["cap_y"][is_n][wall], t["cap_z"][is_n][wall]):
             lib_rows.append((v, x, y, z))
 
+        # Gas library: any terminal capture in He3Gas below --gas-emax.  The
+        # (n,p) positions trace the self-shielded absorption profile, which is
+        # the same spatial law the rare (n,γ) follows — so they serve as the
+        # pair-vertex distribution for thermal X17/IPC generation.
+        if args.gas_lib:
+            gas = (vols == "He3Gas") & (e_ev <= args.gas_emax)
+            for x, y, z in zip(t["cap_x"][is_n][gas], t["cap_y"][is_n][gas],
+                               t["cap_z"][is_n][gas]):
+                gas_rows.append(("He3Gas", x, y, z))
+
     if n_total == 0:
         print("No neutron events (event_type==2) found", file=sys.stderr)
         sys.exit(1)
@@ -119,6 +136,18 @@ def main():
         for v, x, y, z in lib_rows:
             out.write(f"{v},{x:.3f},{y:.3f},{z:.3f}\n")
     print(f"\nLibrary: {len(lib_rows):,} wall-capture vertices → {args.outfile}")
+
+    if args.gas_lib:
+        if len(gas_rows) > args.max_rows:
+            idx = np.random.default_rng(2).choice(
+                len(gas_rows), args.max_rows, replace=False)
+            gas_rows = [gas_rows[i] for i in sorted(idx)]
+        with open(args.gas_lib, "w") as out:
+            out.write("volume,x_mm,y_mm,z_mm\n")
+            for v, x, y, z in gas_rows:
+                out.write(f"{v},{x:.3f},{y:.3f},{z:.3f}\n")
+        print(f"Gas library: {len(gas_rows):,} He3Gas vertices "
+              f"(E_n <= {args.gas_emax} eV) → {args.gas_lib}")
     print("Gamma-source event weight = (wall captures/neutron) × (Σ Iγ of the")
     print("cascade table) / N_gamma_generated — see PLAN_NEUTRON_CAMPAIGN.md.")
 

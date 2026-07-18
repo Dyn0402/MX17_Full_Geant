@@ -44,6 +44,10 @@ static void PrintUsage() {
               << "  --mass <MeV>     X17 mass (default: 16.8)\n"
               << "  --energy <MeV>   4He* transition energy for both X17 and IPC (default: 20.58)\n"
               << "  --ipc <frac>     IPC fraction 0..1 (0=all X17, 1=all IPC, default: 0.5)\n"
+              << "  --pair-vertex-lib <lib.csv>\n"
+              << "                   Sample X17/IPC vertices from a He3Gas capture-position\n"
+              << "                   library (make_capture_library.py --gas-lib) instead of\n"
+              << "                   uniformly in the gas (thermal self-shielding profile)\n"
               << "  --dist <cm>      Arm distance from target (default: 22.0)\n"
               << "  -h               Print this help\n";
 }
@@ -65,6 +69,7 @@ int main(int argc, char** argv) {
         else if (a == "--mass"   && i+1<argc) config.x17Mass_MeV           = std::stod(argv[++i]);
         else if (a == "--energy" && i+1<argc) config.transition_energy_MeV  = std::stod(argv[++i]);
         else if (a == "--ipc"    && i+1<argc) config.ipc_fraction            = std::stod(argv[++i]);
+        else if (a == "--pair-vertex-lib" && i+1<argc) config.pairVertexLibFile = argv[++i];
         else if (a == "--dist"   && i+1<argc) {   // uniform override of both MM front-face distances
             config.mm_distance_x_cm = config.mm_distance_z_cm = std::stod(argv[++i]);
         }
@@ -116,10 +121,13 @@ int main(int argc, char** argv) {
     else if (config.singleParticle)
         std::cout << "  Mode     : single-particle " << config.singleParticleName
                   << " " << config.singleParticleEnergy_MeV << " MeV\n";
-    else
+    else {
         std::cout << "  Mode     : X17+IPC pairs  m_X17=" << config.x17Mass_MeV
                   << " MeV  E_transition=" << config.transition_energy_MeV
                   << " MeV  ipc_fraction=" << config.ipc_fraction << "\n";
+        if (!config.pairVertexLibFile.empty())
+            std::cout << "  Vertices : " << config.pairVertexLibFile << "\n";
+    }
     std::cout << "============================\n";
 
 #ifdef G4MULTITHREADED

@@ -21,6 +21,13 @@ struct SimConfig {
     // 0 = all X17, 1 = all IPC, 0.5 = equal statistics (recommended for building event pools).
     double ipc_fraction = 0.5;
 
+    // Pair-vertex library: CSV of He3Gas capture positions (volume,x_mm,y_mm,z_mm,
+    // from make_capture_library.py --gas-lib).  When set, X17/IPC vertices are
+    // sampled from these rows instead of uniformly in the gas — this is how the
+    // thermal self-shielding absorption profile (captures within ~mm of the gas
+    // entrance face) enters the signal kinematics.  Empty = uniform (default).
+    std::string pairVertexLibFile;
+
     bool        singleParticle            = false;
     std::string singleParticleName        = "e-";
     double      singleParticleEnergy_MeV  = 8.0;

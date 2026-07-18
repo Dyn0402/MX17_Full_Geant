@@ -49,6 +49,10 @@ def parse_args():
                    help="Events per job")
     p.add_argument("--ipc",      type=float, default=IPC_DEFAULT,
                    help="IPC fraction: 0 = all X17, 1 = all IPC")
+    p.add_argument("--vertex-lib", default=None, metavar="GAS_CSV",
+                   help="He3Gas capture-position library (make_capture_library.py "
+                        "--gas-lib): sample pair vertices from the thermal "
+                        "self-shielding profile instead of uniformly in the gas")
     p.add_argument("--gas",      default=GAS_DEFAULT,
                    help="MM gas mixture")
     p.add_argument("--outdir",   default=OUTDIR_DEFAULT,
@@ -79,7 +83,9 @@ def find_exe():
 
 
 # ── Bash wrapper (one file, shared by all jobs) ───────────────────────────────
-def write_wrapper(job_dir: Path, exe: str, setup_script: str) -> Path:
+def write_wrapper(job_dir: Path, exe: str, setup_script: str,
+                  vertex_lib=None) -> Path:
+    extra = f'\\\n            --pair-vertex-lib "{vertex_lib}" ' if vertex_lib else ""
     wrapper = job_dir / "run_pairs_job.sh"
     wrapper.write_text(textwrap.dedent(f"""\
         #!/usr/bin/env bash
@@ -110,7 +116,7 @@ def write_wrapper(job_dir: Path, exe: str, setup_script: str) -> Path:
             -o "$OUTFILE" \\
             -s "$SEED"    \\
             --ipc "$IPC"  \\
-            -g "$GAS"
+            -g "$GAS" {extra}
 
         echo "Job done: $(date)"
     """))
@@ -203,7 +209,11 @@ def main():
         print(f"  hadd {outdir}/x17_ipc_merged.root {outdir}/x17_ipc_pairs_job*.root")
         return
 
-    wrapper  = write_wrapper(job_dir, exe, setup_script)
+    vertex_lib = str(Path(args.vertex_lib).resolve()) if args.vertex_lib else None
+    if vertex_lib and not Path(vertex_lib).is_file():
+        print(f"ERROR: vertex library not found: {vertex_lib}")
+        sys.exit(1)
+    wrapper  = write_wrapper(job_dir, exe, setup_script, vertex_lib)
     sub_file = write_submit(job_dir, wrapper, jobs, args.flavour)
 
     print(f"\nSubmit file : {sub_file}")

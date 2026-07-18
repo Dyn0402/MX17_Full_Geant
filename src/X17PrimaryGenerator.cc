@@ -86,10 +86,51 @@ void X17PrimaryGenerator::GeneratePrimaries(G4Event* event) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Helper: sample a uniform random vertex inside the He-3 gas capsule.
+// Pair-vertex library (thermal self-shielding): He3Gas capture positions from
+// a neutron run (make_capture_library.py --gas-lib).  When configured, pair
+// vertices are drawn from these rows instead of uniformly in the gas.
+namespace {
+std::vector<std::array<double, 3>> gPairVtxLib;   // [mm]
+std::once_flag gPairVtxOnce;
+
+void LoadPairVertexLib(const SimConfig& cfg) {
+    std::ifstream in(cfg.pairVertexLibFile);
+    if (!in) {
+        G4Exception("X17PrimaryGenerator", "PairVertexLib", FatalException,
+                    ("Cannot open pair-vertex library: " + cfg.pairVertexLibFile).c_str());
+        return;
+    }
+    std::string line;
+    while (std::getline(in, line)) {
+        if (line.empty() || line[0] == '#' || line.rfind("volume", 0) == 0)
+            continue;
+        std::istringstream ss(line);
+        std::string vol, sx, sy, sz;
+        if (!std::getline(ss, vol, ',') || !std::getline(ss, sx, ',') ||
+            !std::getline(ss, sy, ',')  || !std::getline(ss, sz, ','))
+            continue;
+        if (vol.find("He3Gas") == std::string::npos) continue;
+        gPairVtxLib.push_back({std::stod(sx), std::stod(sy), std::stod(sz)});
+    }
+    if (gPairVtxLib.empty())
+        G4Exception("X17PrimaryGenerator", "PairVertexLib", FatalException,
+                    "Pair-vertex library contains no He3Gas vertices");
+    G4cout << "X17PrimaryGenerator: pair-vertex library — "
+           << gPairVtxLib.size() << " He3Gas capture vertices" << G4endl;
+}
+}   // namespace
+
+// Helper: sample a pair vertex.  Library mode (thermal absorption profile)
+// when configured; otherwise uniform inside the He-3 gas capsule.
 // Capsule = cylinder (r, ±Hl) + two hemispherical end caps of radius r.
 // Uses rejection sampling from a bounding cylinder; acceptance ~89%.
 static G4ThreeVector SampleHe3Vertex(const SimConfig& cfg) {
+    if (!cfg.pairVertexLibFile.empty()) {
+        std::call_once(gPairVtxOnce, LoadPairVertexLib, std::cref(cfg));
+        const auto& p = gPairVtxLib[static_cast<size_t>(
+            G4UniformRand() * gPairVtxLib.size()) % gPairVtxLib.size()];
+        return G4ThreeVector(p[0] * mm, p[1] * mm, p[2] * mm);
+    }
     const G4double R  = cfg.he3_radius_cm      * cm;
     const G4double Hl = cfg.he3_half_length_cm * cm;
     while (true) {
