@@ -229,11 +229,12 @@ Measured values: SiPM container front 11 cm from mylar front, container depth
 - [ ] Re-run simulations & acceptance with the new geometry — existing sim
       outputs are now stale (again after the 2026-07-17 changes).
 - [ ] **Double-check the 6.8 cm bar height** used as the LS-bottom reference.
-- [ ] Measure the LS tangential (u) positions — slab-centred-on-MM is assumed;
-      for the horizontal vessels (A/D) this also fixes where funnel/PMT sit.
-- [ ] Confirm the "PMT to the right looking from the back" reading
-      (interpreted as: observer outside the wall facing the target ⇒ D's PMT
-      points West/−Z, A's points North/+X), and confirm B/C PMTs point UP.
+- [ ] Measure the LS horizontal positions along each wall (u) — slab
+      horizontally-centred-on-MM is assumed; for the horizontal vessels (A/D)
+      this also fixes where the funnel/PMT sit.  (E.g. measure SiPM-enclosure
+      edge → LS slab edge per wall.)  NB: the bottom-bar survey fixed the
+      VERTICAL (v) positions; u is the left–right direction along the wall.
+- [x] PMT directions CONFIRMED 2026-07-18: D→West/−Z, A→North/+X, B/C up.
 - [ ] `sipm_front_from_mylar_cm = 11.0` not re-measured in this survey.
 - [ ] Trim analysis scripts that reference `LiqScint_2` (harmless: no hits now).
 - [ ] Measure & update the "measure later" gaps (SiPM→plastics 7 cm,
