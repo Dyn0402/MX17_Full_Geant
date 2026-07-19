@@ -195,20 +195,22 @@ it costs total statistics, \textbf{not} the IPC-vs-X17 balance.}
 % ---------------------------------------------------------------------------
 \begin{frame}{Signal-to-noise optimization}
 \begin{columns}[c]
-\column{0.62\textwidth}
-\includegraphics[width=\textwidth]{sn_optimization.pdf}
-\column{0.38\textwidth}\small
-The correlated capture background falls \emph{faster} than the signal
-(capture-$\gamma$ Compton edges), so both S/N and the significance
-FOM $\varepsilon/\sqrt{B}$ \textbf{rise with threshold} through the
-reliable region.\\[6pt]
-Above $\sim$3.5\,MeV the background is MC-limited ($<10$ counts) --- we can't
-measure it, and signal is already halved.
+\column{0.63\textwidth}
+\includegraphics[width=\textwidth]{threshold_linear.pdf}
+\column{0.37\textwidth}\small
+Signal (left, blue/orange) falls \emph{gently}; the correlated capture
+background (right, red) \textbf{collapses by $\sim$1.5\,MeV} once you clear the
+capture-$\gamma$ Compton edges.\\[5pt]
+So S/N keeps improving with threshold --- the cost is total statistics, not
+the IPC/X17 balance.\\[5pt]
+Vertical lines: the plastic threshold at which the (simulated) singles rate ---
+the \textbf{OR of all four walls} --- equals 200 / 300 / 400 per window, i.e.\
+the DAQ capacity ceilings.
 \end{columns}
 \vfill
-\keybox{Best measurable operating point: \textbf{plastic $b\approx$ 2.6--3.0\,MeV
-(0.6--0.7\,MIP)}. Correlated background $<0.1$/pulse, $\sim$50\% of X17 \& IPC
-retained, IPC/X17 undistorted, $\sim$120--140 legs/pulse (under the 200 budget).}
+\keybox{Sweet spot \textbf{plastic $\approx$ 2--3\,MeV}: background already
+$<0.1$/pulse, $\sim$50--65\% of X17 \& IPC kept, IPC/X17 undistorted, and the
+singles rate is under the 200/window DAQ ceiling.}
 \end{frame}
 
 % ---------------------------------------------------------------------------
@@ -230,13 +232,18 @@ $[$MeV$]$ & pair & pair & /pulse & rate/pulse & \\
 \end{tabular}
 \vfill
 \begin{itemize}\small
-\item Single-leg (L1) rate is the DAQ constraint --- the \emph{pair}
-      coincidence is $<2$/pulse. If you can form the 2-arm coincidence in
+\item \textbf{Measured DAQ capacity} (\texttt{zs\_ipd\_safety}, 2026-07-18):
+      $\sim$101 ev/window at IPD=10 (clean), $\sim$189 at IPD=5, $\sim$226 at
+      IPD=2 --- so the \textbf{200/window budget is real} (aggressive today;
+      300--400 awaits the network upgrade).
+\item Single-leg (L1) singles are the DAQ constraint --- the \emph{pair}
+      coincidence is $<2$/pulse. If the 2-arm coincidence is formed in
       hardware, $b$ can go as low as you like.
-\item Sim gives $\sim$450--550 legs/pulse at the floor, $\sim2\times$ below the
-      measured $\sim$1000 --- the balance is non-capture background (room
-      return, flash afterglow) \emph{not} in the sim; identify it before
-      trusting the rate axis absolutely.
+\item \textbf{Singles caveat:} the vertical lines use \emph{simulated} singles
+      ($\sim$450--550/window at the floor), $\sim2\times$ below the DAQ-measured
+      trigger level --- so the true 200/300/400 thresholds sit somewhat higher.
+      Re-anchor once a clean scaler-based singles-vs-threshold scan exists
+      (M5 scaler was dead in the July run).
 \end{itemize}
 \end{frame}
 

@@ -56,6 +56,22 @@ high purity), the plastic threshold `b` is the S/N lever. Key results
 self-contained `figs/`, build `pdflatex thermal_trigger.tex` ×2) — setup
 diagrams, simulation, all result figures, the S/N optimization, recommendation.
 
+**Measured DAQ capacity (from the beam DAQ machine, `ssh daq_lxplus`):** the
+relevant study is `~/beam_july/test/zs_ipd_safety/` (2026-07-18) — a DREAM
+throughput/deadtime scan. Capacity ceiling per 30 ms window: ~101 ev at IPD=10
+(clean), ~189 at IPD=5 (0–1% loss), ~226 at IPD=2. **This is Dylan's "~200 I
+can swallow."** The companion `~/beam_july/test/zs_rate_scan/` (2026-07-15)
+shows the *physics* singles are DREAM-limited (continuous scint coincidence
+~68 Hz, in-burst ~620 Hz/30 ms, recorded ~18–20/burst) and that M1/M2
+discriminator thresholds did not tune the recorded rate (DREAM-capped) — so
+there is **no clean scaler-based singles-vs-threshold scan** yet (M5 scaler
+dead, M3 stress-sensitive). Consequently the 200/300/400-singles vertical lines
+in `threshold_linear.pdf` are placed from the **simulated** singles rate
+(~450–550/window at the floor, ~2× below the DAQ-measured trigger level); the
+true thresholds sit somewhat higher. Re-anchor when a clean singles-vs-threshold
+measurement exists. `threshold_linear.pdf` is the linear (non-log) signal+bkg
+plot with those lines — the figure Dylan asked for.
+
 ## 2. Data (all validated: tree readable + exact entry counts)
 
 On `/eos/experiment/ntof/data/x17/full_sim/`:
