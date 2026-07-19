@@ -1,6 +1,48 @@
 # MX17 simulation campaign — status & next steps
 
-**Updated:** 2026-06-12 · companion docs:
+**Updated:** 2026-07-19 · companion docs:
+
+---
+
+## Headline result (2026-07-19): thermal-gate (>1 ms) trigger optimized — final geometry
+
+Three campaigns with the FINAL surveyed geometry (flipped stack, STEP LS
+vessels, pinwheel MMs; commits through `808ffe0`), all validated 250/250 on
+`/eos/experiment/ntof/data/x17/full_sim/`:
+`neutrons_thermal_trig` (10⁹, 1 meV–2 eV), `neutrons_epi_trig` (5×10⁸,
+2 eV–100 keV), `pairs_thermal_trig` (10⁷ X17+IPC 50/50, vertices from the
+measured thermal self-shielding profile via the new `--pair-vertex-lib`;
+median capture depth 14 mm into the gas, 95 % in the first 25 mm — the pair
+source sits ~3.7 cm upstream of the target centre).
+Gate: >1 ms at 19.5 m ⇔ E_n < 1.99 eV, **4.284×10⁶ n/pulse in-gate**.
+MIP calibration (20k µ⁻): **1 MIP = 458 keV (SiPM bar) / 4.33 MeV (plastic)**.
+Analysis: `scripts/analyze_trigger_thermal.py` →
+`analysis/trigger_thermal/` (lxplus): `trigger_scan.json`, spectra + ROC.
+
+Findings (a = SiPM-bar, b = plastic-bar thresholds in MIP, per-channel):
+- **Epithermal spill-in is negligible** (delayed H-capture leakage into the
+  gate: 0 pair-tags in 5×10⁸ n; singles ~8/pulse vs 170 thermal). The gate
+  background is genuinely thermal-arrival captures (Al dome 6.5×10⁻³/n,
+  H-captures in LS 2.1×10⁻³/n and plastics ~1.4×10⁻³/n at thermal).
+- Requiring the plastic in **both** legs costs ~5×: plastics subtend far
+  less solid angle than the wall (30 cm vs 50 cm in v, 10 cm further back).
+  ε(X17) ceiling: 3.1 % (2 full legs) vs 10.8 % (2 SiPM + ≥1 confirm) vs
+  15.5 % (SiPM-only, but 58 bg pair-tags/pulse).
+- Plastic spectrum physics: signal legs punch through 2.5 cm (crossing e±
+  deposit ~1 MIP; stopped legs up to ~3 MIP); thermal-bg plastic hits die
+  above ~1.7 MIP (7.72 MeV Al Compton edge), H-capture γ stays < 0.5 MIP.
+  SiPM bg shows no MIP peak (γ Comptons) — signal peaks cleanly at 1 MIP.
+- **Recommended menu: 2 SiPM legs ≥ 0.5 MIP + ≥1 plastic confirm at
+  1.0–1.2 MIP (4.3–5.2 MeV, ≈ the toy study's 5–6 MeV per-leg cut):**
+  ε(X17) = 7.0→4.0 %, ε(IPC, both legs >5 MeV) = 5.3→3.2 %, background
+  1.8→0.8 pair-tags/pulse (0.4→0.2 Hz at 1.93×10⁴ pulses/day) — DAQ-trivial.
+  b ≥ 1.5 MIP kills the crossing-leg signal (ε → 1.4 %); avoid.
+- Full 2-leg coincidence as the high-purity alternative: (0.5, 0.5–0.8) MIP
+  → ε 2.1–1.3 %, bg 0.17–0.03/pulse.
+- Context: in-gate ³He(n,γ) sits on the self-shielding ceiling
+  (~1×10⁻⁴ IPC/pulse), so the >1 ms gate is background-characterization
+  territory; the same menu should be re-scanned for the µs-scale MeV window
+  (rates ×10⁴ higher there — separate study needed).
 [PLAN_NEUTRON_CAMPAIGN.md](PLAN_NEUTRON_CAMPAIGN.md) ·
 [docs/he3_self_shielding_note.md](docs/he3_self_shielding_note.md) ·
 [docs/report/thermal_note.pdf](docs/report/thermal_note.pdf) ·
