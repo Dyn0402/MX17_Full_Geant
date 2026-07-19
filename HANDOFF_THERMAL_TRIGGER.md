@@ -30,6 +30,32 @@ backgrounds. Status: **complete** — results in `CAMPAIGN_STATUS.md`
   (~1×10⁻⁴ IPC/pulse) — the >1 ms gate is background/veto territory; the
   physics ROI remains the MeV window (see 2026-06-12 headline).
 
+### 1b. S/N optimization of the plastic threshold (2026-07-19 follow-up)
+
+With the **full 2-arm SiPM×plastic coincidence** assumed (Dylan's choice —
+high purity), the plastic threshold `b` is the S/N lever. Key results
+(`analysis/trigger_thermal/{ipc_plastic_threshold,sn_optimization}.pdf`):
+- **The plastic threshold does NOT preferentially reject IPC.** IPC/X17 pair
+  ratio is flat ~0.35 across all `b`. IPC's 1/M_ee spectrum favors soft
+  collinear pairs → 97% of triggering IPC lands both legs in one arm and is
+  lost to the 2-arm requirement *on geometry*, before any energy cut. What
+  survives looks kinematically like X17, so `b` cuts them in lockstep. → `b`
+  is a free rate/background knob; it costs total statistics, not IPC balance.
+- Correlated capture background falls faster than signal (capture-γ Compton
+  edges), so S/N and ε/√B rise with `b` through the MC-reliable region
+  (background MC-limited, <10 counts, above ~3.5 MeV).
+- **Recommended: plastic b ≈ 2.6–3.0 MeV (0.6–0.7 MIP), SiPM 0.5 MIP** —
+  correlated bkg <0.1/pulse, ~50% of X17 & IPC retained, ~120–140
+  single-legs/pulse (under the 200 budget), IPC/X17 undistorted.
+- Caveats: thermal-gate signal is tiny (self-shielding, this is a bkg study
+  — MeV window is where signal lives); accidental (∝ single-leg-rate²) bkg
+  needs the Python time-domain layer; a high `b` sculpts the accepted IPC
+  M_ee shape, so keep it low if the IPC spectrum is a goal.
+
+**Slides:** `docs/slides/thermal_trigger/thermal_trigger.{tex,pdf}` (beamer,
+self-contained `figs/`, build `pdflatex thermal_trigger.tex` ×2) — setup
+diagrams, simulation, all result figures, the S/N optimization, recommendation.
+
 ## 2. Data (all validated: tree readable + exact entry counts)
 
 On `/eos/experiment/ntof/data/x17/full_sim/`:
