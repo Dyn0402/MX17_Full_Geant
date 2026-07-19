@@ -209,8 +209,54 @@ the DAQ capacity ceilings.
 \end{columns}
 \vfill
 \keybox{Sweet spot \textbf{plastic $\approx$ 2--3\,MeV}: background already
-$<0.1$/pulse, $\sim$50--65\% of X17 \& IPC kept, IPC/X17 undistorted, and the
-singles rate is under the 200/window DAQ ceiling.}
+$<0.1$/pulse, $\sim$50--65\% of X17 \& IPC kept, IPC/X17 undistorted, singles
+under the 200/window ceiling, and it clears the hardware discriminator floor
+(orange, nominal HV) --- see next slide.}
+\end{frame}
+
+% ---------------------------------------------------------------------------
+\begin{frame}{Hardware anchoring --- beam MIP + Y88 calibration}
+\begin{columns}[T]
+\column{0.48\textwidth}
+\textbf{Sim response is validated}
+\begin{itemize}\small
+\item Sim plastic MIP (Landau MPV) $=4.33$\,MeV vs beam mean d$E=5.05$\,MeV
+      $\Rightarrow$ ratio 0.86 = expected Landau MPV/mean for 2.5\,cm PVT.
+\item Sim SiPM-bar MIP 458\,keV consistent with 0.3\,cm PVT.
+\item[$\Rightarrow$] thresholds quoted in \textbf{MIP transfer directly} to
+      hardware.
+\end{itemize}
+\smallskip
+\textbf{DAQ landmarks} (run224460/89, Y88 699/1612\,keV edges):
+plastic MIP peaks span \textbf{3.3--10.3\,mV} (3.2$\times$ gain spread);
+SiPM wall runs 12--14\,mV $\approx0.25$ of its MIP-sum peak (consistent with
+the sim's insensitivity to the SiPM threshold).
+\column{0.52\textwidth}
+\textbf{Recommended 0.6\,MIP $\to$ per-PMT threshold}
+\smallskip
+
+{\centering\scriptsize
+\begin{tabular}{@{}lc|lc@{}}
+\toprule
+PMT & mV & PMT & mV\\
+\midrule
+PSSA1 & 6.2 & PSSC1 & 3.9\\
+PSSA2 & 4.8 & PSSC2 & 3.8\\
+PSSB1 & 2.2 & PSSD1 & 3.0\\
+PSSB2 & 3.6 & PSSD2 & \textbf{2.0}\\
+\bottomrule
+\end{tabular}\par}
+\smallskip\small
+Discriminator floor $\approx1.5$\,mV $\Rightarrow$ the weakest PMT (PSSD2)
+cannot go below \textbf{$\sim$2.0\,MeV (0.46\,MIP)} at nominal HV --- which is
+exactly where the S/N optimum sits, so no conflict. Lower thresholds need a
+plastic-HV raise.
+\end{columns}
+\vfill
+\keybox{Set \textbf{per-PMT} mV (not one global value) --- the 3.2$\times$ gain
+spread would otherwise give a 3.2$\times$ spread in effective MIP threshold
+across arms. Equalize first via \texttt{pss/global\_gain\_slide} if a uniform
+mV is preferred.}
 \end{frame}
 
 % ---------------------------------------------------------------------------

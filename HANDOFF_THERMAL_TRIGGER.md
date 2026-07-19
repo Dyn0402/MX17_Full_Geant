@@ -72,6 +72,27 @@ true thresholds sit somewhat higher. Re-anchor when a clean singles-vs-threshold
 measurement exists. `threshold_linear.pdf` is the linear (non-log) signal+bkg
 plot with those lines — the figure Dylan asked for.
 
+### 1c. Hardware calibration cross-check (2026-07-19)
+
+DAQ calibration snapshots pulled into `analysis/daq_calib/` (+ its README).
+Key results:
+- **Sim MIP scale validated** against the beam: sim plastic MIP 4.33 MeV (MPV)
+  = beam mean dE 5.05 MeV × 0.86 (Landau MPV/mean); sim SiPM MIP 458 keV OK.
+  → thresholds in MIP transfer directly to hardware.
+- **Recommended 0.6 MIP → per-PMT plastic thresholds 2.0–6.2 mV** (= 0.6 ×
+  measured MIP-peak mV; PSSA1 6.2 … PSSD2 2.0). Table in the calib README /
+  slide 10.
+- **Discriminator floor ~1.5 mV** ⇒ weakest PMT (PSSD2) can't go below
+  ~2.0 MeV (0.46 MIP) at nominal HV — coincides with the S/N optimum, so no
+  conflict; lower thresholds need a plastic-HV raise.
+- **3.2× plastic gain spread** ⇒ set per-PMT mV (or equalize HV first);
+  a uniform mV → 3.2× spread in effective MIP threshold across arms.
+- SiPM wall runs 12–14 mV ≈ 0.25 MIP-sum peak; sim insensitive to SiPM
+  threshold 0.1–0.5 MIP, so no change.
+- **Still to do:** the live `beam_july/test` plastic-threshold rate scan had
+  not written analysis products when checked (a `dream_daq_control.py` was
+  running); re-anchor the singles/window lines to that measurement when ready.
+
 ## 2. Data (all validated: tree readable + exact entry counts)
 
 On `/eos/experiment/ntof/data/x17/full_sim/`:
