@@ -56,6 +56,10 @@ def parse_args():
                    help="Neutron sampling window min [eV]")
     p.add_argument("--emax",     type=float, default=EMAX_DEFAULT,
                    help="Neutron sampling window max [eV]")
+    p.add_argument("--bias-ncapture", type=float, default=1.0, metavar="FACTOR",
+                   help="Scale ³He(n,γ) cross-section in the gas by FACTOR "
+                        "(variance reduction; each capture weighted 1/FACTOR). "
+                        "1.0 = analog/off. Recommend 1e5–1e6.")
     p.add_argument("--gas",      default=GAS_DEFAULT)
     p.add_argument("--gamma-source", default=None, metavar="LIB_CSV",
                    help="Submit gamma-source (run C) instead of neutrons, "
@@ -79,14 +83,16 @@ def find_exe():
 
 
 def write_wrapper(job_dir: Path, exe: str, setup_script: str,
-                  gamma_lib) -> Path:
+                  gamma_lib, bias_ncapture: float = 1.0) -> Path:
     """One wrapper for both modes; mode-specific args baked in."""
     if gamma_lib:
         mode_args = f'--gamma-source "{gamma_lib}"'
         name = "run_gamma_job.sh"
     else:
+        bias_arg = (f' --bias-ncapture {bias_ncapture:g}'
+                    if bias_ncapture > 1.0 else '')
         mode_args = (f'--neutron "{FLUX_FILE}" "{PROFILE_FILE}" '
-                     f'--emin "$EMIN" --emax "$EMAX"')
+                     f'--emin "$EMIN" --emax "$EMAX"{bias_arg}')
         name = "run_neutron_job.sh"
     wrapper = job_dir / name
     wrapper.write_text(textwrap.dedent(f"""\
@@ -197,6 +203,9 @@ def main():
     print(f"Total primaries: {args.njobs * args.nevents:,}")
     if not gamma_mode:
         print(f"Energy window  : [{args.emin}, {args.emax}] eV")
+        if args.bias_ncapture > 1.0:
+            print(f"nCapture bias  : ×{args.bias_ncapture:g}  (³He(n,γ) in gas; "
+                  f"weight 1/factor)")
         print(f"Flux file      : {FLUX_FILE}")
         print(f"Profile file   : {PROFILE_FILE}")
     else:
@@ -210,7 +219,8 @@ def main():
             print(f"  {j[-1]}  seed={j[2]}")
         return
 
-    wrapper  = write_wrapper(job_dir, exe, setup_script, args.gamma_source)
+    wrapper  = write_wrapper(job_dir, exe, setup_script, args.gamma_source,
+                             args.bias_ncapture)
     sub_file = write_submit(job_dir, wrapper, jobs, args.flavour)
     print(f"\nSubmit file : {sub_file}")
     ret = os.system(f"condor_submit {sub_file}")

@@ -55,7 +55,7 @@ CFG = dict(
     # Plastics (2 bars per arm, centered on the MM):
     backscint_u_cm        = 20.0,
     backscint_v_cm        = 30.0,
-    backscint_thick_cm    =  2.5,   # measured ~2.5 cm (nominal 2.0)
+    backscint_thick_cm    =  2.0,   # 2.0 cm PVT + 20µm Al + 200µm mylar tape (corrected 2026-07-20, was 2.5)
     backscint_gap_cm      =  0.3,
     backscint_tape_um     = 200.0,
     backscint_al_um       =  20.0,

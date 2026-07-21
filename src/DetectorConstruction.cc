@@ -22,6 +22,7 @@
 
 #include "DetectorConstruction.hh"
 #include "SensitiveDetector.hh"
+#include "NCaptureBiasingOperator.hh"
 
 #include "G4NistManager.hh"
 #include "G4Material.hh"
@@ -359,6 +360,7 @@ G4VPhysicalVolume* DetectorConstruction::Construct() {
 
     auto* he3Solid = new G4Polycone("He3Gas", 0, 360.*deg, nGas, zGas, riGas, roGas);
     auto* he3LV    = new G4LogicalVolume(he3Solid, GetMat("He3Gas"), "He3Gas");
+    fHe3GasLV = he3LV;   // remembered for the nCapture cross-section biasing
     he3LV->SetVisAttributes(new G4VisAttributes(G4Color(0.6, 0.9, 1.0, 0.4)));
     he3LV->SetUserLimits(new G4UserLimits(1.0*mm));
 
@@ -736,4 +738,16 @@ void DetectorConstruction::ConstructSDandField() {
     RegisterSD(fLS1LV,        "LiqScint1SD");
     RegisterSD(fBackScintLLV, "BackScintLSD");
     RegisterSD(fBackScintRLV, "BackScintRSD");
+
+    // Cross-section biasing for the rare ³He(n,γ) channel.  ConstructSDandField
+    // runs once per worker thread, so each thread gets its own operator instance
+    // attached to the (shared) gas volume — the thread-safe GB06 pattern.
+    // Analog runs (factor == 1) attach nothing and are unchanged.
+    if (fConfig.biasNCaptureFactor > 1.0 && fHe3GasLV) {
+        auto* biasOperator =
+            new NCaptureBiasingOperator(fConfig.biasNCaptureFactor);
+        biasOperator->AttachTo(fHe3GasLV);
+        G4cout << "DetectorConstruction: nCapture cross-section biased ×"
+               << fConfig.biasNCaptureFactor << " in He3Gas" << G4endl;
+    }
 }

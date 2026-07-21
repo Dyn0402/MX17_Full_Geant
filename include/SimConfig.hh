@@ -45,6 +45,12 @@ struct SimConfig {
     double      neutronEmax_eV = 1000.0;  // default: < 1 keV (X17 ROI)
     double      neutronGunY_cm = -20.0;   // start position upstream of vessel tip
 
+    // Cross-section biasing (variance reduction for the rare ³He(n,γ) channel).
+    // >1 scales the nCapture cross-section *in the He3Gas only* (region-scoped
+    // operator, so wall/scint H-captures are untouched and transport is intact).
+    // Each biased capture carries weight 1/factor; sum weights in analysis.
+    double      biasNCaptureFactor = 1.0;   // 1.0 = analog (off)
+
     // ── Gamma-source mode (event_type = 3, biased wall-background) ──
     // Re-emits capture-cascade gammas from a capture-vertex library CSV
     // (produced by scripts/make_capture_library.py from a neutron run).
@@ -117,7 +123,7 @@ struct SimConfig {
     // vertically (v = 0).
     double backscint_u_cm      = 20.0;  // each bar: u [cm]
     double backscint_v_cm      = 30.0;  // each bar: v (along beam) [cm]
-    double backscint_thick_cm  = 2.5;   // each bar: depth [cm]  (measured ~2.5, nominal 2.0)
+    double backscint_thick_cm  = 2.0;   // each bar: depth [cm]  (2.0 cm PVT + 20µm Al + 200µm mylar tape; corrected 2026-07-20, was 2.5)
     double backscint_gap_cm    = 0.3;   // gap between wrapped bars [cm]
     double backscint_tape_um   = 200.0; // black mylar tape (outermost) [µm]
     double backscint_al_um     = 20.0;  // Al foil on scintillator surface [µm]

@@ -74,6 +74,10 @@ void SteppingAction::UserSteppingAction(const G4Step* step) {
                 ed.cap_x = cp.x() / mm;
                 ed.cap_y = cp.y() / mm;
                 ed.cap_z = cp.z() / mm;
+                // Track weight at the terminal interaction: 1/bias-factor for a
+                // cross-section-biased ³He(n,γ), 1.0 in analog runs.  Summed in
+                // analysis to recover the unbiased (effective) capture rate.
+                ed.weight = trk->GetWeight();
             }
         }
     }

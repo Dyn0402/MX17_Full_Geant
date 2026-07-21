@@ -47,6 +47,7 @@ struct RunAction::Impl {
     Char_t   e_capture_vol[32];             // volume of terminal interaction ("" = escaped)
     Char_t   e_capture_proc[32];            // "nCapture" | "neutronInelastic" | ...
     Double_t e_cap_x, e_cap_y, e_cap_z;     // interaction position [mm]
+    Double_t e_weight;                       // track weight at interaction (bias)
 #else
     std::ofstream hitFile;
     std::ofstream evtFile;
@@ -124,6 +125,7 @@ void RunAction::BeginOfRunAction(const G4Run*) {
     fImpl->evtTree->Branch("cap_x",        &fImpl->e_cap_x);     // mm
     fImpl->evtTree->Branch("cap_y",        &fImpl->e_cap_y);
     fImpl->evtTree->Branch("cap_z",        &fImpl->e_cap_z);
+    fImpl->evtTree->Branch("weight",       &fImpl->e_weight);    // bias weight
 
     G4cout << "RunAction: Opened " << fname << G4endl;
 
@@ -206,6 +208,7 @@ void RunAction::RecordEvent(const EventData& data) {
     fImpl->e_cap_x = data.cap_x;
     fImpl->e_cap_y = data.cap_y;
     fImpl->e_cap_z = data.cap_z;
+    fImpl->e_weight = data.weight;
     fImpl->evtTree->Fill();
 
     // HitTree

@@ -40,6 +40,9 @@ struct EventData {
     std::string capture_vol;                       // empty = escaped world
     std::string capture_proc;
     double      cap_x = 0.0, cap_y = 0.0, cap_z = 0.0;   // position [mm]
+    double      weight = 1.0;                       // track weight at terminal
+                                                    // interaction (1/factor if
+                                                    // biased; 1.0 analog)
 
     void Reset() {
         eventID    = -1;
@@ -50,5 +53,6 @@ struct EventData {
         capture_vol.clear();
         capture_proc.clear();
         cap_x = cap_y = cap_z = 0.0;
+        weight = 1.0;
     }
 };

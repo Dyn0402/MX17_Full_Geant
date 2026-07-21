@@ -50,5 +50,7 @@ private:
     G4LogicalVolume* fBackScintLLV  = nullptr;
     G4LogicalVolume* fBackScintRLV  = nullptr;
 
+    G4LogicalVolume* fHe3GasLV      = nullptr;   // target gas: nCapture-bias host
+
     std::array<ArmAxes, 4> fArmAxes;
 };

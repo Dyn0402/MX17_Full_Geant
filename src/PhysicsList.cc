@@ -18,9 +18,10 @@
 #include "G4HadronElasticPhysicsHP.hh"
 #include "G4HadronPhysicsFTFP_BERT_HP.hh"
 #include "G4DecayPhysics.hh"
+#include "G4GenericBiasingPhysics.hh"
 #include "G4SystemOfUnits.hh"
 
-PhysicsList::PhysicsList() : G4VModularPhysicsList() {
+PhysicsList::PhysicsList(double biasNCaptureFactor) : G4VModularPhysicsList() {
     SetVerboseLevel(0);
 
     // EM physics: option4 uses Livermore models below 100 keV for e-/gamma
@@ -44,6 +45,17 @@ PhysicsList::PhysicsList() : G4VModularPhysicsList() {
 
     // Step limiter (respects G4UserLimits set in detector volumes)
     RegisterPhysics(new G4StepLimiterPhysics());
+
+    // Cross-section biasing for the rare ³He(n,γ) channel: wrap the neutron
+    // nCapture process with a G4BiasingProcessInterface.  The actual biasing
+    // (and its restriction to the He3Gas volume) is defined by the operator
+    // attached in DetectorConstruction::ConstructSDandField().  Registered only
+    // when biasing is requested so analog runs are byte-for-byte unchanged.
+    if (biasNCaptureFactor > 1.0) {
+        auto* biasing = new G4GenericBiasingPhysics();
+        biasing->PhysicsBias("neutron", {"nCapture"});
+        RegisterPhysics(biasing);
+    }
 
     // NOTE: no G4NeutronTrackingCut. Its default 10 µs time limit kills slow
     // neutrons mid-flight (a 0.4 eV neutron needs ~20 µs to cross 20 cm),

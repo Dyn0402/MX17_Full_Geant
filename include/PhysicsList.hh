@@ -9,7 +9,10 @@
 
 class PhysicsList : public G4VModularPhysicsList {
 public:
-    PhysicsList();
+    // biasNCaptureFactor > 1 wraps the neutron nCapture process for occurrence
+    // biasing (the region-scoped operator is attached to the gas in
+    // DetectorConstruction::ConstructSDandField).
+    explicit PhysicsList(double biasNCaptureFactor = 1.0);
     ~PhysicsList() override = default;
     void SetCuts() override;
 };

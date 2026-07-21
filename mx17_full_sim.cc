@@ -33,6 +33,10 @@ static void PrintUsage() {
               << "                   Neutron-beam mode: EAR2 flux + radial profile\n"
               << "                   (data/fluxEAR2-Ph3_in_different_units.root,\n"
               << "                    data/lamda2DvsEn_EAR2.root)\n"
+              << "  --bias-ncapture <factor>\n"
+              << "                   Scale the ³He(n,γ) cross-section in the gas by <factor>\n"
+              << "                   (variance reduction for the rare radiative channel; each\n"
+              << "                   biased capture carries weight 1/factor). Neutron mode only.\n"
               << "  --emin <eV>      Neutron sampling window minimum (default: 1e-3)\n"
               << "  --emax <eV>      Neutron sampling window maximum (default: 1000)\n"
               << "  --gamma-source <capture_lib.csv>\n"
@@ -85,6 +89,7 @@ int main(int argc, char** argv) {
             config.neutronFluxFile    = argv[++i];
             config.neutronProfileFile = argv[++i];
         }
+        else if (a == "--bias-ncapture" && i+1<argc) config.biasNCaptureFactor = std::stod(argv[++i]);
         else if (a == "--emin" && i+1<argc) config.neutronEmin_eV = std::stod(argv[++i]);
         else if (a == "--emax" && i+1<argc) config.neutronEmax_eV = std::stod(argv[++i]);
         else if (a == "--gamma-source" && i+1<argc) {
@@ -139,7 +144,7 @@ int main(int argc, char** argv) {
 
     auto* detCon = new DetectorConstruction(config);
     runManager->SetUserInitialization(detCon);
-    runManager->SetUserInitialization(new PhysicsList());
+    runManager->SetUserInitialization(new PhysicsList(config.biasNCaptureFactor));
     runManager->SetUserInitialization(new ActionInitialization(config, detCon));
     runManager->Initialize();
 
