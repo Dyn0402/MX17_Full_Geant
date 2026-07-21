@@ -1,0 +1,206 @@
+{
+ "n_events": 1000000000,
+ "n_per_pulse": 4284000.0,
+ "weight_per_neutron": 0.004284,
+ "n_gas_np": 772098004,
+ "n_gas_rad": 11,
+ "rad_events": [
+  [
+   0.010363443261565342,
+   -36.94505240065251
+  ],
+  [
+   1.5745643546749057,
+   -39.005011711119856
+  ],
+  [
+   1.5966810948484973,
+   -49.976102657487836
+  ],
+  [
+   0.02833341263718813,
+   -38.035417425951614
+  ],
+  [
+   0.012270265371573167,
+   -33.47989597168741
+  ],
+  [
+   0.05156110079667008,
+   -50.62969605819757
+  ],
+  [
+   0.4295840749730169,
+   -25.613919950747043
+  ],
+  [
+   0.07644885235388525,
+   -30.6521871724793
+  ],
+  [
+   0.005020673092733474,
+   -35.48804152635819
+  ],
+  [
+   0.027214911342811295,
+   -35.687592525526
+  ],
+  [
+   0.06548280398472411,
+   -38.71828146713403
+  ]
+ ],
+ "ratio_ng_np": 1.4246896045595787e-08,
+ "sigma_ratio_expected": 1.0125632852053253e-08,
+ "rad_per_pulse_npxbr": 0.0334922302368918,
+ "ipc_per_pulse": 7.033368349747278e-05,
+ "x17_per_pulse": 1.7583420874368196e-06,
+ "decades": [
+  {
+   "E_lo_eV": 0.001,
+   "E_hi_eV": 0.01,
+   "n_beam_sim": 26751813,
+   "n_np_sim": 20758442,
+   "n_rad_sim": 1,
+   "beam_per_pulse": 114604.76689199999,
+   "np_per_pulse": 88929.165528,
+   "rad_per_pulse_direct": 0.004284,
+   "rad_per_pulse_npxbr": 0.0009004640799759984,
+   "rad_per_n_direct": 3.7380644070740176e-08,
+   "rad_per_n_npxbr": 7.857125880501708e-09,
+   "thin_target_per_n": null,
+   "cap_per_n": null
+  },
+  {
+   "E_lo_eV": 0.01,
+   "E_hi_eV": 0.1,
+   "n_beam_sim": 608562297,
+   "n_np_sim": 444619840,
+   "n_rad_sim": 7,
+   "beam_per_pulse": 2607080.8803479997,
+   "np_per_pulse": 1904751.39456,
+   "rad_per_pulse_direct": 0.029987999999999997,
+   "rad_per_pulse_npxbr": 0.019286813295750983,
+   "rad_per_n_direct": 1.1502520012343124e-08,
+   "rad_per_n_npxbr": 7.397857673359382e-09,
+   "thin_target_per_n": 1.41e-06,
+   "cap_per_n": 1.01e-08
+  },
+  {
+   "E_lo_eV": 0.1,
+   "E_hi_eV": 1.0,
+   "n_beam_sim": 295507141,
+   "n_np_sim": 245423472,
+   "n_rad_sim": 1,
+   "beam_per_pulse": 1265952.5920439998,
+   "np_per_pulse": 1051394.154048,
+   "rad_per_pulse_direct": 0.004284,
+   "rad_per_pulse_npxbr": 0.010646031186685166,
+   "rad_per_n_direct": 3.3840129772024696e-09,
+   "rad_per_n_npxbr": 8.40950226224202e-09,
+   "thin_target_per_n": 5.71e-07,
+   "cap_per_n": 1.01e-08
+  },
+  {
+   "E_lo_eV": 1.0,
+   "E_hi_eV": 10.0,
+   "n_beam_sim": 69178749,
+   "n_np_sim": 61296250,
+   "n_rad_sim": 2,
+   "beam_per_pulse": 296361.760716,
+   "np_per_pulse": 262593.13499999995,
+   "rad_per_pulse_direct": 0.008568,
+   "rad_per_pulse_npxbr": 0.0026589216744796547,
+   "rad_per_n_direct": 2.8910612419429555e-08,
+   "rad_per_n_npxbr": 8.971878382878379e-09,
+   "thin_target_per_n": 1.68e-07,
+   "cap_per_n": 1.01e-08
+  },
+  {
+   "E_lo_eV": 10.0,
+   "E_hi_eV": 100.0,
+   "n_beam_sim": 0,
+   "n_np_sim": 0,
+   "n_rad_sim": 0,
+   "beam_per_pulse": 0.0,
+   "np_per_pulse": 0.0,
+   "rad_per_pulse_direct": 0.0,
+   "rad_per_pulse_npxbr": 0.0,
+   "rad_per_n_direct": 0.0,
+   "rad_per_n_npxbr": 0.0,
+   "thin_target_per_n": 6.69e-08,
+   "cap_per_n": 1e-08
+  },
+  {
+   "E_lo_eV": 100.0,
+   "E_hi_eV": 1000.0,
+   "n_beam_sim": 0,
+   "n_np_sim": 0,
+   "n_rad_sim": 0,
+   "beam_per_pulse": 0.0,
+   "np_per_pulse": 0.0,
+   "rad_per_pulse_direct": 0.0,
+   "rad_per_pulse_npxbr": 0.0,
+   "rad_per_n_direct": 0.0,
+   "rad_per_n_npxbr": 0.0,
+   "thin_target_per_n": 5.9e-08,
+   "cap_per_n": 7.9e-09
+  }
+ ],
+ "budget": {
+  "He3Gas|neutronInelastic": 772098004,
+  "(escaped)|(none)": 212584346,
+  "He3Cap_Al|nCapture": 7797529,
+  "LiqScint_1|nCapture": 2126143,
+  "World|neutronInelastic": 1568149,
+  "BackScintR|nCapture": 881749,
+  "BackScintL|nCapture": 839700,
+  "He3Cap_CFRP|nCapture": 533106,
+  "PlasticScint|nCapture": 465330,
+  "LS_PMTGlassIn|neutronInelastic": 239107,
+  "LS_PMTGlassOut|neutronInelastic": 165427,
+  "LS_VesselCFRP|nCapture": 121508,
+  "World|nCapture": 68077,
+  "PCB_Cu_1|nCapture": 67833,
+  "PCB_Cu_2|nCapture": 67793,
+  "PCB_Cu_3|nCapture": 67503,
+  "PCB_Cu_4|nCapture": 66413,
+  "Micromesh|nCapture": 59015,
+  "PCB_Rohacell|neutronInelastic": 26148,
+  "DriftCathode_Cu|nCapture": 25219,
+  "PCB_Rohacell|nCapture": 24843,
+  "ResistivePaste|nCapture": 18282,
+  "BackScintTapeR|nCapture": 11202,
+  "BackScintTapeL|nCapture": 10847,
+  "PCB_FR4_2|nCapture": 8967,
+  "PCB_FR4_1|nCapture": 8867,
+  "PCB_FR4_3|nCapture": 8739,
+  "PCB_FR4_4|nCapture": 8681,
+  "DriftGas|nCapture": 5244,
+  "PCB_AlFoil|nCapture": 5203,
+  "GasWindow_Mylar|nCapture": 4171,
+  "DriftCathode_Kapton|neutronInelastic": 3630,
+  "DriftCathode_Kapton|nCapture": 3367,
+  "PCB_Kapton|neutronInelastic": 3332,
+  "PCB_Kapton|nCapture": 3243,
+  "BackScintAlR|nCapture": 1371,
+  "BackScintAlL|nCapture": 1253,
+  "LS_PMTGlassIn|nCapture": 293,
+  "LS_PMTGlassOut|nCapture": 188,
+  "World|Decay": 73,
+  "He3Cap_CFRP|neutronInelastic": 36,
+  "AmpGas|nCapture": 26,
+  "GasWindow_Al|nCapture": 12,
+  "He3Gas|nCapture": 11,
+  "LS_VesselCFRP|neutronInelastic": 5,
+  "LS_PMTBoreAir|neutronInelastic": 4,
+  "He3Cap_Al|Decay": 3,
+  "PCB_FR4_4|neutronInelastic": 2,
+  "PCB_FR4_2|neutronInelastic": 2,
+  "PCB_FR4_1|neutronInelastic": 1,
+  "PCB_FR4_3|neutronInelastic": 1,
+  "He3Cap_CFRP|Decay": 1,
+  "BackScintTapeL|neutronInelastic": 1
+ },
+ "skipped_files": []
+}

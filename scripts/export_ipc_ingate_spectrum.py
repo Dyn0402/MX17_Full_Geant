@@ -73,8 +73,11 @@ def ratio(E):
     return loglog(E, _E102, _X102) / loglog(E, _E103, _X103)
 
 
-def main():
-    d     = np.load(NPZ)
+def main(npz_path=NPZ, out_dir=OUT, geom_tag=""):
+    global OUT
+    OUT = out_dir
+    OUT.mkdir(parents=True, exist_ok=True)
+    d     = np.load(npz_path)
     edges = d["loge_edges"]
     h_np  = d["h_gas_np"].astype(float)
     n_ev  = float(d["n_events"]); n_pp = float(d["n_per_pulse"])
@@ -261,4 +264,10 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    import argparse
+    ap = argparse.ArgumentParser(description=__doc__)
+    ap.add_argument("--npz", default=str(NPZ),
+                    help="capture-scan npz (default: June sub-keV)")
+    ap.add_argument("--outdir", default=str(OUT))
+    a = ap.parse_args()
+    main(npz_path=Path(a.npz), out_dir=Path(a.outdir))

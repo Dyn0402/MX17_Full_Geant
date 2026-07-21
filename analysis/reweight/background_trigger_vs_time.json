@@ -1,0 +1,46 @@
+{
+ "description": "Thermal-gate background vs arrival time: general capture spectrum + singles(SiPM\u2227plastic) 2-arm trigger rate per plastic threshold. Shape from high-stats captures, normalisation from trigger_scan.json leg2.",
+ "sipm_threshold_MIP": 0.5,
+ "gate_ms": 1.0,
+ "flight_ms": 1.41,
+ "epithermal_spillin": "\u22480 (0 pair-tags in 5e8 epi neutrons)",
+ "capture_per_pulse": {
+  "al_dome": 56204.3668322669,
+  "scint_H": 64810.28683869315,
+  "total": 121014.65367096005
+ },
+ "ipc_signal_per_pulse": 6.578440349801357e-05,
+ "trigger_bg_per_pulse_vs_b": {
+  "0.1": {
+   "tags_per_pulse": 1.482264,
+   "mc_events": 346,
+   "S_over_B": 4.43810303009542e-05,
+   "shape": "Al+H"
+  },
+  "0.3": {
+   "tags_per_pulse": 0.509796,
+   "mc_events": 119,
+   "S_over_B": 0.00012904064272378278,
+   "shape": "Al+H"
+  },
+  "0.5": {
+   "tags_per_pulse": 0.17136,
+   "mc_events": 40,
+   "S_over_B": 0.0003838959121032538,
+   "shape": "Al-only"
+  },
+  "0.7": {
+   "tags_per_pulse": 0.06426,
+   "mc_events": 14,
+   "S_over_B": 0.0010237224322753435,
+   "shape": "Al-only"
+  },
+  "1.0": {
+   "tags_per_pulse": 0.008568000000000001,
+   "mc_events": 2,
+   "S_over_B": 0.007677918242065075,
+   "shape": "Al-only"
+  }
+ },
+ "note": "H-capture (2.22 MeV \u03b3) deposits <0.5 MIP in plastic, so for b>=0.5 MIP the surviving background is Al-dome-dominated. The exact b-dependent shape/normalisation at high b is MC-floor limited (few tags) \u2014 confirm with the biased/high-stats run."
+}
