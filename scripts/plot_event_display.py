@@ -20,12 +20,13 @@ COL = {"gamma": "#1f77b4", "e-": "#2ca02c", "e+": "#d62728",
 LW  = {"gamma": 1.3, "neutron": 1.3}
 
 def draw(ax, ia, ib, xlabel, ylabel):
-    # geometry bands for the -X arm (x negative). SiPM front/back ~ -314/-349,
-    # plastic ~ -414/-434 mm; Al capsule ~ 26 mm radius at origin.
-    ax.add_patch(Rectangle((-349, -260), 35, 520, color="#7fb3d5", alpha=0.35, zorder=0))
-    ax.add_patch(Rectangle((-434, -260), 20, 520, color="#e6866f", alpha=0.35, zorder=0))
-    ax.add_patch(Rectangle((-210, -260), 6, 520, color="0.75", alpha=0.4, zorder=0))
-    ax.add_patch(Circle((0, 0), 26, color="0.6", zorder=1))
+    H = 260
+    ax.add_patch(Circle((0, 0), 13, color="0.6", zorder=1))                              # capsule
+    ax.add_patch(Rectangle((-234, -H), 30, 2*H, color="#8fbf8f", alpha=0.30, zorder=0))  # MM drift gas (active)
+    ax.add_patch(Rectangle((-240, -H), 6, 2*H, color="#8a6d3b", alpha=0.65, zorder=0))   # MM PCB (solid scatterer)
+    ax.add_patch(Rectangle((-349, -H), 35, 2*H, color="#7fb3d5", alpha=0.12, zorder=0))  # SiPM container
+    ax.add_patch(Rectangle((-333, -H), 3, 2*H, color="#1f77b4", alpha=0.75, zorder=0))   # SiPM active 3 mm
+    ax.add_patch(Rectangle((-430, -H), 20, 2*H, color="#e6866f", alpha=0.45, zorder=0))  # plastic 2 cm
     for r in rows:
         p = r[3]
         ax.plot([float(r[ia]), float(r[ia + 3])], [float(r[ib]), float(r[ib + 3])],
@@ -37,12 +38,14 @@ def draw(ax, ia, ib, xlabel, ylabel):
             ax.plot(float(r[ia]), float(r[ib]), "*", ms=16, color="gold",
                     mec="k", mew=1, zorder=5)
             break
-    ax.text(-331, 275, "SiPM\nwall", ha="center", fontsize=8, color="#1f5f8b")
-    ax.text(-424, 275, "plastic", ha="center", fontsize=8, color="#a03a26")
-    ax.text(-207, 275, "MM", ha="center", fontsize=7.5, color="0.4")
-    ax.text(0, 40, "He-3 +\nAl capsule", ha="center", fontsize=7.5)
+    yl = H + 16
+    ax.text(-331, yl, "SiPM\n3 mm", ha="center", fontsize=7.5, color="#1f5f8b")
+    ax.text(-420, yl, "plastic\n2 cm", ha="center", fontsize=7.5, color="#a03a26")
+    ax.text(-219, yl, "MM drift\n30 mm", ha="center", fontsize=7, color="#3a6b3a")
+    ax.text(-237, -yl, "MM PCB\n(Cu/FR4)", ha="center", fontsize=7, color="#8a6d3b", va="top")
+    ax.text(0, 32, "He-3 +\nAl capsule", ha="center", fontsize=7.5)
     ax.set_xlabel(xlabel); ax.set_ylabel(ylabel)
-    ax.set_xlim(-480, 80); ax.grid(True, alpha=0.2)
+    ax.set_xlim(-460, 70); ax.set_ylim(-H-58, H+58); ax.grid(True, alpha=0.2)
 
 fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 6.2))
 draw(ax1, 5, 7, "x  [mm]   (−X arm ←)", "z  [mm]")     # top-down x-z
