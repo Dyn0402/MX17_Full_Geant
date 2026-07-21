@@ -38,6 +38,9 @@ a1.text(1.7, 0.75, "7.72 MeV γ", color="#1f77b4", fontsize=9)
 a1.text(3.9, 1.4, "Compton e−", color="#2ca02c", fontsize=8)
 a1.text(4.3, -0.95, "scattered γ", color="#1f77b4", fontsize=8)
 a1.text(5.75, 0.7, "Compton e−", color="#2ca02c", fontsize=8)
+a1.text(-1.1, 2.7, "84%", fontsize=34, fontweight="bold", color="#1f5f8b",
+        va="top", ha="left")
+a1.text(0.7, 2.55, "of Al legs", fontsize=10, color="#1f5f8b", va="top")
 a1.set_title("(1) Double Compton  —  the typical leg\n"
              "γ Compton-scatters in SiPM, the scattered γ Compton-scatters in plastic",
              fontsize=10)
@@ -57,6 +60,9 @@ a2.text(3.0, 0.9, "pair prod.\n(conv)", fontsize=8, ha="center")
 a2.text(4.75, 1.75, "e+", color="#d62728", fontsize=9)
 a2.text(4.85, -1.65, "e−", color="#2ca02c", fontsize=9)
 a2.text(6.2, 2.35, "brems γ", color="#1f77b4", fontsize=8)
+a2.text(-1.1, 2.7, "16%", fontsize=34, fontweight="bold", color="#a03a26",
+        va="top", ha="left")
+a2.text(0.7, 2.55, "of Al legs\n(higher energy)", fontsize=10, color="#a03a26", va="top")
 a2.set_title("(2) Pair production + EM shower  —  the high-energy leg\n"
              "7.72 MeV γ converts (mostly in the Al capsule); e± spray both detectors",
              fontsize=10)
