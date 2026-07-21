@@ -46,10 +46,10 @@ tmax = float(tc[tot > 1e-3 * tot.max()].max()) if tot.max() > 0 else tc.max()
 fig, axes = plt.subplots(3, 1, figsize=(8.6, 9.2), sharex=True)
 for ax, (label, key, col) in zip(axes, series):
     c = d[key].astype(float); r = rate(c); e = err(c)
-    m = (tc <= tmax) & (r > 0)
+    m = (tc <= tmax)
     ax.errorbar(tc[m], r[m], yerr=e[m], fmt="o-", ms=3, lw=1.4, color=col,
                 capsize=0, elinewidth=0.8)
-    ax.set_yscale("log")
+    ax.set_ylim(bottom=0)          # linear (per request)
     ax.set_ylabel(f"{label}\n[/pulse/ms]", fontsize=9)
     ax.grid(True, which="both", alpha=0.25)
     ax.text(0.985, 0.9, f"$\\int$ = {c.sum()*w:,.0f}/pulse",
