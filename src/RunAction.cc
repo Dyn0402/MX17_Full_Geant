@@ -24,6 +24,7 @@ struct RunAction::Impl {
     TFile* rootFile  = nullptr;
     TTree* hitTree   = nullptr;
     TTree* evtTree   = nullptr;
+    TTree* convTree  = nullptr;
 
     // HitTree branches
     Int_t    h_eventID, h_trackID, h_parentID, h_armID;
@@ -48,6 +49,20 @@ struct RunAction::Impl {
     Char_t   e_capture_proc[32];            // "nCapture" | "neutronInelastic" | ...
     Double_t e_cap_x, e_cap_y, e_cap_z;     // interaction position [mm]
     Double_t e_weight;                       // track weight at interaction (bias)
+
+    // ConvPairTree branches — one entry per γ→e⁺e⁻ conversion (neutron mode).
+    // The Al(n,γ) 7.72 MeV capture-γ pair-production background to X17/IPC.
+    Int_t    c_eventID;
+    Double_t c_weight;                       // event weight (bias); copied from EventData
+    Double_t c_neutron_E_eV;                 // primary neutron energy [eV]
+    Char_t   c_capture_vol[32];              // primary neutron's terminal volume
+    Double_t c_gamma_E;                      // converting γ energy [MeV]
+    Char_t   c_conv_vol[32];                 // volume of the conversion
+    Double_t c_vx, c_vy, c_vz;               // conversion vertex [mm]
+    Double_t c_em_ke, c_em_px, c_em_py, c_em_pz;
+    Double_t c_ep_ke, c_ep_px, c_ep_py, c_ep_pz;
+    Double_t c_openingAngle;                 // truth e+e- opening angle [deg]
+    Int_t    c_gamma_trackID;                // converting γ trackID (HitTree join)
 #else
     std::ofstream hitFile;
     std::ofstream evtFile;
@@ -126,6 +141,28 @@ void RunAction::BeginOfRunAction(const G4Run*) {
     fImpl->evtTree->Branch("cap_y",        &fImpl->e_cap_y);
     fImpl->evtTree->Branch("cap_z",        &fImpl->e_cap_z);
     fImpl->evtTree->Branch("weight",       &fImpl->e_weight);    // bias weight
+
+    // ── ConvPairTree ──────────────────────────────────────
+    fImpl->convTree = new TTree("ConvPairTree", "Per-conversion e+e- truth");
+    fImpl->convTree->Branch("eventID",      &fImpl->c_eventID);
+    fImpl->convTree->Branch("weight",       &fImpl->c_weight);
+    fImpl->convTree->Branch("neutron_E_eV", &fImpl->c_neutron_E_eV);
+    fImpl->convTree->Branch("capture_vol",  fImpl->c_capture_vol,  "capture_vol[32]/C");
+    fImpl->convTree->Branch("gamma_E",      &fImpl->c_gamma_E);    // MeV
+    fImpl->convTree->Branch("conv_vol",     fImpl->c_conv_vol,     "conv_vol[32]/C");
+    fImpl->convTree->Branch("vx",           &fImpl->c_vx);         // mm
+    fImpl->convTree->Branch("vy",           &fImpl->c_vy);
+    fImpl->convTree->Branch("vz",           &fImpl->c_vz);
+    fImpl->convTree->Branch("em_ke",        &fImpl->c_em_ke);
+    fImpl->convTree->Branch("em_px",        &fImpl->c_em_px);
+    fImpl->convTree->Branch("em_py",        &fImpl->c_em_py);
+    fImpl->convTree->Branch("em_pz",        &fImpl->c_em_pz);
+    fImpl->convTree->Branch("ep_ke",        &fImpl->c_ep_ke);
+    fImpl->convTree->Branch("ep_px",        &fImpl->c_ep_px);
+    fImpl->convTree->Branch("ep_py",        &fImpl->c_ep_py);
+    fImpl->convTree->Branch("ep_pz",        &fImpl->c_ep_pz);
+    fImpl->convTree->Branch("openingAngle", &fImpl->c_openingAngle);
+    fImpl->convTree->Branch("gamma_trackID", &fImpl->c_gamma_trackID);
 
     G4cout << "RunAction: Opened " << fname << G4endl;
 
@@ -226,6 +263,28 @@ void RunAction::RecordEvent(const EventData& data) {
         fImpl->h_gx   = h.gx; fImpl->h_gy = h.gy; fImpl->h_gz = h.gz;
         fImpl->h_px   = h.px; fImpl->h_py = h.py; fImpl->h_pz = h.pz;
         fImpl->hitTree->Fill();
+    }
+
+    // ConvPairTree — one entry per γ→e+e- conversion this event
+    if (fImpl->convTree) {
+        for (const auto& c : data.convPairs) {
+            fImpl->c_eventID      = data.eventID;
+            fImpl->c_weight       = data.weight;
+            fImpl->c_neutron_E_eV = data.neutron_E_eV;
+            std::strncpy(fImpl->c_capture_vol, data.capture_vol.c_str(), 31);
+            fImpl->c_capture_vol[31] = '\0';
+            fImpl->c_gamma_E      = c.gamma_E;
+            std::strncpy(fImpl->c_conv_vol, c.conv_vol, 31);
+            fImpl->c_conv_vol[31] = '\0';
+            fImpl->c_vx = c.vx; fImpl->c_vy = c.vy; fImpl->c_vz = c.vz;
+            fImpl->c_em_ke = c.em_ke;
+            fImpl->c_em_px = c.em_px; fImpl->c_em_py = c.em_py; fImpl->c_em_pz = c.em_pz;
+            fImpl->c_ep_ke = c.ep_ke;
+            fImpl->c_ep_px = c.ep_px; fImpl->c_ep_py = c.ep_py; fImpl->c_ep_pz = c.ep_pz;
+            fImpl->c_openingAngle = c.openingAngle_deg;
+            fImpl->c_gamma_trackID = c.gamma_trackID;
+            fImpl->convTree->Fill();
+        }
     }
 
 #else

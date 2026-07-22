@@ -28,6 +28,11 @@ private:
     // File is per-thread (this action is constructed per worker), opened lazily.
     void DumpTrajectoryStep(const G4Step* step);
 
+    // γ→e⁺e⁻ conversion truth: if this step is a `conv` on a gamma track,
+    // record the daughter e+/e- birth kinematics (opening angle etc.) into the
+    // event's convPairs.  Neutron mode only (Al capture-γ background).
+    void RecordConvPair(const G4Step* step);
+
     const SimConfig&                    fConfig;
     EventAction*                        fEventAction;
     const std::array<ArmAxes, 4>&       fArmAxes;

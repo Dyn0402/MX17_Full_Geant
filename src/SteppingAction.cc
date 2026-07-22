@@ -19,6 +19,9 @@
 
 #include <cstring>
 #include <sstream>
+#include <cmath>
+#include <algorithm>
+#include <vector>
 
 // Volumes scored — any step with edep > 0 in these gets a HitData entry
 const std::map<std::string, bool> SteppingAction::kScoredVolumes = {
@@ -47,6 +50,12 @@ SteppingAction::SteppingAction(const SimConfig& cfg, EventAction* eventAction,
 void SteppingAction::UserSteppingAction(const G4Step* step) {
     // ── Trajectory dump for event displays (--trajdump) ──────────────────
     if (fConfig.trajDump) DumpTrajectoryStep(step);
+
+    // ── γ→e⁺e⁻ pair-production truth (neutron mode) ──────────────────────
+    // The Al(n,γ) 7.72 MeV capture γ pair-produces in the Al capsule, faking
+    // the IPC/X17 e⁺e⁻ final state.  Record every conversion's birth kinematics
+    // (opening angle is the only surviving discriminant — no vertex, no calo).
+    if (fConfig.neutronMode) RecordConvPair(step);
 
     // ── Neutron terminal-interaction recording (neutron mode) ────────────
     // Record where the PRIMARY neutron track ENDS via a hadronic interaction:
@@ -190,4 +199,47 @@ void SteppingAction::DumpTrajectoryStep(const G4Step* step) {
               << pre->GetKineticEnergy()/MeV << ',' << post->GetKineticEnergy()/MeV << ','
               << vol << ',' << procName << ','
               << step->GetTotalEnergyDeposit()/MeV << '\n';
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// If this step is a photon `conv` (pair production), record the birth truth of
+// the e⁺e⁻ daughters.  This is the Al(n,γ) 7.72 MeV background to X17/IPC — the
+// same e⁺e⁻ final state — and the opening angle is the only surviving handle.
+void SteppingAction::RecordConvPair(const G4Step* step) {
+    const G4Track* trk = step->GetTrack();
+    if (trk->GetDefinition()->GetPDGEncoding() != 22) return;   // gammas only
+    const G4StepPoint* post = step->GetPostStepPoint();
+    const G4VProcess*  proc = post->GetProcessDefinedStep();
+    if (!proc || proc->GetProcessName() != "conv") return;
+
+    const std::vector<const G4Track*>* secs = step->GetSecondaryInCurrentStep();
+    if (!secs) return;
+
+    const G4Track *em = nullptr, *ep = nullptr;
+    for (const G4Track* s : *secs) {
+        const int pdg = s->GetDefinition()->GetPDGEncoding();
+        if      (pdg ==  11 && !em) em = s;   // e-
+        else if (pdg == -11 && !ep) ep = s;   // e+
+    }
+    if (!em || !ep) return;                    // need a full pair
+
+    ConvPair cp;
+    cp.gamma_E = step->GetPreStepPoint()->GetKineticEnergy() / MeV;
+    const G4ThreeVector v = post->GetPosition();
+    cp.vx = v.x() / mm; cp.vy = v.y() / mm; cp.vz = v.z() / mm;
+    const G4VPhysicalVolume* pv = step->GetPreStepPoint()->GetPhysicalVolume();
+    const std::string vol = pv ? pv->GetLogicalVolume()->GetName() : "OutOfWorld";
+    std::strncpy(cp.conv_vol, vol.c_str(), 31); cp.conv_vol[31] = '\0';
+
+    const G4ThreeVector dm = em->GetMomentumDirection();
+    const G4ThreeVector dp = ep->GetMomentumDirection();
+    cp.em_ke = em->GetKineticEnergy() / MeV;
+    cp.em_px = dm.x(); cp.em_py = dm.y(); cp.em_pz = dm.z();
+    cp.ep_ke = ep->GetKineticEnergy() / MeV;
+    cp.ep_px = dp.x(); cp.ep_py = dp.y(); cp.ep_pz = dp.z();
+    cp.gamma_trackID = trk->GetTrackID();
+    const double coso = std::max(-1.0, std::min(1.0, dm.dot(dp)));
+    cp.openingAngle_deg = std::acos(coso) / deg;
+
+    fEventAction->GetEventData().convPairs.push_back(cp);
 }
