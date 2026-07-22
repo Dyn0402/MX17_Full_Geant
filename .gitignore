@@ -82,3 +82,9 @@ output/
 *.fls
 *.fdb_latexmk
 *.synctex.gz
+
+# Large analysis data blobs (>50MB, exceed GitHub limits; regenerable on lxplus,
+# also mirrored on EOS /eos/experiment/ntof/data/x17/full_sim/convpair_out/)
+analysis/al_pair/plastic_opt_thermal.npz
+analysis/al_pair/plastic_opt_signal.npz
+analysis/al_pair/signal_openingangle.npz

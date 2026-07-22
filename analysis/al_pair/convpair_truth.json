@@ -1,0 +1,9 @@
+{
+  "n_events": 200000000,
+  "n_files": 100,
+  "w_pulse": 0.021462004049999997,
+  "pulses_day": 19290.0,
+  "flux_window_npulse": 4292400.81,
+  "al_pairs_per_day": 5949623.577307189,
+  "al_pairs_per_pulse": 308.43046020254997
+}
