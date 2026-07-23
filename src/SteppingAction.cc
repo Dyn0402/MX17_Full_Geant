@@ -152,6 +152,20 @@ void SteppingAction::UserSteppingAction(const G4Step* step) {
     h.py   = momDir.y();
     h.pz   = momDir.z();
 
+    // Birth truth of the depositing track (leg-mechanism characterization)
+    const G4LogicalVolume* vlv = track->GetLogicalVolumeAtVertex();
+    std::strncpy(h.origin_vol, vlv ? vlv->GetName().c_str() : "", 31);
+    h.origin_vol[31] = '\0';
+    const G4VProcess* cproc = track->GetCreatorProcess();
+    std::strncpy(h.origin_proc,
+                 cproc ? cproc->GetProcessName().c_str() : "primary", 31);
+    h.origin_proc[31] = '\0';
+    h.origin_ke = track->GetVertexKineticEnergy() / MeV;
+    const G4ThreeVector vpos = track->GetVertexPosition();
+    h.ox = vpos.x() / mm;
+    h.oy = vpos.y() / mm;
+    h.oz = vpos.z() / mm;
+
     fEventAction->GetEventData().hits.push_back(h);
 }
 

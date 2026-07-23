@@ -22,6 +22,14 @@ struct HitData {
     double px   = 0.0;  // momentum unit vector
     double py   = 0.0;
     double pz   = 0.0;
+    // Track birth truth (where/how the depositing track was created) — for
+    // the trigger-leg mechanism characterization.
+    char   origin_vol[32]  = {};  // logical volume at track vertex
+    char   origin_proc[32] = {};  // creator process ("primary" for primaries)
+    double origin_ke = 0.0;       // KE at creation [MeV]
+    double ox = 0.0;              // creation point, global [mm]
+    double oy = 0.0;
+    double oz = 0.0;
 
     void Clear() { std::memset(this, 0, sizeof(*this)); eventID = armID = trackID = parentID = -1; }
 };

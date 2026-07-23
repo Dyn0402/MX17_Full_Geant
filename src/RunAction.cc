@@ -33,6 +33,10 @@ struct RunAction::Impl {
     Double_t h_edep, h_ke, h_time;
     Double_t h_gx, h_gy, h_gz;
     Double_t h_px, h_py, h_pz;
+    Char_t   h_origin_vol[32];              // birth volume of the track
+    Char_t   h_origin_proc[32];             // creator process
+    Double_t h_origin_ke;                   // KE at creation [MeV]
+    Double_t h_ox, h_oy, h_oz;              // creation point [mm]
 
     // EventTree branches
     Int_t    e_eventID;
@@ -113,6 +117,12 @@ void RunAction::BeginOfRunAction(const G4Run*) {
     fImpl->hitTree->Branch("gx",       &fImpl->h_gx);
     fImpl->hitTree->Branch("gy",       &fImpl->h_gy);
     fImpl->hitTree->Branch("gz",       &fImpl->h_gz);
+    fImpl->hitTree->Branch("origin_vol",  fImpl->h_origin_vol,  "origin_vol[32]/C");
+    fImpl->hitTree->Branch("origin_proc", fImpl->h_origin_proc, "origin_proc[32]/C");
+    fImpl->hitTree->Branch("origin_ke",   &fImpl->h_origin_ke);
+    fImpl->hitTree->Branch("ox",       &fImpl->h_ox);
+    fImpl->hitTree->Branch("oy",       &fImpl->h_oy);
+    fImpl->hitTree->Branch("oz",       &fImpl->h_oz);
     fImpl->hitTree->Branch("px",       &fImpl->h_px);
     fImpl->hitTree->Branch("py",       &fImpl->h_py);
     fImpl->hitTree->Branch("pz",       &fImpl->h_pz);
@@ -262,6 +272,10 @@ void RunAction::RecordEvent(const EventData& data) {
         fImpl->h_time = h.time;
         fImpl->h_gx   = h.gx; fImpl->h_gy = h.gy; fImpl->h_gz = h.gz;
         fImpl->h_px   = h.px; fImpl->h_py = h.py; fImpl->h_pz = h.pz;
+        std::strncpy(fImpl->h_origin_vol,  h.origin_vol,  31); fImpl->h_origin_vol[31]  = '\0';
+        std::strncpy(fImpl->h_origin_proc, h.origin_proc, 31); fImpl->h_origin_proc[31] = '\0';
+        fImpl->h_origin_ke = h.origin_ke;
+        fImpl->h_ox = h.ox; fImpl->h_oy = h.oy; fImpl->h_oz = h.oz;
         fImpl->hitTree->Fill();
     }
 
