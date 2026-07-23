@@ -390,8 +390,11 @@ G4VPhysicalVolume* DetectorConstruction::Construct() {
         0.,0.,0.,0.,0.,0.,0.,0.,0.,0.,0.,0.,0.,0.
     };
 
+    G4Material* matVessel = fConfig.disableAlCapsule
+                                ? nist->FindOrBuildMaterial("G4_Galactic")
+                                : matAl;
     auto* alSolid = new G4Polycone("He3Cap_Al", 0, 360.*deg, nAl, zVessel, riAl, roAl);
-    auto* alLV    = new G4LogicalVolume(alSolid, matAl, "He3Cap_Al");
+    auto* alLV    = new G4LogicalVolume(alSolid, matVessel, "He3Cap_Al");
     alLV->SetVisAttributes(new G4VisAttributes(G4Color(0.7, 0.7, 0.7, 0.8)));
 
     // ── CFRP wrap polycone (Al outer + 0.9 mm) ───────────────

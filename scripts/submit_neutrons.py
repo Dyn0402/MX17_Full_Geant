@@ -60,6 +60,12 @@ def parse_args():
                    help="Scale ³He(n,γ) cross-section in the gas by FACTOR "
                         "(variance reduction; each capture weighted 1/FACTOR). "
                         "1.0 = analog/off. Recommend 1e5–1e6.")
+    p.add_argument("--no-al", action="store_true",
+                   help="Replace the He3 capsule Al vessel with vacuum "
+                        "(cross-check: does removing Al kill the background)")
+    p.add_argument("--gamma-cut-um", type=float, default=None, metavar="UM",
+                   help="Override the gamma production cut (default 100 um "
+                        "in PhysicsList)")
     p.add_argument("--gas",      default=GAS_DEFAULT)
     p.add_argument("--gamma-source", default=None, metavar="LIB_CSV",
                    help="Submit gamma-source (run C) instead of neutrons, "
@@ -83,16 +89,22 @@ def find_exe():
 
 
 def write_wrapper(job_dir: Path, exe: str, setup_script: str,
-                  gamma_lib, bias_ncapture: float = 1.0) -> Path:
+                  gamma_lib, bias_ncapture: float = 1.0,
+                  no_al: bool = False, gamma_cut_um: float = None) -> Path:
     """One wrapper for both modes; mode-specific args baked in."""
+    extra_args = ''
+    if no_al:
+        extra_args += ' --no-al'
+    if gamma_cut_um is not None:
+        extra_args += f' --gamma-cut-um {gamma_cut_um:g}'
     if gamma_lib:
-        mode_args = f'--gamma-source "{gamma_lib}"'
+        mode_args = f'--gamma-source "{gamma_lib}"{extra_args}'
         name = "run_gamma_job.sh"
     else:
         bias_arg = (f' --bias-ncapture {bias_ncapture:g}'
                     if bias_ncapture > 1.0 else '')
         mode_args = (f'--neutron "{FLUX_FILE}" "{PROFILE_FILE}" '
-                     f'--emin "$EMIN" --emax "$EMAX"{bias_arg}')
+                     f'--emin "$EMIN" --emax "$EMAX"{bias_arg}{extra_args}')
         name = "run_neutron_job.sh"
     wrapper = job_dir / name
     wrapper.write_text(textwrap.dedent(f"""\
@@ -201,6 +213,10 @@ def main():
     print(f"Jobs           : {args.njobs}")
     print(f"Events/job     : {args.nevents:,}")
     print(f"Total primaries: {args.njobs * args.nevents:,}")
+    if args.no_al:
+        print("Al vessel      : DISABLED (vacuum)")
+    if args.gamma_cut_um is not None:
+        print(f"Gamma cut      : {args.gamma_cut_um:g} um")
     if not gamma_mode:
         print(f"Energy window  : [{args.emin}, {args.emax}] eV")
         if args.bias_ncapture > 1.0:
@@ -220,7 +236,7 @@ def main():
         return
 
     wrapper  = write_wrapper(job_dir, exe, setup_script, args.gamma_source,
-                             args.bias_ncapture)
+                             args.bias_ncapture, args.no_al, args.gamma_cut_um)
     sub_file = write_submit(job_dir, wrapper, jobs, args.flavour)
     print(f"\nSubmit file : {sub_file}")
     ret = os.system(f"condor_submit {sub_file}")

@@ -21,7 +21,8 @@
 #include "G4GenericBiasingPhysics.hh"
 #include "G4SystemOfUnits.hh"
 
-PhysicsList::PhysicsList(double biasNCaptureFactor) : G4VModularPhysicsList() {
+PhysicsList::PhysicsList(double biasNCaptureFactor, double gammaCut_um)
+    : G4VModularPhysicsList(), fGammaCut_um(gammaCut_um) {
     SetVerboseLevel(0);
 
     // EM physics: option4 uses Livermore models below 100 keV for e-/gamma
@@ -72,5 +73,5 @@ void PhysicsList::SetCuts() {
     SetCutValue(1.0 * mm,  "proton");
     SetCutValue(10.0 * um, "e-");       // short cut for electrons -- capture delta rays
     SetCutValue(10.0 * um, "e+");
-    SetCutValue(0.1  * mm, "gamma");    // 0.1 mm photon production threshold
+    SetCutValue(fGammaCut_um * um, "gamma");  // default 100 um photon production threshold
 }

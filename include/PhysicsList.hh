@@ -12,7 +12,11 @@ public:
     // biasNCaptureFactor > 1 wraps the neutron nCapture process for occurrence
     // biasing (the region-scoped operator is attached to the gas in
     // DetectorConstruction::ConstructSDandField).
-    explicit PhysicsList(double biasNCaptureFactor = 1.0);
+    // gammaCut_um overrides the gamma production-cut set in SetCuts (default 100 um).
+    explicit PhysicsList(double biasNCaptureFactor = 1.0, double gammaCut_um = 100.0);
     ~PhysicsList() override = default;
     void SetCuts() override;
+
+private:
+    double fGammaCut_um;
 };

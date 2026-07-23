@@ -71,6 +71,16 @@ struct SimConfig {
     // ── Gas mixture ─────────────────────────────────────────
     std::string gas = "ArIso";
 
+    // ── Background cross-check toggles ──────────────────────
+    // Swap the He-3 capsule Al vessel for vacuum (G4_Galactic): isolates
+    // whether the Al(n,g) 7.72 MeV capture-gamma background actually drives
+    // the observed thermal-gate rate. Geometry (CFRP wrap, gas) is unchanged.
+    bool   disableAlCapsule = false;
+    // Gamma production-cut override (PhysicsList::SetCuts default 100 um).
+    // Sensitivity check: does the observed capture/pair physics depend on
+    // where Geant4 stops explicitly tracking secondary photons/electrons.
+    double gammaCut_um      = 100.0;
+
     // ── He-3 target dimensions (from STEP file: MASTINU X17 HPRV 00 01) ──
     // Gas bore: cylinder r=10 mm + r=10 mm hemispherical end caps (capsule shape)
     double he3_radius_cm      = 1.0;   // bore radius [cm]  (D=20 mm per STEP)

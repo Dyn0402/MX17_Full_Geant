@@ -37,6 +37,10 @@ static void PrintUsage() {
               << "                   Scale the ³He(n,γ) cross-section in the gas by <factor>\n"
               << "                   (variance reduction for the rare radiative channel; each\n"
               << "                   biased capture carries weight 1/factor). Neutron mode only.\n"
+              << "  --no-al          Replace the He3 capsule Al vessel with vacuum (cross-check:\n"
+              << "                   does removing Al kill the capture-gamma background).\n"
+              << "  --gamma-cut-um <um>\n"
+              << "                   Override the gamma production cut (default 100 um).\n"
               << "  --emin <eV>      Neutron sampling window minimum (default: 1e-3)\n"
               << "  --emax <eV>      Neutron sampling window maximum (default: 1000)\n"
               << "  --gamma-source <capture_lib.csv>\n"
@@ -90,6 +94,8 @@ int main(int argc, char** argv) {
             config.neutronProfileFile = argv[++i];
         }
         else if (a == "--bias-ncapture" && i+1<argc) config.biasNCaptureFactor = std::stod(argv[++i]);
+        else if (a == "--no-al")                     config.disableAlCapsule  = true;
+        else if (a == "--gamma-cut-um" && i+1<argc)  config.gammaCut_um       = std::stod(argv[++i]);
         else if (a == "--emin" && i+1<argc) config.neutronEmin_eV = std::stod(argv[++i]);
         else if (a == "--emax" && i+1<argc) config.neutronEmax_eV = std::stod(argv[++i]);
         else if (a == "--gamma-source" && i+1<argc) {
@@ -114,7 +120,9 @@ int main(int argc, char** argv) {
               << "  Events   : " << config.nEvents << "\n"
               << "  Output   : " << config.outFile << "\n"
               << "  Seed     : " << config.seed << "\n"
-              << "  Threads  : " << config.nThreads << "\n";
+              << "  Threads  : " << config.nThreads << "\n"
+              << "  Al vessel: " << (config.disableAlCapsule ? "DISABLED (vacuum)" : "enabled") << "\n"
+              << "  Gamma cut: " << config.gammaCut_um << " um\n";
     if (config.neutronMode)
         std::cout << "  Mode     : neutron beam  E=[" << config.neutronEmin_eV
                   << ", " << config.neutronEmax_eV << "] eV\n"
@@ -144,7 +152,7 @@ int main(int argc, char** argv) {
 
     auto* detCon = new DetectorConstruction(config);
     runManager->SetUserInitialization(detCon);
-    runManager->SetUserInitialization(new PhysicsList(config.biasNCaptureFactor));
+    runManager->SetUserInitialization(new PhysicsList(config.biasNCaptureFactor, config.gammaCut_um));
     runManager->SetUserInitialization(new ActionInitialization(config, detCon));
     runManager->Initialize();
 
