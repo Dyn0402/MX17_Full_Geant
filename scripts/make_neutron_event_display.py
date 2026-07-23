@@ -32,8 +32,9 @@ from matplotlib.collections import LineCollection
 from matplotlib.colors import LogNorm
 
 # ── Capsule cross-section, copied from DetectorConstruction.cc ────────────────
-# Polycones are built in a local frame then rotated rotateX(-90°), so the local
-# profile axis z -> world y and the profile radius -> world transverse (x,z).
+# Polycones are built in a local frame then rotated rotateX(+90°) (nose-first
+# mounting, 2026-07-23 audit), so the local profile axis z -> world y (tip at
+# y=-35 mm faces the beam) and the profile radius -> world transverse (x,z).
 # We draw the y-x section: world_y = z_profile[mm], world_x = ±r_profile[mm].
 Z_GAS = np.array([-30, -28, -26, -24, -22, -20, 20, 22, 24, 26, 28, 30.0])
 RO_GAS = np.array([0.001, 6.0, 8.0, 9.165, 9.798, 10.0,

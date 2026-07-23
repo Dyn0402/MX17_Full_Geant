@@ -319,7 +319,16 @@ G4VPhysicalVolume* DetectorConstruction::Construct() {
 
     // ── He-3 pressurised capsule at origin ───────────────────
     // Source geometry: STEP file "MASTINU X17 HPRV 00 01 (Cylinder D20 L40 mm)"
-    // Polycone axis = local Z; rotateX(-90°) maps local Z → world Y (beam axis).
+    // Polycone axis = local Z; the placement rotation maps local Z onto the
+    // world Y beam axis.  NOSE-FIRST mounting (2026-07-23 audit): rotateX(+90°)
+    // in the (passive) G4PVPlacement convention maps local +z → world +y, so
+    // the domed tip (local z = −35 mm) faces the incoming beam and the
+    // neck/valve (local z = +51 mm) points downstream.
+    // History: the geometry was valve-first from 2026-06-10 (86d557b) through
+    // 2026-07-23 — an inherited rotateX(-90°) from the symmetric-G4Tubs era.
+    // The audit confirmed the real capsule is mounted tip-into-beam; every
+    // result produced before this commit used valve-first (Al capture rate
+    // ×1.8 too high).  See docs/al_gamma_yield_check/RESULT.md.
     //
     // Gas bore:   r=10 mm cylinder (±20 mm) + lower hemispherical end +
     //             conical fill channel up the neck to the Ø1.5 mm valve bore
@@ -330,7 +339,7 @@ G4VPhysicalVolume* DetectorConstruction::Construct() {
     //  kept in sync with scripts/plot_geometry.py)
 
     auto* capRot = new G4RotationMatrix();
-    capRot->rotateX(-90.*deg);
+    capRot->rotateX(+90.*deg);   // nose-first: local +z (valve) → world +y
 
     // ── Gas cavity polycone (full STEP-derived interior) ─────
     // He-3 fills the r=10 mm bore (±20 mm), the lower hemispherical end,
@@ -424,6 +433,8 @@ G4VPhysicalVolume* DetectorConstruction::Construct() {
     G4cout << "  Beam axis    : +Y" << G4endl;
     G4cout << "  He-3 target  : r=10 mm bore, L=40 mm + dome + neck fill channel, 500 bar" << G4endl;
     G4cout << "  Al vessel    : STEP profile, z=-35 to +51 mm (tip to valve)" << G4endl;
+    G4cout << "  Capsule mount: NOSE-FIRST (tip at y=-35 mm faces the beam, "
+              "valve at y=+51 mm downstream)" << G4endl;
     G4cout << "  Gas mixture  : " << fConfig.gas
            << "  (rho=" << matGas->GetDensity()/(mg/cm3) << " mg/cm3)" << G4endl;
     G4cout << "  Stack depth  : " << stackDepth/cm << " cm" << G4endl;

@@ -20,7 +20,8 @@ COL = {"gamma": "#1f77b4", "e-": "#2ca02c", "e+": "#d62728",
 LW  = {"gamma": 1.3, "neutron": 1.3}
 
 # Real He-3 capsule STEP polycone (DetectorConstruction.cc). Axis = local z,
-# placed with rotateX so world_y = -z_local (beam axis Y). Al vessel + gas bore.
+# placed with rotateX(+90°) so world_y = +z_local (beam axis Y): nose-first
+# mounting since the 2026-07-23 audit. Al vessel + gas bore.
 ZVES = np.array([-35,-34,-33,-31,-29,-27,-25,-23,-21,-20,-15,-5,5,15,20,21,23,25,
                  27,29,31,33,35,37,39,40,45,50,51.0])
 ROAL = np.array([0,3.803,5.287,7.206,8.480,9.375,9.994,10.386,10.600,10.600,10.600,
@@ -32,9 +33,9 @@ ROGAS = np.array([0.001,6,8,9.165,9.798,10,10,10,10,10,10,9.798,9.165,8,6.299,4.
                   3.660,2.711,1.967,1.410,1.026,0.750,0.750])
 
 def draw_capsule(ax, proj):
-    if proj == "xy":       # side view: real longitudinal vessel profile (world_y=-z)
-        ax.fill_betweenx(-ZVES, -ROAL, ROAL, color="0.62", zorder=1)       # Al vessel
-        ax.fill_betweenx(-ZGAS, -ROGAS, ROGAS, color="#bfe3f5", zorder=1)  # He-3 gas bore
+    if proj == "xy":       # side view: real longitudinal vessel profile (world_y=+z)
+        ax.fill_betweenx(ZVES, -ROAL, ROAL, color="0.62", zorder=1)       # Al vessel
+        ax.fill_betweenx(ZGAS, -ROGAS, ROGAS, color="#bfe3f5", zorder=1)  # He-3 gas bore
     else:                  # top view: barrel silhouette (axis ⟂ page)
         ax.add_patch(Circle((0, 0), 10.6, color="0.62", zorder=1))
         ax.add_patch(Circle((0, 0), 10.0, color="#bfe3f5", zorder=1))
