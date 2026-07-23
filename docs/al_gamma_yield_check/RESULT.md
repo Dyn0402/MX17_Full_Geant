@@ -1,5 +1,17 @@
 # Al(n,γ) yield cross-check — RESULT
 
+> **RESOLVED 2026-07-23 (later the same day): the mounting audit says
+> NOSE-FIRST.** The open question raised in the TL;DR below is closed — the
+> sim was wrong, not the drawing. `src/DetectorConstruction.cc` now places the
+> capsule with `rotateX(+90°)` (commit `3d97437`), tip into the beam.
+> Confirmed in a 200k-neutron run: Al captures **7.81e-3/n → 4.76e-3/n**
+> (×0.61; the analytic nose-first prediction below was 4.5e-3/n) with 95% of
+> Al captures now in the nose (⟨y⟩ = −29.7 mm) instead of 68% in the valve
+> stem. **Every capture rate, leg rate and figure below is valve-first and
+> therefore stale**; the nose-first campaign (`*_2cm_nose` datasets on EOS)
+> is re-running. The *method* (single-pass vs G4, the +5% agreement, the
+> 21.3% 7.724 MeV branch, the leg-mechanism breakdown) is unaffected.
+
 **2026-07-23, Claude (Fable 5) for Dylan.** Task spec:
 `.claude/al_gamma_yield_check/HANDOFF.md`. Slides:
 `slides/al_capture_crosscheck_slides.pdf` (pedagogical walk-through with all

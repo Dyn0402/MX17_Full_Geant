@@ -1,6 +1,34 @@
 # MX17 simulation campaign — status & next steps
 
-**Updated:** 2026-07-19 · companion docs:
+**Updated:** 2026-07-23 · companion docs:
+
+---
+
+## ⚠ 2026-07-23: capsule flipped to NOSE-FIRST — all results below are stale
+
+The mounting audit confirmed the He-3 capsule sits **tip into the beam**; the
+sim had it valve-first from 2026-06-10 onward (inherited `rotateX(-90°)`,
+fixed in `3d97437`). Al-vessel captures drop **7.81e-3 → 4.76e-3 per neutron**
+(×0.61) and move from the valve stem to the nose, and the gas capture-depth
+profile flips with it — so the thermal-gate background, the Al-pair/leg rates,
+and the pair-vertex library all change. Every number on this page and in
+`docs/report/*`, `docs/al_gamma_yield_check/`, and the thermal/MeV notes was
+produced valve-first.
+
+Re-running (nose-first, new `*_2cm_nose` EOS dirs; the valve-first data is
+kept for comparison):
+
+| dataset | jobs × events | status |
+|---|---|---|
+| `neutrons_thermal_trig_2cm_nose` | 100 × 10M, 1 meV–2 eV | submitted 07-23 |
+| `neutrons_epi_trig_2cm_nose` | 50 × 10M, 2 eV–100 keV | submitted 07-23 |
+| `neutrons_thermal_bias1e5_2cm_nose` | 25 × 4M, ×1e5 ³He(n,γ) bias | submitted 07-23 |
+| `pairs_thermal_trig_2cm_nose` | 100 × 100k | waits on the new gas-vertex library |
+| `gsrc_mechanism_nose` | gamma-source, leg mechanism | waits on the new capture library |
+
+Not re-run (closed cross-checks): `--no-al` and the γ-cut scans — 100 µm is
+settled. The conv-pair study reuses `neutrons_thermal_trig_2cm_nose`, since
+the current build writes `ConvPairTree` in every run.
 
 ---
 
