@@ -1,0 +1,41 @@
+{
+ "n_events": 4000000,
+ "n_legs": 11181,
+ "topology": {
+  "same_track": 11137,
+  "same_parent": 44,
+  "independent": 0
+ },
+ "legs_per_gamma": 0.00279525,
+ "same_track_by_volproc": {
+  "Al capsule|compt": 3242,
+  "MM+PCB|compt": 2275,
+  "SiPM bar|compt": 2214,
+  "capsule CFRP|compt": 1034,
+  "Al capsule|conv": 886,
+  "MM+PCB|conv": 663,
+  "SiPM bar|conv": 297,
+  "air|compt": 261,
+  "capsule CFRP|conv": 130,
+  "air|conv": 39,
+  "plastic+wrap|compt": 30,
+  "Al capsule|primary": 22,
+  "SiPM bar|eIoni": 18,
+  "plastic+wrap|conv": 11,
+  "MM+PCB|eIoni": 5,
+  "MM+PCB|phot": 4,
+  "Al capsule|eIoni": 1,
+  "plastic+wrap|eIoni": 1,
+  "plastic+wrap|annihil": 1,
+  "air|eIoni": 1,
+  "Al capsule|phot": 1,
+  "capsule CFRP|eIoni": 1
+ },
+ "species": {
+  "e+": 1024,
+  "e-": 10090,
+  "gamma": 23
+ },
+ "both_pair_cross": 416,
+ "origin_ke_median": 4.494518230984248
+}

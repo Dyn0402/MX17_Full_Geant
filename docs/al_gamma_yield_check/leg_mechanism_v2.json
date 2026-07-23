@@ -1,0 +1,41 @@
+{
+ "legs": 1406,
+ "events": 1405,
+ "nev_tot": 30000000,
+ "same_track": 1384,
+ "same_parent": 5,
+ "independent": 17,
+ "st_with_driftgas": 714,
+ "st_pair_both_cross": 71,
+ "cap_He3Cap_Al": 1351,
+ "cap_other": {
+  "PCB_Cu_4": 7,
+  "World": 7,
+  "BackScintL": 4,
+  "Micromesh": 3,
+  "BackScintR": 2,
+  "PCB_FR4_3": 1,
+  "PCB_Cu_2": 4,
+  "PCB_Cu_1": 3,
+  "He3Cap_CFRP": 7,
+  "DriftCathode_Cu": 2,
+  "DriftGas": 1,
+  "BackScintAlR": 1,
+  "PCB_FR4_2": 1,
+  "LiqScint_1": 3,
+  "PCB_AlFoil": 3,
+  "PCB_Cu_3": 4,
+  "PCB_FR4_1": 1
+ },
+ "species_same_track": {
+  "e+": 101,
+  "e-": 1258,
+  "gamma": 24,
+  "neutron": 1
+ },
+ "ke_same_track_median": 3.944297022979957,
+ "ke_same_track_q": [
+  2.9925247767115346,
+  5.43986866212917
+ ]
+}
