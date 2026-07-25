@@ -1,6 +1,6 @@
 # MX17 simulation campaign — status & next steps
 
-**Updated:** 2026-07-24 · companion docs:
+**Updated:** 2026-07-25 · companion docs:
 
 ---
 
@@ -36,10 +36,31 @@ nose-first** (banner + Parts I–III, all figures regenerated):
   (leg-e⁻ crossing drift gas 52% → 58%).
 - Pairs acceptance/mass/angle refreshed (`analysis/pairs_nose/pairs_nose.pdf`).
 
-**Still stale (not yet re-run/re-analysed):** the >1 ms thermal-gate trigger
-scan (`analyze_trigger_thermal.py` → ε(X17) 3.1/10.8/15.5%), `docs/report/*`,
-and the thermal/MeV notes — the background *mix* shifts nose-first, so these
-need the full 100-file re-scan (data is on EOS, ready).
+**Thermal-gate trigger scan re-run nose-first (2026-07-25)** →
+`analysis/trigger_thermal_nose/` (20 signal + 60 thermal + 50 epi files; same
+mu- MIP calibration via new `--mip-mev`, so directly comparable). **Signal
+efficiency AND background both drop ~proportionally, so the statistical
+sensitivity is ~unchanged:**
+| trigger | ε(X17) valve→nose | pair-tag bg valve→nose |
+|---|---|---|
+| 2 full legs | 3.1% → **2.2%** (×0.70) | 1.9 → 1.1 /pulse |
+| 2 SiPM + ≥1 confirm | 10.9% → **8.3%** (×0.76) | 21 → 11 /pulse |
+| SiPM-only | 15.5% → **12.3%** (×0.79) | 68 → 35 /pulse |
+ε drops ×0.75 (upstream pair vertices → lower 2-arm acceptance), bg drops
+×0.52 (Al capture ×0.577); FOM ε/√bg is **+2%** (0.0385→0.0393 at the confirm
+point). Net: the nose-first flip is **~neutral** for the significance
+projection (which is IPC-shape-systematic-dominated anyway).
+
+Also new: **trigger provenance** (`analysis/trigger_provenance/`, 2026-07-24) —
+what fires the trigger vs the Micromegas. 122 legs/pulse @ 0.5 MIP, 97% Al γ;
+MM tags 61% of the background vs 100% of signal (~39% MM-blind, born in the
+SiPM bar/PCB downstream of the mesh).
+
+**Still stale:** `docs/report/*` and the thermal/MeV notes (numbers, not yet
+propagated); the July/LS3 template-fit significance projection should be
+re-run with the nose-first ε + bg above (expected ~neutral). Open cleanup: a
+proper 2 cm plastic muon MIP calibration (trigger scan uses 4.33 MeV/2.5 cm,
+leg analysis uses 3.47 MeV/2 cm — reconcile).
 
 Not re-run (closed cross-checks): `--no-al` and the γ-cut scans — 100 µm is
 settled. The conv-pair study reuses `neutrons_thermal_trig_2cm_nose`, since

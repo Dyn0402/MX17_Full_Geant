@@ -230,12 +230,32 @@ def scan(obs, mip_sipm, mip_plastic):
     return n1, n2, n2m, n2s, n2p
 
 
+def _sig_digest(fp):
+    obs, aux, nev = digest_file(fp, truth=True)
+    with uproot.open(fp) as f:
+        ty = f["EventTree"]["event_type"].array(library="np")
+    return (obs, aux.get("event_type", np.array([], np.int32)),
+            aux.get("ke_min", np.array([])),
+            int((ty == 0).sum()), int((ty == 1).sum()))
+
+
+def _bg_digest(fp_gate):
+    fp, gate = fp_gate
+    obs, _, nev = digest_file(fp, gate=gate)
+    return obs, nev
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--signal",  nargs="+", required=True)
     ap.add_argument("--thermal", nargs="+", required=True)
     ap.add_argument("--epi",     nargs="+", default=[])
-    ap.add_argument("--mip",     nargs="+", required=True)
+    ap.add_argument("--mip",     nargs="+", default=[])
+    ap.add_argument("--mip-mev", default=None,
+                    help="explicit 'sipm,plastic[,ls]' MeV per MIP; skips --mip. "
+                         "Geometry-invariant to the capsule flip, so the "
+                         "valve-first mu- values stay valid nose-first.")
+    ap.add_argument("--workers", type=int, default=1)
     ap.add_argument("-o", "--outdir", default="analysis/trigger_thermal")
     ap.add_argument("--max-files", type=int, default=None)
     args = ap.parse_args()
@@ -246,51 +266,53 @@ def main():
     sig_files = collect(args.signal)[: args.max_files]
     th_files  = collect(args.thermal)[: args.max_files]
     ep_files  = collect(args.epi)[: args.max_files]
-    mip_files = collect(args.mip)
-    for name, fl in (("signal", sig_files), ("thermal", th_files),
-                     ("mip", mip_files)):
+    for name, fl in (("signal", sig_files), ("thermal", th_files)):
         if not fl:
             print(f"ERROR: no {name} files", file=sys.stderr)
             sys.exit(1)
 
-    print(f"MIP calibration from {len(mip_files)} file(s) ...")
-    mips = mip_scale(mip_files)
-    if not mips["sipm"] or not mips["plastic"]:
-        print("ERROR: MIP MPV extraction failed", file=sys.stderr)
-        sys.exit(1)
+    if args.mip_mev:
+        v = [float(x) for x in args.mip_mev.split(",")]
+        mips = {"sipm": v[0], "plastic": v[1], "ls": v[2] if len(v) > 2 else None}
+        print("MIP calibration (explicit --mip-mev)")
+    else:
+        mip_files = collect(args.mip)
+        if not mip_files:
+            print("ERROR: no --mip files and no --mip-mev given", file=sys.stderr)
+            sys.exit(1)
+        print(f"MIP calibration from {len(mip_files)} file(s) ...")
+        mips = mip_scale(mip_files)
+        if not mips["sipm"] or not mips["plastic"]:
+            print("ERROR: MIP MPV extraction failed", file=sys.stderr)
+            sys.exit(1)
     print(f"  1 MIP = SiPM bar {mips['sipm']*1e3:.0f} keV | "
           f"plastic {mips['plastic']:.2f} MeV | "
           f"LS {mips['ls'] if mips['ls'] else 'n/a'} MeV")
 
+    from concurrent.futures import ProcessPoolExecutor
+
+    def pmap(fn, items):
+        if args.workers > 1 and len(items) > 1:
+            with ProcessPoolExecutor(max_workers=args.workers) as pool:
+                return list(pool.map(fn, items))
+        return [fn(x) for x in items]
+
     # ── Signal ────────────────────────────────────────────────────────────
-    sig_obs, sig_type, sig_kemin = [], [], []
-    n_gen = {0: 0, 1: 0}
-    for fp in sig_files:
-        obs, aux, nev = digest_file(fp, truth=True)
-        sig_obs.append(obs)
-        sig_type.append(aux.get("event_type", np.array([], np.int32)))
-        sig_kemin.append(aux.get("ke_min", np.array([])))
-        with uproot.open(fp) as f:
-            ty = f["EventTree"].arrays(["event_type"], library="np")["event_type"]
-        n_gen[0] += int((ty == 0).sum())
-        n_gen[1] += int((ty == 1).sum())
-    sig_obs   = np.concatenate(sig_obs)
-    sig_type  = np.concatenate(sig_type)
-    sig_kemin = np.concatenate(sig_kemin)
+    sr = pmap(_sig_digest, sig_files)
+    sig_obs   = np.concatenate([r[0] for r in sr])
+    sig_type  = np.concatenate([r[1] for r in sr])
+    sig_kemin = np.concatenate([r[2] for r in sr])
+    n_gen = {0: sum(r[3] for r in sr), 1: sum(r[4] for r in sr)}
     print(f"Signal: {n_gen[0]:,} X17 + {n_gen[1]:,} IPC generated; "
           f"{len(sig_obs):,} events with hits")
 
     # ── Backgrounds ───────────────────────────────────────────────────────
     def run_bg(files, gate, label):
-        parts, n_tot = [], 0
-        for i, fp in enumerate(files):
-            obs, _, nev = digest_file(fp, gate=gate)
-            parts.append(obs)
-            n_tot += nev
-            if (i + 1) % 20 == 0:
-                print(f"  {label}: {i+1}/{len(files)} files")
-        obs = (np.concatenate(parts) if parts
-               else np.zeros((0, 4, 3), np.float32))
+        if not files:
+            return np.zeros((0, 4, 3), np.float32), 0
+        rr = pmap(_bg_digest, [(fp, gate) for fp in files])
+        obs = np.concatenate([r[0] for r in rr])
+        n_tot = sum(r[1] for r in rr)
         print(f"{label}: {n_tot:,} neutrons, {len(obs):,} events with "
               f"in-gate detector hits")
         return obs, n_tot
