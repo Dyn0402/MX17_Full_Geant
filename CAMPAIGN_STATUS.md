@@ -1,30 +1,45 @@
 # MX17 simulation campaign — status & next steps
 
-**Updated:** 2026-07-23 · companion docs:
+**Updated:** 2026-07-24 · companion docs:
 
 ---
 
-## ⚠ 2026-07-23: capsule flipped to NOSE-FIRST — all results below are stale
+## 2026-07-24: NOSE-FIRST re-run + Al-pair/mechanism re-analysis DONE
 
 The mounting audit confirmed the He-3 capsule sits **tip into the beam**; the
 sim had it valve-first from 2026-06-10 onward (inherited `rotateX(-90°)`,
-fixed in `3d97437`). Al-vessel captures drop **7.81e-3 → 4.76e-3 per neutron**
-(×0.61) and move from the valve stem to the nose, and the gas capture-depth
-profile flips with it — so the thermal-gate background, the Al-pair/leg rates,
-and the pair-vertex library all change. Every number on this page and in
-`docs/report/*`, `docs/al_gamma_yield_check/`, and the thermal/MeV notes was
-produced valve-first.
+fixed in `3d97437`). The full `*_2cm_nose` campaign has **completed and been
+re-analysed** (2026-07-24). Al-vessel captures drop **7.806e-3 → 4.507e-3 per
+neutron** (**×0.577**, 40M-neutron measurement, was estimated ×0.61 from a
+200k scratch run), the capture zone moved from the valve stem into the nose,
+and the pair-vertex library shifted upstream with it.
 
-Re-running (nose-first, new `*_2cm_nose` EOS dirs; the valve-first data is
-kept for comparison):
+**Nose-first datasets — all complete (200/200 jobs exited 0, no holds):**
 
 | dataset | jobs × events | status |
 |---|---|---|
-| `neutrons_thermal_trig_2cm_nose` | 100 × 10M, 1 meV–2 eV | submitted 07-23 |
-| `neutrons_epi_trig_2cm_nose` | 50 × 10M, 2 eV–100 keV | submitted 07-23 |
-| `neutrons_thermal_bias1e5_2cm_nose` | 25 × 4M, ×1e5 ³He(n,γ) bias | submitted 07-23 |
-| `pairs_thermal_trig_2cm_nose` | 100 × 100k | waits on the new gas-vertex library |
-| `gsrc_mechanism_nose` | gamma-source, leg mechanism | waits on the new capture library |
+| `neutrons_thermal_trig_2cm_nose` | 100 × 10M, 1 meV–2 eV | ✅ done 07-23 |
+| `neutrons_epi_trig_2cm_nose` | 50 × 10M, 2 eV–100 keV | ✅ done 07-23 |
+| `neutrons_thermal_bias1e5_2cm_nose` | 25 × 4M, ×1e5 ³He(n,γ) bias | ✅ done 07-23 |
+| `pairs_thermal_trig_2cm_nose` | 100 × 100k (10⁷) | ✅ done 07-24 |
+| `gsrc_mechanism_nose` | 100 × 100k (10⁷ γ) | ✅ done 07-24 |
+
+Vertex/capture libraries in `full_sim/libs_nose/` (`capture_lib_nose.csv`
+189,570 Al/CFRP vertices; `gas_vertex_nose.csv` 500k He3Gas vertices).
+
+**Re-analysis done → `docs/al_gamma_yield_check/RESULT.md` refreshed to
+nose-first** (banner + Parts I–III, all figures regenerated):
+- Al 7.724 MeV γ: 4,121/pulse = 7.95×10⁷/day.
+- **Al-attributable trigger legs ~112/pulse** (was 199, ×0.563) — cross-validated
+  by neutron-mode (1,616 legs/6×10⁷) and γ-source closure (59.5/pulse ×1.9).
+- Mechanism invariant under the flip; MM-track veto handle **improves**
+  (leg-e⁻ crossing drift gas 52% → 58%).
+- Pairs acceptance/mass/angle refreshed (`analysis/pairs_nose/pairs_nose.pdf`).
+
+**Still stale (not yet re-run/re-analysed):** the >1 ms thermal-gate trigger
+scan (`analyze_trigger_thermal.py` → ε(X17) 3.1/10.8/15.5%), `docs/report/*`,
+and the thermal/MeV notes — the background *mix* shifts nose-first, so these
+need the full 100-file re-scan (data is on EOS, ready).
 
 Not re-run (closed cross-checks): `--no-al` and the γ-cut scans — 100 µm is
 settled. The conv-pair study reuses `neutrons_thermal_trig_2cm_nose`, since

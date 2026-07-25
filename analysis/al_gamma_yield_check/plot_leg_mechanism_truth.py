@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """Corrected leg-mechanism schematic + truth breakdown figures.
 
-Inputs (docs/al_gamma_yield_check/):
-  gsrc_mechanism.json / .npz  — gamma-source truth run (origin_vol/proc per leg,
-                                4e6 single-gamma events, 11,181 legs)
-  leg_mechanism_v2.json       — neutron-mode classification (real cascade mix;
-                                topology + MM-crossing fractions)
+Inputs (docs/al_gamma_yield_check/):  [NOSE-FIRST, 2026-07-24]
+  gsrc_mechanism_nose.json / .npz  — gamma-source truth run (origin_vol/proc per
+                                leg, 1e7 single-gamma events, 27,226 legs)
+  leg_mechanism_nose.json     — neutron-mode classification (real cascade mix;
+                                topology + MM-crossing fractions; 6e7 n, 1616 legs)
 
 Outputs figs/leg_mechanism_corrected.pdf  (4-panel schematic w/ fractions)
         figs/leg_origin_breakdown.pdf     (vol x proc bars, birth-r map,
@@ -26,9 +26,9 @@ BLUE, ORANGE, AQUA, GRAY = "#2a78d6", "#eb6834", "#1baf7a", "#6b6a66"
 RED, GREEN = "#e34948", "#008300"
 plt.rcParams.update({"font.size": 10, "figure.dpi": 150})
 
-g = json.load(open(OUT / "gsrc_mechanism.json"))
-n = json.load(open(OUT / "leg_mechanism_v2.json"))
-d = np.load(OUT / "gsrc_mechanism.npz")
+g = json.load(open(OUT / "gsrc_mechanism_nose.json"))
+n = json.load(open(OUT / "leg_mechanism_nose.json"))
+d = np.load(OUT / "gsrc_mechanism_nose.npz")
 
 # ── fractions ───────────────────────────────────────────────────────────────
 vp = g["same_track_by_volproc"]
@@ -147,8 +147,8 @@ arrow(ax, 0.567, 0.683, 0.63, 0.90, GREEN, lw=1.2)
 arrow(ax, 0.775, 0.328, 0.85, 0.56, GREEN, lw=1.2)
 
 fig.suptitle("How an Al capture $\\gamma$ makes a SiPM$\\wedge$plastic leg — "
-             "Geant4 truth (topology: neutron run, 1406 legs; "
-             "origins: $\\gamma$-source truth run, 11,181 legs)", fontsize=11.5)
+             "Geant4 truth (topology: neutron run, 1616 legs; "
+             "origins: $\\gamma$-source truth run, 27,226 legs)", fontsize=11.5)
 fig.tight_layout(rect=(0, 0, 1, 0.94))
 fig.savefig(FIG / "leg_mechanism_corrected.pdf")
 plt.close(fig)
@@ -193,7 +193,7 @@ for E, ng in zip(lines, ngen):
 ax3.errorbar(lines, np.array(eff) * 1e3, yerr=np.array(err) * 1e3, fmt="o",
              ms=4, color=BLUE, lw=1)
 ax3.axvline(7.724, color=GRAY, lw=0.6, ls=":")
-ax3.text(7.6, 0.5, "$\\gamma_0$ 7.724:\n47% of legs", fontsize=8, ha="right",
+ax3.text(7.6, 0.5, "$\\gamma_0$ 7.724:\n49% of legs", fontsize=8, ha="right",
          color=GRAY)
 ax3.set_xlabel("cascade line energy [MeV]", fontsize=9)
 ax3.set_ylabel("legs per emitted $\\gamma$  [$\\times10^{-3}$]")

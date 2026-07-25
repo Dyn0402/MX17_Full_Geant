@@ -1,8 +1,11 @@
 #!/usr/bin/env python3
 """Reconciliation ladder: Alberto's single-arm coincidence estimate (~9/pulse)
-vs the sim's Al-attributable legs (199/pulse). Steps apply, in order:
-capture/intensity truth, full 4-arm aperture, all cascade lines >2.5 MeV,
-and the measured single-electron punch-through mechanism.
+vs the sim's Al-attributable legs (112/pulse, NOSE-FIRST 2026-07-24). Steps
+apply, in order: capture/intensity truth, full 4-arm aperture, all cascade
+lines >2.5 MeV, and the measured single-electron punch-through mechanism.
+The nose-first flip lowers the Al capture rate x0.577, so the whole ladder
+above Alberto's fixed anchor drops by that factor (mechanism per-capture is
+unchanged); the endpoint 199 -> 112/pulse.
 """
 from pathlib import Path
 import numpy as np
@@ -18,12 +21,12 @@ plt.rcParams.update({"font.size": 11, "axes.spines.top": False,
 
 rows = [
     ("Alberto: $\\gamma_0\\times$ 4.5% $\\Omega$ $\\times$ 1% Compton", 8.8, GRAY, ""),
-    ("true captures + 21.3% line intensity", 3.2, ORANGE, "$\\times$0.36"),
-    ("full 4-arm plastic aperture (18.5%)", 13.0, GRAY, "$\\times$4.1"),
-    ("measured response to a 7.72 MeV $\\gamma$ (0.54%/$\\gamma$)", 37.8, GRAY, "$\\times$2.9"),
-    ("+ other cascade lines (2.6--7.7 MeV, $\\gamma$-source run)", 105.7, GRAY, "$\\times$2.8"),
-    ("+ full G4NDL cascade (multiplicity + co-adding)", 199., BLUE, "$\\times$1.9"),
-    ("Geant4 legs, Al$-$noAl (truth)", 198.8, AQUA, ""),
+    ("true captures (nose) + 21.3% line intensity", 1.8, ORANGE, "$\\times$0.21"),
+    ("full 4-arm plastic aperture (18.5%)", 7.4, GRAY, "$\\times$4.1"),
+    ("measured response to a 7.72 MeV $\\gamma$ (0.58%/$\\gamma$)", 21.4, GRAY, "$\\times$2.9"),
+    ("+ other cascade lines (2.6--7.7 MeV, $\\gamma$-source run)", 59.5, GRAY, "$\\times$2.8"),
+    ("+ full G4NDL cascade (multiplicity + co-adding)", 112., BLUE, "$\\times$1.9"),
+    ("Geant4 legs, Al$-$noAl (truth)", 112.0, AQUA, ""),
 ]
 fig, ax = plt.subplots(figsize=(8.8, 3.5))
 ypos = np.arange(len(rows))[::-1]

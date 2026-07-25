@@ -1,16 +1,31 @@
 # Al(n,γ) yield cross-check — RESULT
 
-> **RESOLVED 2026-07-23 (later the same day): the mounting audit says
-> NOSE-FIRST.** The open question raised in the TL;DR below is closed — the
-> sim was wrong, not the drawing. `src/DetectorConstruction.cc` now places the
-> capsule with `rotateX(+90°)` (commit `3d97437`), tip into the beam.
-> Confirmed in a 200k-neutron run: Al captures **7.81e-3/n → 4.76e-3/n**
-> (×0.61; the analytic nose-first prediction below was 4.5e-3/n) with 95% of
-> Al captures now in the nose (⟨y⟩ = −29.7 mm) instead of 68% in the valve
-> stem. **Every capture rate, leg rate and figure below is valve-first and
-> therefore stale**; the nose-first campaign (`*_2cm_nose` datasets on EOS)
-> is re-running. The *method* (single-pass vs G4, the +5% agreement, the
-> 21.3% 7.724 MeV branch, the leg-mechanism breakdown) is unaffected.
+> **NOSE-FIRST — FINAL (2026-07-24).** The mounting audit (2026-07-23)
+> confirmed the capsule sits tip-into-beam; the sim was flipped to
+> `rotateX(+90°)` (commit `3d97437`) and the full `*_2cm_nose` campaign has
+> re-run and been re-analysed (thermal + epithermal neutrons, ×10⁵-biased
+> captures, 10⁷ X17+IPC pairs, 10⁷ γ-source cascades). **Headline nose-first
+> results — the figures and the Part II/III numbers below are refreshed to
+> these:**
+> - **Al(n,γ) capture 4.507×10⁻³/n** (40M neutrons, ±0.24%) = **19,346/pulse =
+>   3.73×10⁸/day** — **×0.577** of valve-first (7.806×10⁻³), matching the
+>   analytic nose-first single-pass prediction (4.5×10⁻³) to 0.2%. ~95% of
+>   captures now in the nose (⟨y⟩ ≈ −29.7 mm) vs 68% in the valve stem before.
+> - **7.724 MeV γ** (21.3% branch): **4,121/pulse = 7.95×10⁷/day.**
+> - **Al-attributable trigger legs ~112/pulse** (was 199; **×0.563**), by two
+>   independent routes agreeing to 0.2%: direct neutron-mode (1,616 legs / 6×10⁷ n)
+>   and γ-source closure (2.723×10⁻³ legs/γ × 1.13 γ/capture × 19,346).
+> - **The mechanism is invariant under the flip** (per-γ leg efficiency −2.6%):
+>   topology (98% one crossing e⁻), birth-volume mix, species, and KE all move
+>   ≤1%. One genuine gain: **58% of leg electrons now also cross the MM drift
+>   gas** (was 52%) — a stronger MM-track veto handle, because the capture zone
+>   sits further upstream.
+>
+> The Part I analytic cross-check (method, +5% G4 agreement, 21.3% branch) is
+> unchanged and its nose-first single-pass row is now confirmed by Geant4.
+> Valve-first data is retained on EOS (`*_2cm`) and in git history for
+> comparison. Refreshed inputs: `gsrc_mechanism_nose.json/.npz`,
+> `leg_mechanism_nose.json`, `analysis/pairs_nose/pairs_nose.pdf`.
 
 **2026-07-23, Claude (Fable 5) for Dylan.** Task spec:
 `.claude/al_gamma_yield_check/HANDOFF.md`. Slides:
@@ -39,21 +54,34 @@ is real, fix the rotation sign and re-run the Al-pair chain).
 
 ## The comparison (window [1 meV, 2 eV] unless stated)
 
+The G4 column below is the original **valve-first** methodology cross-check;
+the nose-first Geant4 number (19,346/pulse, confirming the single-pass
+nose-first row) is in the paragraph beneath. "ratio to G4" is vs valve-first.
+
 | estimate | captures/pulse | /day | ratio to G4 |
 |---|---|---|---|
 | thin disk, 0.6 mm wall, σ_th, <1 eV | 2,880 | 5.6e7 | **0.09×** |
 | thin disk, 5.5 mm nose, σ_th, <1 eV | 26,396 | 5.1e8 | 0.80× |
 | thin disk, 13.24 g over face, σ_th, <1 eV | 66,696 | 1.3e9 | **2.02×** |
-| single-pass, nose-first, <1 eV | 19,082 | 3.7e8 | 0.58× |
-| **single-pass, valve-first (as built), <1 eV** | **34,685** | 6.7e8 | **1.05×** |
-| Geant4, <1 eV | 33,021 | 6.4e8 | 1 |
-| **single-pass, valve-first, full window** | **35,181** | **6.79e8** | **1.05×** |
-| **Geant4, full window** | **33,508** | **6.46e8** | **1** |
+| **single-pass, nose-first (final), <1 eV** | **19,082** | **3.7e8** | **0.58×** |
+| single-pass, valve-first (as-was), <1 eV | 34,685 | 6.7e8 | 1.05× |
+| Geant4 valve-first, <1 eV | 33,021 | 6.4e8 | 1 |
+| single-pass, valve-first, full window | 35,181 | 6.79e8 | 1.05× |
+| Geant4 valve-first, full window | 33,508 | 6.46e8 | 1 |
+| **Geant4 nose-first, full window** | **19,346** | **3.73e8** | **0.577×** |
 
-Geant4 side: 20 files × 10⁷ n of `neutrons_thermal_trig_2cm` (analog),
+Geant4 side (**valve-first, as-was**): 20 files × 10⁷ n of
+`neutrons_thermal_trig_2cm` (analog),
 `capture_vol=="He3Cap_Al" && capture_proc=="nCapture"`: 1,561,193/2×10⁸
 = 7.806×10⁻³ per neutron (±0.08% stat). 98.55% of those below 1 eV.
 Normalization: ×4.2924×10⁶ n/pulse, ×1.929×10⁴ pulses/day.
+
+**Nose-first confirmation (2026-07-24):** the flipped-capsule dataset
+`neutrons_thermal_trig_2cm_nose` (40M n) gives Al **4.507×10⁻³/n** (±0.24%),
+= 19,346/pulse = 3.73×10⁸/day, i.e. **×0.577** of valve-first — landing on
+the analytic single-pass nose-first prediction (19,082/pulse, 3.7×10⁸/day)
+to 0.2%. The single-pass method therefore reproduces Geant4 in *both*
+orientations; the whole Part I methodology below stands.
 
 Capture location, Geant4 vs analytic single-pass (fraction of Al captures):
 valve stem (z∈[40,51]) 68.3% | 64.4%; shoulder (21–40) 28.5% | 30.8%;
@@ -117,38 +145,52 @@ Extending the window to <1 keV adds only +3.6% (Φ×1.7, σ~1/v dies):
 - `caps_20files.root` — Geant4 capture histograms (macro on lxplus:
   `~/al_check/count_captures.C`, EventTree over 20 files).
 - `slides/al_capture_crosscheck_slides.tex|pdf` — the presentation.
+- **Nose-first (2026-07-24) refreshed inputs/outputs** (EOS datasets
+  `*_2cm_nose`, libraries in `full_sim/libs_nose/`): `gsrc_mechanism_nose.json`
+  / `.npz` (γ-source, 10⁷ γ, 27,226 legs), `leg_mechanism_nose.json` (neutron
+  mode, 6×10⁷ n, 1,616 legs), `analysis/pairs_nose/pairs_nose.pdf` (X17+IPC
+  pair acceptance/mass/angle, 10⁷ events). Figures `figs/*.pdf` regenerated
+  from these via `plot_leg_mechanism_truth.py`, `plot_al_pair_danger.py`,
+  `plot_coincidence_ladder.py`.
 
 ## Part II — single-arm coincidences (Alberto's email, 2026-07-23)
 
 **TL;DR: both calculations are internally fine; they differ by four
 compounding assumptions, and the plastic material is not one of them.**
-The sim's ~50 legs/arm/pulse (199 arm-summed, Al−noAl) is confirmed and
-mechanistically understood; Alberto's ~9/pulse follows from his stated
-assumptions (one-arm solid angle, γ₀ only, 1% "Compton in the detector").
+The sim's ~28 legs/arm/pulse (**112 arm-summed, Al−noAl, nose-first**; was
+199 valve-first) is confirmed and mechanistically understood; Alberto's
+~9/pulse follows from his stated assumptions (one-arm solid angle, γ₀ only,
+1% "Compton in the detector").
 
-**Capture/γ level — we agree to a understood factor ~2.** Alberto's
-72,787 captures/pulse (<1 eV; 13 g thin disk at ~0.0923 at/b) is 2.2× our
-Geant4 truth (33,021) — bin-by-bin ratio 2.2–2.4 with the same spectral
-shape; that is exactly the "mass-smeared thin disk" rung of the Part I
-ladder. His γ₀ intensity 26.8% vs EGAF 21.3% makes the γ₀ ratio 2.8
-(19,507 vs 7,033/pulse).
+**Capture/γ level — the factor grows with the nose-first flip.** Alberto's
+72,787 captures/pulse (<1 eV; 13 g thin disk at ~0.0923 at/b) is 3.8× the
+nose-first Geant4 truth (19,346; it was 2.2× the valve-first 33,021) — same
+spectral shape; that is the "mass-smeared thin disk" rung of the Part I
+ladder combined with the ×0.577 nose-first drop. His γ₀ intensity 26.8% vs
+EGAF 21.3% makes the γ₀ ratio 4.7 (19,507 vs 4,121/pulse).
 
-**The coincidence ladder (figs/coincidence_ladder.pdf), 9 → 199/pulse:**
+**The coincidence ladder (figs/coincidence_ladder.pdf), 9 → 112/pulse
+(nose-first):**
 
 | step | legs/pulse | factor |
 |---|---|---|
 | Alberto: γ₀ × 4.5% Ω × 1% | 8.8 | — |
-| true captures + 21.3% intensity | 3.2 | ×0.36 |
-| full 4-arm plastic aperture (18.5%) | 13.0 | ×4.1 |
-| all cascade lines >2.5 MeV (~1.7 γ/capture) | ~104 | ×8.0 |
-| single-electron punch-through (1.8%/γ, measured) | 199 | ×1.9 |
-| **Geant4 legs, Al−noAl** | **198.8** | — |
+| true captures (nose) + 21.3% intensity | 1.8 | ×0.21 |
+| full 4-arm plastic aperture (18.5%) | 7.4 | ×4.1 |
+| all cascade lines >2.5 MeV (~1.7 γ/capture) | 59.5 | ×8.0 |
+| single-electron punch-through (1.8%/γ, measured) | 112 | ×1.9 |
+| **Geant4 legs, Al−noAl** | **112.0** | — |
 
-Key facts behind the two big steps (all from classifying 2,868 legs in
-6×10⁷ events, `leg_mechanism.json`):
+The nose-first flip enters only at the second rung (true captures ×0.577):
+every rung above Alberto's fixed anchor drops by that factor, since the
+per-capture mechanism (aperture, response, cascade multiplicity) is
+unchanged — see Part III.
 
-- **98.0% of legs are one charged track (e⁻ 88%, e⁺ 8%) crossing BOTH
-  detectors**, median KE 3.9 [3.0, 5.4] MeV at the SiPM bar. A capture γ
+Key facts behind the two big steps (all from classifying 1,616 legs in
+6×10⁷ nose-first events, `leg_mechanism_nose.json`):
+
+- **98.1% of legs are one charged track (e⁻ 90%, e⁺ 8%) crossing BOTH
+  detectors**, median KE 3.95 [2.99, 5.31] MeV at the SiPM bar. A capture γ
   interacts once — in the MM PCB Cu/FR4, the SiPM bar, or nearby
   structure — and the multi-MeV electron crosses the 3 mm bar (0.23 MeV
   threshold) and buries itself in the 2 cm plastic (1.73 MeV threshold).
@@ -157,7 +199,7 @@ Key facts behind the two big steps (all from classifying 2,868 legs in
   1.8% measured; an analytic material budget (PCB 0.55% + bar 0.75% +
   container/air) times electron-survival gives 1–2%. Same-γ double
   interactions: 0.5%; independent particles (cascade partners): 1.5%.
-  96.2% of leg events have `capture_vol == He3Cap_Al`.
+  96.9% of leg events have `capture_vol == He3Cap_Al` (nose-first).
 - **Alberto's 4.5% solid angle is one arm's plastics** (we compute 4.6%
   per arm at 42 cm); the four-arm plastic aperture is 18.5% and the SiPM
   wall subtends 40%.
@@ -176,65 +218,71 @@ explain any order of magnitude.
 
 ## Part III — full mechanism characterization (truth runs, 2026-07-23)
 
-**Method.** Added birth-truth branches to HitTree (`origin_vol`,
-`origin_proc`, `origin_ke`, `ox,oy,oz` — from `GetLogicalVolumeAtVertex`/
-`GetCreatorProcess`; in the repo, uncommitted, built on lxplus). Two truth
-samples: (a) neutron mode, 6×10⁷ events → 2,868 legs (real cascade,
-`leg_mechanism_v2.json`); (b) **γ-source truth run** — 4×10⁶ single cascade
-γs (20 discrete ²⁸Al lines >2 MeV, IAEA intensities) emitted isotropically
-from 156k real He3Cap_Al capture vertices → 11,181 legs with full birth
-truth (`gsrc_mechanism.json/.npz`).
+**Method.** Birth-truth branches on HitTree (`origin_vol`, `origin_proc`,
+`origin_ke`, `ox,oy,oz` — from `GetLogicalVolumeAtVertex`/`GetCreatorProcess`;
+committed, `d523091`). Two **nose-first** truth samples: (a) neutron mode,
+6×10⁷ events → **1,616 legs** (real cascade, `leg_mechanism_nose.json`);
+(b) **γ-source truth run** — 10⁷ single cascade γs (20 discrete ²⁸Al lines
+>2 MeV, IAEA intensities) emitted isotropically from 189,570 real
+He3Cap_Al/CFRP capture vertices → **27,226 legs** with full birth truth
+(`gsrc_mechanism_nose.json/.npz`).
 
 **The four ways a leg happens** (figs/leg_mechanism_corrected.pdf):
 
 | # | topology | fraction |
 |---|---|---|
-| A | **hard Compton** → ONE e⁻ crosses bar+plastic | **80.0%** |
-| B | **pair production** → e⁺/e⁻ cross bar+plastic | **17.9%** |
-| C | same γ interacts twice (the old "double Compton") | 0.4% |
-| D | two different cascade γs, same arm | 1.2% |
+| A | **hard Compton** → ONE e⁻ crosses bar+plastic | **80.8%** |
+| B | **pair production** → e⁺/e⁻ cross bar+plastic | **17.0%** |
+| C | same γ interacts twice (the old "double Compton") | 0.9% |
+| D | two different cascade γs, same arm | 1.0% |
 
 The old 84/16 slide (summary_2026-07-22): the 16% pair fraction was right;
 the "84% double Compton" topology was wrong — the true same-γ-twice rate is
-0.4%. The electrons-only 84% is really ONE hard Compton electron crossing
-both detectors (birth KE median 4.5 MeV; 3.9 MeV at the bar).
+0.9%. The electrons-only 84% is really ONE hard Compton electron crossing
+both detectors (birth KE median 4.69 MeV; 3.95 MeV at the bar). Nose-first
+moves the A/B split <1% vs valve-first (80.0/17.9) — the mechanism is
+orientation-independent.
 
 **Where the electron is born** (same-track legs, γ-truth;
 figs/leg_origin_breakdown.pdf):
 
 | birth volume · process | fraction |
 |---|---|
-| Al capsule · Compton | 29.1% |
-| MM+PCB (Cu/FR4/kapton/mesh) · Compton | 20.4% |
-| SiPM bar (3 mm PVT) · Compton | 19.9% |
-| capsule CFRP · Compton | 9.3% |
-| Al capsule · pair | 8.0% |
-| MM+PCB · pair | 6.0% |
-| SiPM bar · pair | 2.7% |
-| air · Compton | 2.3% |
-| capsule CFRP · pair | 1.2% |
-| everything else (wrap, air·pair, δ-rays…) | 1.2% |
+| Al capsule · Compton | 33.0% |
+| MM+PCB (Cu/FR4/kapton/mesh) · Compton | 19.8% |
+| SiPM bar (3 mm PVT) · Compton | 18.8% |
+| capsule CFRP · Compton | 8.0% |
+| Al capsule · pair | 7.7% |
+| MM+PCB · pair | 5.7% |
+| SiPM bar · pair | 2.5% |
+| air · Compton | 2.5% |
+| capsule CFRP · pair | 1.0% |
+| everything else (wrap, air·pair, δ-rays…) | 1.0% |
 
-Grouped: **capsule (Al+CFRP) 48%, MM+PCB 26%, SiPM bar 23%, air 3%** —
+Grouped: **capsule (Al+CFRP) 50%, MM+PCB 25%, SiPM bar 21%, air 3%** —
 essentially nothing starts in the plastic itself (a plastic-born electron
-can't reach the SiPM behind it). Cross-validated in the real cascade:
-**51.6% of leg electrons also cross the MM drift gas** (born upstream of the
-mesh ≈ capsule+air 50.3% in γ-truth) — half the trigger legs leave an MM
-track, a direct veto handle. Unambiguous pair signature (e⁺ AND e⁻ both
-crossing both detectors): 3.7–5%.
+can't reach the SiPM behind it). The nose-first shift is toward the capsule
+(48→50%) as the capture zone moves into the Al nose. Cross-validated in the
+real cascade: **58.4% of leg electrons also cross the MM drift gas** (up from
+51.6% valve-first; born upstream of the mesh ≈ capsule+air ~53% in γ-truth) —
+the upstream capture zone means more than half the trigger legs leave an MM
+track, a strengthened veto handle. Unambiguous pair signature (e⁺ AND e⁻
+both crossing both detectors): 3.4–3.9%.
 
 **Per-line response** (legs per emitted γ, all arms): zero at 2.28 MeV
-(below the 1.73 MeV plastic threshold), 0.7×10⁻³ at 3.0 MeV, 2.3×10⁻³ at
-4.26 MeV, **5.4×10⁻³ at 7.724 MeV**; the 7.72 line alone makes **47% of all
-legs**. That measured 0.54%/γ (= 2.9% per γ through the plastic aperture) is
-the number Alberto's "1% Compton" stands in for.
+(below the 1.73 MeV plastic threshold), ~0.7×10⁻³ at 3.0 MeV, ~2.4×10⁻³ at
+4.26 MeV, **5.77×10⁻³ at 7.724 MeV**; the 7.72 line alone makes **49% of all
+legs**. That measured 0.58%/γ (= 3.1% per γ through the plastic aperture) is
+the number Alberto's "1% Compton" stands in for (essentially unchanged from
+the valve-first 0.54%/γ — the per-γ response is orientation-independent).
 
-**Closure / caveat.** γ-source total: 2.80×10⁻³ legs/γ × 1.13 γ/capture ×
-33,508 captures/pulse = **106/pulse**, vs 199 in full neutron mode: the
+**Closure / caveat.** γ-source total: 2.723×10⁻³ legs/γ × 1.13 γ/capture ×
+19,346 captures/pulse = **59.5/pulse**, vs 112 in full neutron mode: the
 20-discrete-line list underestimates the true G4NDL cascade response ×1.9
-(continuum multiplicity + within-cascade co-adding). The ladder's last rung
-carries this; the mechanism *fractions* are validated against the neutron
-run (species, birth KE, upstream fraction all agree).
+(continuum multiplicity + within-cascade co-adding) — the same ×1.9 gap as
+valve-first (106 vs 199). The ladder's last rung carries this; the mechanism
+*fractions* are validated against the neutron run (species, birth KE,
+upstream fraction all agree).
 
 ## Orientation history — it was never flipped; it was born this way
 
@@ -252,20 +300,22 @@ run (species, birth KE, upstream fraction all agree).
 - **2026-07-22** event display draws y_world = −z_local (correct).
 
 So the axis redefinition is innocent, and every thermal-era number is
-internally consistent (all valve-first). The open question is unchanged:
-which way is the *real* capsule mounted? Nose-first ⇒ captures ×0.55 and
-the capture zone moves ~14 cm downstream (leg rates would change too).
+internally consistent (all valve-first). **Resolved 2026-07-23:** the
+mounting audit says nose-first; the sim was flipped (`3d97437`) and the
+`*_2cm_nose` campaign re-ran — captures ×0.577 and the capture zone moved
+into the nose, exactly as anticipated (see the banner for final numbers).
 
 ## Caveats
 
 - Geant4's internal capture-cascade branching for the 7.724 line was not
   unfolded here; for γ-level notes use EGAF 21.3%.
 - ⟨t_pre⟩ = 9.1 mm is orientation-specific (valve-first). Nose-first:
-  single-pass gives 4.5×10⁻³/n (19,379/pulse) — pending the mounting check.
+  single-pass gives 4.5×10⁻³/n (19,082/pulse), now confirmed by Geant4 at
+  4.507×10⁻³/n (19,346/pulse) — mounting check done, see banner.
 - <1 keV numbers are analytic-only (thermal campaign window ends at 2 eV);
   the epi campaigns exist if a G4 check above 2 eV is wanted.
 - Part II ladder: the product of the last two rungs (×8.0 cascade ×1.9
   mechanism = ×15.2) is pinned by the sim; the split between them relies
   on the >2.5 MeV cascade-line inventory (~1.7 γ/capture, EGAF-derived
-  estimate) and is soft at the ±50% level. Mechanism stats: 2,868
-  classified legs (6 files), ±2%.
+  estimate) and is soft at the ±50% level. Mechanism stats (nose-first):
+  1,616 classified neutron-mode legs (6 files) + 27,226 γ-source legs, ±2%.
