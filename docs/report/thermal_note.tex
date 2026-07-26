@@ -23,6 +23,22 @@
 \begin{document}
 \maketitle
 
+\begin{center}
+\fcolorbox{black}{yellow!15}{\parbox{0.95\textwidth}{\small
+\textbf{Update 2026-07-27 (nose-first + final geometry).} This note is the
+11 June draft, from the STEP capsule but \emph{before} the final detector
+geometry (STEP LS vessels, 2\,cm plastics, flipped stack, mid-July) and the
+2026-07-23 capsule flip to nose-first. \textbf{The gas-physics core is
+unchanged}: \He{3}(n,p)t consumes the beam, the radiative-capture rate and the
+sub-keV production tables stand. \textbf{Superseded:} the Al-capsule capture
+rate is now $4.5\times10^{-3}$/n (nose-first, $\times0.577$ of the
+$8.0\times10^{-3}$ below --- less Al in the pre-gas path, dome 5\,mm vs valve
+21\,mm); and the detector-capture rows (LS, plastic) are pre-final-geometry
+and have been re-derived on the final nose geometry
+(\texttt{full\_sim/libs\_nose/}, see \texttt{CAMPAIGN\_STATUS.md} and
+\texttt{docs/al\_gamma\_yield\_check/RESULT.md}).}}
+\end{center}
+
 %=============================================================================
 \section*{Part I --- Summary}
 
@@ -305,7 +321,7 @@ fate & per beam neutron & comment \\
 \hline
 \He{3}(n,p)t in gas        & $7.4\times10^{-1}$ & signal-region heat, no photons \\
 escapes world              & $2.4\times10^{-1}$ & footprint tail \\
-capture in Al capsule      & $8.0\times10^{-3}$ & 7.7\,MeV $\gamma$ cascades near target \\
+capture in Al capsule      & $8.0\times10^{-3}$$^{\dagger}$ & 7.7\,MeV $\gamma$ cascades near target \\
 capture in liquid scint.   & $1.2\times10^{-2}$ & 2.2\,MeV $\gamma$ born \emph{inside} calorimeter \\
 capture in plastic scint.  & $2.2\times10^{-3}$ & trigger + back layers \\
 capture in CFRP/PCB/mesh   & $\sim1.5\times10^{-3}$ & distributed \\
@@ -314,9 +330,15 @@ capture in CFRP/PCB/mesh   & $\sim1.5\times10^{-3}$ & distributed \\
 \end{tabular}
 \end{center}
 
+\noindent$^{\dagger}$\emph{Valve-first (as-was). Nose-first (final, 2026-07-23):
+$4.5\times10^{-3}$/n --- $\times0.577$; the beam now enters the 5\,mm dome
+rather than the 21\,mm valve stem, so less Al sits in the pre-gas path.}
+
+\medskip
 \noindent Two observations. First, the aluminium capture rate is $\sim$60
-times the old flat-cap toy estimate --- the STEP capsule's domed tip and
-thick shoulder put far more Al in the beam. Second, and not in any toy so
+times (nose-first $\sim$35 times) the old flat-cap toy estimate --- the STEP
+capsule's domed tip and (valve-first) thick shoulder put far more Al in the
+beam than a flat cap. Second, and not in any toy so
 far: \textbf{hydrogen capture in the liquid scintillator is the largest
 single capture channel outside the gas}, and its 2.22\,MeV photon is born
 inside the calorimeter itself. Both feed the wall-background simulation

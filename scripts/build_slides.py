@@ -260,7 +260,7 @@ s = add("July run: expected result (optimistic scenario)",
 _img_fit(s, SF / "fig_stacked_july.png",
          Inches(0.25), Inches(1.5), Inches(8.0), Inches(4.6))
 _txbox(s, Inches(8.4), Inches(1.6), Inches(4.7), Inches(3.3), [
-    ("≈ 64 X17 on ≈ 3 100 IPC", {"size": 20, "bold": True,
+    ("≈ 91 X17 on ≈ 3 600 IPC", {"size": 20, "bold": True,
                                            "color": NAVY}),
     "recorded in 30 days (S/B ≈ 0.021).",
     ("The peak is diluted, not visible by eye.", {"size": 15, "bold": True,
@@ -277,12 +277,12 @@ _caveat(s, Inches(0.4), Inches(6.25), Inches(12.5), Inches(1.05), [
     "X17/IPC = 2.5% are assumed inputs (provenance pending). Table α = "
     "2.1×10⁻³ would scale signal ×0.6 (→ ~38 X17).",
     "At-rest kinematics (shoulder shifts a few degrees with the Eₙ boost). "
-    "MM-double acceptance 19.6% (X17) / 23.6% (IPC).",
+    "MM-double acceptance 27.8% (X17) / 27.4% (IPC), nose-first (was 19.6/23.6 pre-flip).",
 ])
 _notes(s, "Conservative July choice: gamma-flash recovery only by ~1.7 us, so "
        "max neutron energy ~0.7 MeV (this 'energy cutoff' framing is how the "
-       "collaboration thinks). 143 captures in the window -> 64 recorded X17 / "
-       "3093 IPC over 30 days at alpha=3.5e-3. The caveat box is a separate "
+       "collaboration thinks). 143 captures in the window -> 91 recorded X17 (nose-first acc.) / "
+       "3592 IPC over 30 days at alpha=3.5e-3 (nose-first acceptance). The caveat box is a separate "
        "shape: delete it for the INFN talk if desired. Figure: "
        "scripts/make_slides_figures.py.")
 
@@ -293,7 +293,7 @@ s = add("After LS3: extend the reach to 2 MeV neutrons",
 _img_fit(s, SF / "fig_stacked_compare.png",
          Inches(0.2), Inches(1.6), Inches(12.9), Inches(4.55))
 _txbox(s, Inches(0.5), Inches(6.2), Inches(12.4), Inches(1.1), [
-    ("July 64 X17 → post-LS3 220 X17 recorded (30 d), on the same "
+    ("July 91 X17 → post-LS3 312 X17 recorded (30 d), on the same "
      "S/B ≈ 0.021.", {"size": 17, "bold": True, "color": NAVY}),
     "Reaching 2 MeV neutrons (faster γ-flash recovery) adds the most "
     "productive energy decade. The spectrum shape is unchanged — the gain "
@@ -302,7 +302,7 @@ _txbox(s, Inches(0.5), Inches(6.2), Inches(12.4), Inches(1.1), [
 ], size=14, color=GREY)
 _notes(s, "LS3 goal stated by the collaboration: achieve neutron energy of at "
        "least 2 MeV. Same plot as July, window extended 0.7->2 MeV. Recorded "
-       "X17 30 d: 220 vs 64 (x3.4). S/B identical (set by X17/IPC branching x "
+       "X17 30 d: 312 vs 91 (x3.4). S/B identical (set by X17/IPC branching x "
        "acceptance ratio, window-independent). The decisive question remains "
        "the gamma-flash recovery time, measured on the real setup.")
 
@@ -436,8 +436,8 @@ _table(s, Inches(0.5), Inches(1.5), Inches(12.3), Inches(1.45), [
     ["Scenario (30-day run)", "Recorded  S / B",
      "Shape-fit Z  (smeared, realistic)", "Z if no smearing",
      "Naïve S/√B  (whole spectrum)"],
-    ["July  ·  0.2–0.7 MeV", "64 / 3 093", "2.6 σ", "3.9 σ", "1.2"],
-    ["Post-LS3  ·  0.2–2 MeV", "220 / 10 600", "4.9 σ", "7.3 σ", "2.1"],
+    ["July  ·  0.2–0.7 MeV", "91 / 3 592", "3.5 σ", "5.1 σ", "1.5"],
+    ["Post-LS3  ·  0.2–2 MeV", "312 / 12 307", "6.4 σ", "9.6 σ", "2.8"],
 ])
 _txbox(s, Inches(0.5), Inches(3.05), Inches(5.85), Inches(4.1), [
     ("What IS in these numbers", {"size": 15, "bold": True, "color": NAVY}),
@@ -445,7 +445,7 @@ _txbox(s, Inches(0.5), Inches(3.05), Inches(5.85), Inches(4.1), [
     "rigorous form of “count in a region”, optimally weighted over "
     "all bins.",
     "Same templates as slides 4–5: best-estimator (target-centre chord) "
-    "capsule multiple-scattering smearing; α_IPC = 3.5×10⁻³, X17/IPC = 2.5%, "
+    "capsule multiple-scattering smearing; α_IPC = 3.5×10⁻³, X17/IPC = 2.5%, nose-first "
     "MM-double acceptance.",
     "Binning-independent: 2° and 8° (×4) bins agree to <1%.",
     "Background normalisation can be floated from the θ ≲ 90° region (X17-free) "
@@ -463,7 +463,7 @@ _redbox(s, Inches(6.55), Inches(3.05), Inches(6.28), Inches(4.1), [
     "With B ≈ 3 000–10 000, a few-% shape error in the high-θ signal region "
     "already rivals the statistical fluctuation — by post-LS3 the IPC shape, "
     "not statistics, sets the achievable CL.",
-    "Read 2.6σ / 4.9σ as a best-case ceiling. A defensible CL needs the "
+    "Read 3.5σ / 6.4σ as a best-case ceiling. A defensible CL needs the "
     "MEASURED IPC shape + full detector response folded in (open work).",
 ], header="⚠  Why this is a ceiling, not a confidence level  (keep this box)")
 _notes(s, "Significance projection (open item from the summary slide). Numbers "
@@ -488,12 +488,12 @@ _txbox(s, Inches(0.7), Inches(1.6), Inches(12.0), Inches(5.4), [
     "Full Geant4 (5×10⁸ neutrons) confirms the rate table where it is "
     "valid: ~33 X17/day produced, living at MeV energies. The sub-keV "
     "measurement is dead (self-shielding).",
-    ("July (current hardware): ~64 recorded X17 / 30 d.", {"size": 20,
+    ("July (current hardware): ~91 recorded X17 / 30 d.", {"size": 20,
         "bold": True, "color": NAVY, "space_before": 12}),
     "Window 0.2–0.7 MeV under a conservative γ-flash recovery; on "
-    "~3 100 IPC (S/B ≈ 0.02). Extractable by a template fit, not a peak "
+    "~3 600 IPC (S/B ≈ 0.025), nose-first. Extractable by a template fit, not a peak "
     "cut.",
-    ("Post-LS3: ~220 recorded X17 / 30 d.", {"size": 20, "bold": True,
+    ("Post-LS3: ~312 recorded X17 / 30 d.", {"size": 20, "bold": True,
         "color": NAVY, "space_before": 12}),
     "Reaching 2 MeV neutrons (×3.4 statistics). The decisive measurement "
     "is the real γ-flash recovery time.",
@@ -542,7 +542,7 @@ s = add("July run, rebinned ×4 (8° bins)",
 _img_fit(s, SF / "fig_stacked_july_rebin4.png",
          Inches(0.25), Inches(1.5), Inches(8.0), Inches(4.6))
 _txbox(s, Inches(8.4), Inches(1.6), Inches(4.7), Inches(4.6), [
-    ("≈ 64 X17 on ≈ 3 100 IPC", {"size": 20, "bold": True, "color": NAVY}),
+    ("≈ 91 X17 on ≈ 3 600 IPC", {"size": 20, "bold": True, "color": NAVY}),
     "recorded in 30 days (S/B ≈ 0.021) — yields unchanged from slide 4.",
     ("Coarser binning, same statistics.", {"size": 15, "bold": True,
                                             "color": RED, "space_before": 8}),
@@ -551,8 +551,8 @@ _txbox(s, Inches(8.4), Inches(1.6), Inches(4.7), Inches(4.6), [
     "to read by eye — but it adds no information. Significance is set by the "
     "template fit, which is binning-independent.",
 ], size=14, color=GREY)
-_notes(s, "Backup rebinned (x4) twin of slide 4. Same recorded yields (64 X17 / "
-       "3093 IPC, S/B 0.021); only the display binning is coarser. Use to "
+_notes(s, "Backup rebinned (x4) twin of slide 4. Same recorded yields (91 X17 / "
+       "3592 IPC, S/B 0.025); only the display binning is coarser. Use to "
        "answer the collaborator's rebinning request; do not read a confidence "
        "level off the binning -- that comes from the template-fit / "
        "counting analysis (see notes).")
@@ -564,7 +564,7 @@ s = add("July vs post-LS3, rebinned ×4 (8° bins)",
 _img_fit(s, SF / "fig_stacked_compare_rebin4.png",
          Inches(0.2), Inches(1.6), Inches(12.9), Inches(4.55))
 _txbox(s, Inches(0.5), Inches(6.2), Inches(12.4), Inches(1.1), [
-    ("July 64 X17 → post-LS3 220 X17 recorded (30 d), same "
+    ("July 91 X17 → post-LS3 312 X17 recorded (30 d), same "
      "S/B ≈ 0.021.", {"size": 17, "bold": True, "color": NAVY}),
     "Rebinned ×4 (2° → 8°) for readability; the shape and yields are "
     "identical to slide 5. The post-LS3 gain is purely statistical.",

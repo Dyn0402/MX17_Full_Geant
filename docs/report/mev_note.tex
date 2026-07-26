@@ -23,6 +23,18 @@
 \begin{document}
 \maketitle
 
+\begin{center}
+\fcolorbox{black}{yellow!15}{\parbox{0.95\textwidth}{\small
+\textbf{Update 2026-07-27 (nose-first + final geometry).} This is the 12 June
+draft. \textbf{Production is unchanged} ($\sim$32 X17/day over the MeV region
+is gas physics). \textbf{Superseded:} the in-gate detector-background counts
+below are pre-final-geometry (STEP LS vessels, 2\,cm plastics, mid-July) --- in
+particular the Al-wall term scales $\times0.577$ nose-first ($\sim$255$\to\sim$147
+captures/pulse). The recorded-yield / MM-double acceptance / significance
+numbers now live in \texttt{angular\_note.tex} (nose-first: acceptance
+27.8/27.4\%, Asimov $Z=3.5/6.4\sigma$ July/LS3). See \texttt{CAMPAIGN\_STATUS.md}.}}
+\end{center}
+
 %=============================================================================
 \section*{Part I --- Summary}
 
@@ -232,7 +244,8 @@ gate, per pulse, the simulation puts: $3.0\times10^{5}$ (n,p)t events in the
 gas (764\,keV of charged heat each --- the dominant in-window energy
 deposition), $8.8\times10^{4}$ H-captures in the liquid scintillator
 (2.2\,MeV $\gamma$, born \emph{inside} the calorimeter), $2.6\times10^{3}$
-plastic-veto captures and $\sim$255 Al-wall captures (7.7\,MeV cascades).
+plastic-veto captures and $\sim$255 Al-wall captures (7.7\,MeV cascades;
+nose-first $\sim$147, $\times0.577$).
 The signal: 22 IPC-capable captures per pulse, of which
 $4.7\times10^{-2}$ produce a pair. Pile-up and trigger design at
 $\mu$s timescales, not raw rate, will set the sensitivity.
