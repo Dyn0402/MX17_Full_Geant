@@ -36,31 +36,42 @@ nose-first** (banner + Parts I–III, all figures regenerated):
   (leg-e⁻ crossing drift gas 52% → 58%).
 - Pairs acceptance/mass/angle refreshed (`analysis/pairs_nose/pairs_nose.pdf`).
 
-**Thermal-gate trigger scan re-run nose-first (2026-07-25)** →
-`analysis/trigger_thermal_nose/` (20 signal + 60 thermal + 50 epi files; same
-mu- MIP calibration via new `--mip-mev`, so directly comparable). **Signal
-efficiency AND background both drop ~proportionally, so the statistical
-sensitivity is ~unchanged:**
-| trigger | ε(X17) valve→nose | pair-tag bg valve→nose |
-|---|---|---|
-| 2 full legs | 3.1% → **2.2%** (×0.70) | 1.9 → 1.1 /pulse |
-| 2 SiPM + ≥1 confirm | 10.9% → **8.3%** (×0.76) | 21 → 11 /pulse |
-| SiPM-only | 15.5% → **12.3%** (×0.79) | 68 → 35 /pulse |
-ε drops ×0.75 (upstream pair vertices → lower 2-arm acceptance), bg drops
-×0.52 (Al capture ×0.577); FOM ε/√bg is **+2%** (0.0385→0.0393 at the confirm
-point). Net: the nose-first flip is **~neutral** for the significance
-projection (which is IPC-shape-systematic-dominated anyway).
+**2 cm plastic MIP calibration — measured (2026-07-26)**, resolving the
+4.33 (2.5 cm) vs 3.47 (linear-scaled) ambiguity. A 20k mu- run through arm D
+gives **SiPM 0.475, plastic 3.349, LS 6.120 MeV** (`analysis/mip_2cm/`). The
+old trigger scans used 4.334 (2.5 cm) → thresholds ~23% too strict; leg
+analyses used 3.467 (~3.5% high, cancels for '0.5 MIP each', so leg numbers
+stand within ~2%). All analysis MIP constants updated to the measured values.
 
-Also new: **trigger provenance** (`analysis/trigger_provenance/`, 2026-07-24) —
+**Thermal-gate trigger scan re-run nose-first, correct MIP (2026-07-26)** →
+`analysis/trigger_thermal_nose/` (20 signal + 60 thermal + 50 epi). The pair-tag
+**efficiency ceilings** (low-threshold, MIP-robust) valve→nose:
+| trigger | ε(X17) valve→nose |
+|---|---|
+| 2 full legs | 3.1% → **2.2%** (×0.70) |
+| 2 SiPM + ≥1 confirm | 10.9% → **8.3%** (×0.76) |
+| SiPM-only | 15.5% → **12.3%** (×0.79) |
+The SiPM∧plastic *trigger* ε drops ×0.75 (upstream pair vertices → lower
+2-arm plastic reach), Al-capture bg drops ×0.52; FOM ε/√bg ~neutral.
+
+**Significance — the MM-double picture is the opposite and it IMPROVES.**
+The template-fit projection uses MM-**double** acceptance (both legs reach a
+drift volume), which nose-first is **higher** (27.8/27.4% vs 19.6/23.6%):
+upstream vertices make both tracks more likely to cross a drift gas. Asimov Z
+(stat-only, `scripts/make_slides_figures.py`): **July 2.6→3.5σ, LS3 4.9→6.4σ**
+(×1.31). Caveat: the 19.6/23.6 baseline is pre-final-geometry, so ×1.31
+conflates the geometry update + the flip; and the IPC-shape systematic still
+sets the real CL.
+
+Also: **trigger provenance** (`analysis/trigger_provenance/`, 2026-07-24) —
 what fires the trigger vs the Micromegas. 122 legs/pulse @ 0.5 MIP, 97% Al γ;
 MM tags 61% of the background vs 100% of signal (~39% MM-blind, born in the
 SiPM bar/PCB downstream of the mesh).
 
-**Still stale:** `docs/report/*` and the thermal/MeV notes (numbers, not yet
-propagated); the July/LS3 template-fit significance projection should be
-re-run with the nose-first ε + bg above (expected ~neutral). Open cleanup: a
-proper 2 cm plastic muon MIP calibration (trigger scan uses 4.33 MeV/2.5 cm,
-leg analysis uses 3.47 MeV/2 cm — reconcile).
+**Still stale:** `docs/report/thermal_note.tex` + `mev_note.tex` bodies (valve
+numbers inline; `angular_note.tex` acceptance/significance updated 2026-07-26).
+Slides regenerated with nose acceptance (`make_slides_figures.py`); the
+`build_slides.py` deck prose not yet swept.
 
 Not re-run (closed cross-checks): `--no-al` and the γ-cut scans — 100 µm is
 settled. The conv-pair study reuses `neutrons_thermal_trig_2cm_nose`, since

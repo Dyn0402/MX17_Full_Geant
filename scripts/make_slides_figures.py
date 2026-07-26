@@ -12,8 +12,11 @@ Two run scenarios (decided 2026-06-16):
            (recovery ~1.0 us) -> reach to 2 MeV neutrons, ~3.4x the statistics.
 
 Normalisation: alpha_IPC = 3.5e-3 (12C/8Be-anchored), 30-day run, MM-double
-acceptance 19.6% (X17) / 23.6% (IPC).  Recorded yields computed here from the
-raw 714 He3(n,g) energies, so any window is exact.
+acceptance NOSE-FIRST 27.8% (X17) / 27.4% (IPC) (2026-07-26, analysis/pairs_nose;
+was 19.6/23.6 in the 2026-06-18 pre-final-geometry projection).  Recorded yields
+computed here from the raw 714 He3(n,g) energies, so any window is exact.
+Asimov Z (stat-only): July 3.5 sigma, LS3 6.4 sigma (was 2.6/4.9); the higher
+acceptance lifts significance x1.31.  IPC-shape systematic still sets the CL.
 
 Outputs -> docs/slides/figs/ :
   fig_stacked_july.png      stacked smeared e+e- opening-angle spectrum, July
@@ -49,7 +52,8 @@ RESP = REPO / "analysis/pairs_v2/geant4_response.json"
 # ── physics / run constants ──────────────────────────────────────────────────
 ALPHA_IPC = 3.5e-3        # 12C/8Be-anchored IPC coefficient (default)
 BR_X17 = 0.025            # X17 / IPC branching
-ACC_X17, ACC_IPC = 0.196, 0.236   # MM-double geometric acceptance
+ACC_X17, ACC_IPC = 0.278, 0.274   # MM-double acceptance, NOSE-FIRST final geom
+                                  # (analysis/pairs_nose; was 0.196/0.236 pre-final)
 DAYS = 30
 M_N_EV = 939.565e6        # neutron mass [eV/c^2]
 L_M = 19.5                # EAR2 flight path [m]
@@ -257,6 +261,20 @@ def main():
         print(f"  {nm:18s}  X17={y['x17_rec']:6.1f}  IPC={y['ipc_rec']:7.0f}  "
               f"S/B={y['x17_rec']/y['ipc_rec']:.3f}  "
               f"(N_capt={y['n_rad']}, TOF {y['tof_lo']:.2f}-{y['tof_hi']:.2f} us)")
+
+    # Asimov significance (stat-only; IPC-shape systematic NOT included and
+    # dominates the achievable CL) from the binned smeared opening-angle templates
+    def asimov_Z(s, b):
+        m = b > 0
+        return float(np.sqrt(2.0 * np.sum((s[m] + b[m]) * np.log1p(s[m] / b[m]) - s[m])))
+    _fig, _ax = plt.subplots()
+    print("Asimov Z (stat-only, binned profile-likelihood over the smeared templates):")
+    for nm, lo, hi in [("July 0.2-0.7 MeV", 2e5, 7e5), ("LS3 0.2-2 MeV", 2e5, 2e6)]:
+        y = window_yields(E, w, lo, hi)
+        _ax.clear()
+        _, b_, s_ = stacked_panel(_ax, d, y["x17_rec"], y["ipc_rec"])
+        print(f"  {nm:18s}  Z = {asimov_Z(s_, b_):.2f} sigma")
+    plt.close(_fig)
     print(f"figures written to {OUT}")
 
 

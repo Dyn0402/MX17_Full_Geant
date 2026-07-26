@@ -39,9 +39,11 @@ $\sim$10\,$\mu$s readout per pulse, from the $\gamma$ flash down to
 $E_n \approx 20$\,keV --- which covers essentially all of the production
 --- and \textbf{every pair in MM geometric acceptance is recorded}
 (``MM double'', both legs reaching a drift volume, same-arm pairs
-included: 19.6\% for X17, 23.6\% for IPC). That gives $\sim$6.4 recorded
-X17/day, $\sim$190 per 30-day run, on a recorded signal-to-IPC ratio of
-$\approx$0.021. The remaining question is whether those events form a
+included: \textbf{27.8\% for X17, 27.4\% for IPC} --- nose-first, 2026-07-26
+[\texttt{analysis/pairs\_nose}]; were 19.6/23.6\% in the pre-flip geometry).
+That gives $\sim$9.1 recorded X17/day, $\sim$270 per 30-day run, on a
+recorded signal-to-IPC ratio of $\approx$0.026 (the upstream nose-first pair
+vertices raise the two-arm acceptance, and X17 more than IPC). The remaining question is whether those events form a
 \emph{visible peak}. For this high-energy measurement the calorimeters are
 taken as saturated by the $\gamma$-flash environment and unusable, so the
 only per-event observable is the $e^+e^-$ \textbf{opening angle measured
@@ -137,8 +139,14 @@ In order of leverage (Part II \S7--9):
   $10^{7}$ events; a template likelihood fit (smeared signal + IPC continuum
   + pile-up backgrounds from the Stage-4 sampler) converts resolution into a
   statistics penalty instead of a veto. The go/no-go number becomes the
-  expected significance of that fit with $\sim$190 signal events per 30 days
-  --- the natural next study, and the machinery exists.
+  expected significance of that fit ($\sim$270 signal events per 30 days at
+  the conservative $\alpha_{\mathrm{IPC}}=2.1\times10^{-3}$, nose-first
+  acceptance). This has now been computed for the standard July/LS3 windows at
+  $\alpha_{\mathrm{IPC}}=3.5\times10^{-3}$: Asimov $Z\approx3.5\sigma$ (July
+  0.2--0.7\,MeV) / $6.4\sigma$ (LS3 0.2--2\,MeV), stat-only, up $\times1.31$
+  from the pre-flip 2.6/4.9$\sigma$ on the higher MM-double acceptance --- with
+  the IPC-shape systematic still setting the achievable CL
+  (\texttt{scripts/make\_slides\_figures.py}).
 \item \textbf{MM-internal quality cuts as an energy proxy.} The
   $30$--$40^{\circ}$ tails come from legs below $\sim$3\,MeV. Without
   calorimetry they can still be tagged inside the MM (track straightness,
@@ -586,7 +594,7 @@ range).
   histogram cap; quoted values there are lower bounds (the conclusion is
   unaffected --- those legs are directionless either way).
 \item \textbf{Yield inputs.} Production 32.4 X17/day ($E_n \gtrsim
-  20$\,keV, MeV-note decades) and MM-double acceptances 19.6\%/23.6\%
+  20$\,keV, MeV-note decades) and MM-double acceptances 27.8\%/27.4\% (nose-first; were 19.6/23.6\%)
   (X17/IPC, pairs-v2), with the inherited assumptions
   $\alpha_{\mathrm{IPC}}=2.1\times10^{-3}$ and X17/IPC $=2.5\%$. The
   10\,$\mu$s-readout scheme also assumes the MMs themselves recover from
