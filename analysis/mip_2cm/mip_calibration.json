@@ -1,0 +1,19 @@
+{
+  "_comment": "Measured 2 cm plastic MIP calibration (2026-07-26). Supersedes the 2.5 cm muon MPV (4.334 MeV) that was linearly scaled to 3.467 MeV. Geometry-invariant to the 2026-07-23 capsule flip (muons through the plastics don't see the capsule).",
+  "run": "mx17_full_sim --single mu- 1000 90 0 -n 20000 -s 21 -g ArIso (current 2 cm nose build; arm D = +X, theta=90 phi=0, normal incidence)",
+  "mip_MeV": {
+    "sipm_bar": 0.4751,
+    "plastic_2cm": 3.3494,
+    "ls": 6.1202
+  },
+  "prior_values": {
+    "sipm_bar": 0.458,
+    "plastic_2p5cm_muon_MPV": 4.334,
+    "plastic_2cm_linear_scaled": 3.467
+  },
+  "notes": [
+    "plastic: measured 2 cm MPV is 0.966x the linear-scaled 3.467 (sub-linear, Landau log term) and 0.773x the 2.5 cm value 4.334.",
+    "trigger_thermal scans BEFORE 2026-07-26 used 4.334 (2.5 cm) -> thresholds ~23% too strict; re-run with --mip-mev 0.4751,3.3494,6.1202.",
+    "leg/mechanism analyses used 3.467; the ~3.5% shift roughly cancels for the '0.5 MIP each' leg (SiPM +3.7%, plastic -3.4%), so committed leg numbers stand within ~2%."
+  ]
+}

@@ -13,7 +13,7 @@ DIR = sys.argv[1] if len(sys.argv) > 1 else \
       "/eos/experiment/ntof/data/x17/full_sim/neutrons_thermal_trig_2cm"
 NF = int(sys.argv[2]) if len(sys.argv) > 2 else 8
 FILES = sorted(glob.glob(f"{DIR}/*.root"))[:NF]
-MIP_S, MIP_P = 0.458, 4.334 * 2.0 / 2.5
+MIP_S, MIP_P = 0.4751, 3.3494   # measured 2 cm muon MPV (2026-07-26); was 0.458, 4.334*2/2.5=3.467
 FL, GATE, A, B = 1.41, 1.0, 0.5, 0.5
 
 n_leg = n_pair = 0

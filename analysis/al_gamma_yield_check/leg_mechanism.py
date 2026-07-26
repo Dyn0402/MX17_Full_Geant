@@ -19,7 +19,7 @@ DIR = sys.argv[1]
 NF = int(sys.argv[2]) if len(sys.argv) > 2 else 4
 OUT = sys.argv[3] if len(sys.argv) > 3 else "leg_mechanism.json"
 
-MIP_S, MIP_P = 0.458, 4.334 * 2.0 / 2.5
+MIP_S, MIP_P = 0.4751, 3.3494   # measured 2 cm muon MPV (2026-07-26); was 0.458, 4.334*2/2.5=3.467
 FILES = sorted(glob.glob(f"{DIR}/*.root"))[:NF]
 
 SIPM, PLAS = ("PlasticScint",), ("BackScintL", "BackScintR")

@@ -42,7 +42,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "scripts"
 from analyze_trigger_thermal import digest_file  # noqa: E402
 
 # ── calibration + grids (geometry unchanged by the capsule flip) ───────────────
-MIP_S, MIP_P = 0.458, 4.334 * 2.0 / 2.5      # MeV per MIP (SiPM bar / 2 cm plastic)
+MIP_S, MIP_P = 0.4751, 3.3494   # measured 2 cm muon MPV (2026-07-26 calibration)
 SIPM_THR = 0.5                                # fixed SiPM threshold [MIP]
 B_GRID = np.round(np.arange(0.1, 3.01, 0.1), 2)   # plastic threshold scan [MIP]
 N_PULSE_THERMAL = 4.284e6
