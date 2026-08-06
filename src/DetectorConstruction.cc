@@ -283,8 +283,16 @@ G4VPhysicalVolume* DetectorConstruction::Construct() {
     mmMats.resPaste = GetMat("ResistivePaste");
     mmMats.rohacell = GetMat("Rohacell51");
     mmMats.gas      = matGas;
-    MX17::ModuleSpec mmSpec =
-        MX17::LegacySpec(fConfig.mm_size_u_cm * 10.0, fConfig.mm_size_v_cm * 10.0);
+    // As-built module (shared spec). The window bulge is disabled here: the
+    // terraced-dome model is square, and its outer terraces would falsely
+    // collide with the neighbouring arm's window flange in the pinwheel — the
+    // real (round-edged) dome clears it. Bulge matters for single-module
+    // transmission studies (MX17_Geant); in-gas path length here is unaffected.
+    MX17::ModuleSpec mmSpec = MX17::AsBuiltSpec(/*bulgeSag_mm=*/0.0);
+    // Front-end M1 cards off: their CAD ring radius (227.5 mm) interpenetrates
+    // the neighbouring arm's window flange by ~1.1 mm at the surveyed arm
+    // distances. Peripheral material, outside every beam path.
+    mmSpec.feThick_mm = 0.0;
     MX17::Module mmModule = MX17::BuildModule(mmSpec, mmMats);
     fDriftGasLV = mmModule.driftGasLV;
     fAmpGasLV   = mmModule.ampGasLV;
