@@ -11,6 +11,17 @@ find_package(ROOT QUIET)
 
 include_directories(${PROJECT_SOURCE_DIR}/include)
 
+# Shared MX17 module geometry — single source of truth kept in the MX17_Geant
+# repo (shared/MX17ModuleGeometry.hh). Both sims consume the same description.
+set(MX17_SHARED_DIR ${PROJECT_SOURCE_DIR}/../MX17_Geant/shared)
+if(NOT EXISTS ${MX17_SHARED_DIR}/MX17ModuleGeometry.hh)
+    message(FATAL_ERROR
+        "Shared MX17 module header not found: ${MX17_SHARED_DIR}/MX17ModuleGeometry.hh\n"
+        "MX17_Full_Geant expects the MX17_Geant repo checked out as a sibling "
+        "directory (../MX17_Geant). Clone it there or adjust MX17_SHARED_DIR.")
+endif()
+include_directories(${MX17_SHARED_DIR})
+
 file(GLOB SOURCES ${PROJECT_SOURCE_DIR}/src/*.cc)
 
 add_executable(mx17_full_sim mx17_full_sim.cc ${SOURCES})

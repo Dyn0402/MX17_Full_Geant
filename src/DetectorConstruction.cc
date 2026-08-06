@@ -23,6 +23,7 @@
 #include "DetectorConstruction.hh"
 #include "SensitiveDetector.hh"
 #include "NCaptureBiasingOperator.hh"
+#include "MX17ModuleGeometry.hh"
 
 #include "G4NistManager.hh"
 #include "G4Material.hh"
@@ -189,23 +190,9 @@ G4VPhysicalVolume* DetectorConstruction::Construct() {
 
     fMats["_Gas"] = matGas;
 
-    // ── Layer thicknesses ────────────────────────────────────
-    // MM stack
-    G4double tMylar    = 40.0  * um;
-    G4double tAlWin    = 0.1   * um;
-    G4double tKapCath  = 50.0  * um;
-    G4double tCuCath   = 9.0   * um;
-    G4double tDrift    = 30.0  * mm;
-    G4double tMesh     = 30.0  * um;
-    G4double tAmp      = 150.0 * um;
-    G4double tResPaste = 100.0 * um;
-
-    // PCB stack
-    G4double tPCBKap  = 50.0  * um;
-    G4double tPCBCu   = 26.0  * um;
-    G4double tPCBFR4  = 100.0 * um;
-    G4double tPCBRoh  = 5.0   * mm;
-    G4double tPCBAl   = 50.0  * um;
+    // ── MM + readout stack (shared description, MX17_Geant/shared/) ──────────
+    // Built once; the pieces are placed per arm below. tMM / tPCB keep their
+    // historical meaning for the depth-chain arithmetic.
 
     // SiPM trigger wall: bare plastic scint bar (2.5 cm wide, 50 cm long)
     G4double tSipmScint = fConfig.sipm_scint_thick_cm * cm;  // 3 mm active depth
@@ -286,8 +273,24 @@ G4VPhysicalVolume* DetectorConstruction::Construct() {
     G4double distMax   = std::max(distX, distZ);
 
     // ── Depth chain (all measured from the MM drift-mylar front face) ────────
-    G4double tMM   = tMylar+tAlWin+tKapCath+tCuCath+tDrift+tMesh+tAmp+tResPaste;
-    G4double tPCB  = tPCBKap + 4*(tPCBCu+tPCBFR4) + tPCBRoh + tPCBAl;
+    MX17::Materials mmMats;
+    mmMats.mylar    = matMylar;
+    mmMats.al       = matAl;
+    mmMats.kapton   = matKapton;
+    mmMats.cu       = matCu;
+    mmMats.steel    = matSteel;
+    mmMats.fr4      = GetMat("FR4");
+    mmMats.resPaste = GetMat("ResistivePaste");
+    mmMats.rohacell = GetMat("Rohacell51");
+    mmMats.gas      = matGas;
+    MX17::ModuleSpec mmSpec =
+        MX17::LegacySpec(fConfig.mm_size_u_cm * 10.0, fConfig.mm_size_v_cm * 10.0);
+    MX17::Module mmModule = MX17::BuildModule(mmSpec, mmMats);
+    fDriftGasLV = mmModule.driftGasLV;
+    fAmpGasLV   = mmModule.ampGasLV;
+
+    G4double tMM   = mmModule.mmDepth;
+    G4double tPCB  = mmModule.readoutDepth;
     G4double mmPcbBack   = tMM + tPCB;                                  // ≈ 3.60 cm
     // SiPM wall: container front measured 11 cm from mylar; scint plane centered.
     G4double sipmFront   = fConfig.sipm_front_from_mylar_cm * cm;       // 11 cm
@@ -456,31 +459,9 @@ G4VPhysicalVolume* DetectorConstruction::Construct() {
         return lv;
     };
 
-    // ── Create logical volumes for each layer type ───────────
-    // (shared across 4 arms via copy number = arm ID)
-
-    // MM layers (38×34 cm face)
-    auto* mylarLV   = MakeLV("GasWindow_Mylar",     mmU_hf,mmV_hf,tMylar/2,    matMylar,  G4Color(0.7,0.9,0.7,0.5));
-    auto* alWinLV   = MakeLV("GasWindow_Al",         mmU_hf,mmV_hf,tAlWin/2,    matAl,     G4Color(0.7,0.7,0.7,0.8));
-    auto* kapCathLV = MakeLV("DriftCathode_Kapton",  mmU_hf,mmV_hf,tKapCath/2,  matKapton, G4Color(0.9,0.7,0.0,0.7));
-    auto* cuCathLV  = MakeLV("DriftCathode_Cu",      mmU_hf,mmV_hf,tCuCath/2,   matCu,     G4Color(0.8,0.4,0.1,0.8));
-    fDriftGasLV     = MakeLV("DriftGas",             mmU_hf,mmV_hf,tDrift/2,    matGas,    G4Color(0.2,0.5,1.0,0.3));
-    auto* meshLV    = MakeLV("Micromesh",             mmU_hf,mmV_hf,tMesh/2,     matSteel,  G4Color(0.5,0.5,0.5,0.9));
-    fAmpGasLV       = MakeLV("AmpGas",               mmU_hf,mmV_hf,tAmp/2,      matGas,    G4Color(1.0,0.3,0.3,0.3));
-    auto* resLV     = MakeLV("ResistivePaste",        mmU_hf,mmV_hf,tResPaste/2, GetMat("ResistivePaste"),G4Color(0.2,0.2,0.2,0.8));
-
-    // PCB layers (38×34 cm face)
-    auto* pcbKapLV  = MakeLV("PCB_Kapton",   mmU_hf,mmV_hf,tPCBKap/2,  matKapton,         G4Color(0.9,0.7,0.0,0.7));
-    auto* pcbCu1LV  = MakeLV("PCB_Cu_1",     mmU_hf,mmV_hf,tPCBCu/2,   matCu,             G4Color(0.8,0.4,0.1,0.8));
-    auto* pcbFR41LV = MakeLV("PCB_FR4_1",    mmU_hf,mmV_hf,tPCBFR4/2,  GetMat("FR4"),     G4Color(0.2,0.6,0.2,0.8));
-    auto* pcbCu2LV  = MakeLV("PCB_Cu_2",     mmU_hf,mmV_hf,tPCBCu/2,   matCu,             G4Color(0.8,0.4,0.1,0.8));
-    auto* pcbFR42LV = MakeLV("PCB_FR4_2",    mmU_hf,mmV_hf,tPCBFR4/2,  GetMat("FR4"),     G4Color(0.2,0.6,0.2,0.8));
-    auto* pcbCu3LV  = MakeLV("PCB_Cu_3",     mmU_hf,mmV_hf,tPCBCu/2,   matCu,             G4Color(0.8,0.4,0.1,0.8));
-    auto* pcbFR43LV = MakeLV("PCB_FR4_3",    mmU_hf,mmV_hf,tPCBFR4/2,  GetMat("FR4"),     G4Color(0.2,0.6,0.2,0.8));
-    auto* pcbCu4LV  = MakeLV("PCB_Cu_4",     mmU_hf,mmV_hf,tPCBCu/2,   matCu,             G4Color(0.8,0.4,0.1,0.8));
-    auto* pcbFR44LV = MakeLV("PCB_FR4_4",    mmU_hf,mmV_hf,tPCBFR4/2,  GetMat("FR4"),     G4Color(0.2,0.6,0.2,0.8));
-    auto* pcbRohLV  = MakeLV("PCB_Rohacell", mmU_hf,mmV_hf,tPCBRoh/2,  GetMat("Rohacell51"),G4Color(0.9,0.9,0.6,0.5));
-    auto* pcbAlLV   = MakeLV("PCB_AlFoil",   mmU_hf,mmV_hf,tPCBAl/2,   matAl,             G4Color(0.7,0.7,0.7,0.8));
+    // ── Logical volumes ──────────────────────────────────────
+    // MM + PCB layers come from the shared module (mmModule.pieces),
+    // placed 4× with copy number = arm ID.
 
     // SiPM trigger wall — one plastic scint bar (2.5 cm wide, 50 cm long),
     // placed 16× per arm along u (copyNo = arm).  Scored as "PlasticScint".
@@ -595,29 +576,6 @@ G4VPhysicalVolume* DetectorConstruction::Construct() {
     fDriftGasLV->SetUserLimits(new G4UserLimits(100.*um));
     fAmpGasLV  ->SetUserLimits(new G4UserLimits(100.*um));
 
-    // ── Ordered slab lists (depths accumulate from each group's front) ────────
-    struct Slab { G4LogicalVolume* lv; G4double thickness; };
-    // MM + PCB stack — placed relative to the arm front face (pinwheel-shifted).
-    std::vector<Slab> mmSlabs = {
-        // MM
-        {mylarLV,   tMylar},
-        {alWinLV,   tAlWin},
-        {kapCathLV, tKapCath},
-        {cuCathLV,  tCuCath},
-        {fDriftGasLV, tDrift},
-        {meshLV,    tMesh},
-        {fAmpGasLV, tAmp},
-        {resLV,     tResPaste},
-        // PCB
-        {pcbKapLV,  tPCBKap},
-        {pcbCu1LV,  tPCBCu}, {pcbFR41LV, tPCBFR4},
-        {pcbCu2LV,  tPCBCu}, {pcbFR42LV, tPCBFR4},
-        {pcbCu3LV,  tPCBCu}, {pcbFR43LV, tPCBFR4},
-        {pcbCu4LV,  tPCBCu}, {pcbFR44LV, tPCBFR4},
-        {pcbRohLV,  tPCBRoh},
-        {pcbAlLV,   tPCBAl},
-    };
-
     // ── SiPM read-out window: which of the 20 bars are instrumented ───────────
     // Bars are centered on the STRUCTURE (u = 0).  The MM sits at local −u
     // (pinwheel shift is along −uHat), so "toward the MM" = −u.  Keep the 16
@@ -670,10 +628,11 @@ G4VPhysicalVolume* DetectorConstruction::Construct() {
         fArmAxes[arm].vHat      = G4ThreeVector(0, 1, 0);
         fArmAxes[arm].wHat      = ad.wHat;
 
-        // Helper: place lv at local (u, 0, w) relative to `base` (arm front).
+        // Helper: place lv at local (u, v, w) relative to `base` (arm front).
         auto place = [&](G4LogicalVolume* lv, const G4ThreeVector& base,
-                          G4double u, G4double w, const std::string& tag) {
-            G4ThreeVector localPos(u, 0, w);
+                          G4double u, G4double w, const std::string& tag,
+                          G4double v = 0.0) {
+            G4ThreeVector localPos(u, v, w);
             G4ThreeVector worldPos = base +
                 (ad.rot ? (*ad.rot)*localPos : localPos);
             new G4PVPlacement(ad.rot, worldPos, lv,
@@ -682,10 +641,15 @@ G4VPhysicalVolume* DetectorConstruction::Construct() {
         };
 
         // 1) MM + PCB stack — relative to the (shifted) arm front face.
+        //    Slabs keep the historical `zLocal += t; centre = zLocal − t/2`
+        //    arithmetic; side structure (rings, dome terraces) is placed at
+        //    its module-frame position directly.
         G4double zLocal = 0.0;
-        for (const auto& s : mmSlabs) {
-            zLocal += s.thickness;
-            place(s.lv, armFront, 0.0, zLocal - s.thickness / 2.0, s.lv->GetName());
+        for (const auto& pc : mmModule.pieces) {
+            G4double w;
+            if (pc.advance) { zLocal += pc.thick; w = zLocal - pc.thick / 2.0; }
+            else            { w = pc.pos.z(); }
+            place(pc.lv, armFront, pc.pos.x(), w, pc.lv->GetName(), pc.pos.y());
         }
 
         // 2) SiPM wall — 16 instrumented bars, centred on the STRUCTURE.
