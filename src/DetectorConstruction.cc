@@ -289,11 +289,12 @@ G4VPhysicalVolume* DetectorConstruction::Construct() {
     // real (round-edged) dome clears it. Bulge matters for single-module
     // transmission studies (MX17_Geant); in-gas path length here is unaffected.
     MX17::ModuleSpec mmSpec = MX17::AsBuiltSpec(/*bulgeSag_mm=*/0.0);
-    // Front-end M1 cards off: they straddle the board edge out to 263 mm from
-    // the active axis, which interpenetrates the neighbouring arm's window
-    // flange at the surveyed arm distances (mm-level CAD-vs-survey clash).
+    // Front-end M1 cards off: they straddle the board edge out to 260.4 mm
+    // from the active axis, which interpenetrates the neighbouring arm's
+    // window flange at the surveyed arm distances (CAD-vs-survey clash; the
+    // real assembly fits — see MX17_Full_Geant/docs/HANDOFF_ARM_GEOMETRY.md).
     // Peripheral material, outside every beam path.
-    mmSpec.feEnvelope_mm = 0.0;
+    mmSpec.feThick_mm = 0.0;
     MX17::Module mmModule = MX17::BuildModule(mmSpec, mmMats);
     fDriftGasLV = mmModule.driftGasLV;
     fAmpGasLV   = mmModule.ampGasLV;
