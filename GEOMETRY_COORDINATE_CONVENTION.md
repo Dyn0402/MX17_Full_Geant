@@ -67,7 +67,8 @@ Opposing **mylar (entrance-window) face** distances:
 
 | Quantity | Value | Notes |
 |----------|-------|-------|
-| MM active width (in-plane, u) | 38 cm | unchanged |
+| MM active width (in-plane, u) | **39.9 cm** | measured 2026-08-11, §3a |
+| MM active height (along beam, v) | **36.0 cm** | measured 2026-08-11, §3a |
 | MM stack depth | ≈ 3.04 cm | incl. 30 mm drift gap |
 
 **Recentering:** the set-up is positioned so the **target/beam sit at the centre
@@ -76,6 +77,73 @@ square's centre is the midpoint of each opposing face pair, this means each
 mylar face is half its pair-span from the beam axis — X faces at ±20.40 cm, Z
 faces at ±20.45 cm. (The asymmetric tangential shifts do not move the faces
 perpendicular to themselves, so they don't affect centering.)
+
+---
+
+## 3a. MM active area — measured 2026-08-11
+
+**39.9 × 36.0 cm (u × v).** This replaced `mm_size_u_cm = 38.0` /
+`mm_size_v_cm = 34.0`, which were the only dimensions in `SimConfig.hh`
+carrying no provenance — an estimate that had never been checked. The change is
+**+11 % active area**, and the area is *centred*, so nothing moved.
+
+### The two numbers
+
+| Axis | Value | What sets it |
+|------|-------|--------------|
+| **u** (tangential) | **39.9 cm** | The full metallised strip region: 512 strips at 0.78 mm pitch = 398.58 mm centre to centre, 399.36 mm of metal. **No passivation on this axis** — chamber B is live at strip 0 *and* at strip 511. |
+| **v** (along the beam) | **36.0 cm** | 359.9 ± 1.8 mm. The strip plane is passivated over a ~19 mm band at each end of this coordinate, so the efficient region is roughly [19, 379] mm of the 398.6 mm strip span. |
+
+> ### ⚠ Which axis loses the 4 cm
+> The passivated plane is the chamber's **FEU-Y plane**, and detector-local Y is
+> the coordinate **along the beam** — i.e. `v`, not `u`. Putting the smaller
+> number on `u` reproduces the old error with the new digits. The mapping is
+> fixed by `nTof_x17/ntof_tracking/run79_merge_prelim.track_frame` and confirmed
+> in beam data by the wall-segment correlation.
+
+### Where the numbers come from
+
+Two independent measurements on the same four chambers, agreeing to 1–2 mm
+despite different references and different definitions of "the edge":
+
+| | June 2026 cosmic bench | n_TOF beam, run_79 |
+|---|---|---|
+| reference | M3 telescope (external track) | none — the chamber's own two planes |
+| observable | efficiency vs true position | which strips take part in a charge-balanced two-plane cluster |
+| edge definition | 50 % efficiency point | outermost strip that ever takes part in a track |
+| chambers | all five (det2/3/4/6/7) | A, B, C (D too damaged in that run) |
+| v low / high | 17.9–20.4 / 378.8–380.7 mm | 18.7–20.3 / 376.7–379.1 mm |
+| record | `nTof_x17/common/mx17_active_area.py` | `nTof_x17/ntof_active_area/report.html` |
+
+Combined over all seven measurements: v span **359.9 ± 1.8 mm**, midpoint
+**199.1 mm** against a strip-plane centre of 199.3 mm.
+
+### What is deliberately *not* in the sim
+
+* **Per-chamber differences.** The passivation varies 17.9–20.4 mm between
+  chambers, i.e. ±1.3 mm on a 360 mm span. One number for all four.
+* **run_79 readout defects.** Chamber A's X-plane connector 8 (strips 448–511,
+  u = 349–399 mm) was dead in run_79 but alive in run_55 on 18 July; chamber D's
+  u plane was largely dark; chamber C has an interior dead stripe near
+  u = 190 mm. These are cabling and detector faults, not geometry. If a
+  *run-79-specific* simulation is ever wanted they belong in a readout mask on
+  top of this geometry, never in `mm_size_*`.
+* **Efficiency structure inside the active area.** This is a boundary, not an
+  efficiency map.
+
+### Scintillators: unchanged, and why
+
+The same beam analysis tried to check the SiPM wall, plastics and LS by pointing
+chamber tracks at them. It cannot: the pointing blur is **σ ≈ 47 mm** at the
+plastic plane and the accidental-tag pedestal is ~40 % of the plateau (the DREAM
+trigger is an OR over all four arms), so every outer-dimension fit is
+unconstrained and lands on both sides of the survey. The surveyed sizes in §5
+below are tape-and-STEP measurements accurate to millimetres and **stay**.
+
+What the beam data *does* confirm is placement: the plastic L/R boundary lands
+at −6.8 ± 5.3 mm where this geometry puts it at 0, and the four n_TOF wall
+segments map onto the chamber in the right order (r = +0.97). That is a genuine
+check on the pinwheel shift and the plastic centring in §4 and §5.
 
 ---
 
@@ -236,10 +304,26 @@ Measured values: SiPM container front 11 cm from mylar front, container depth
 - [x] `scripts/plot_geometry.py` / `plot_buildup.py` — per-arm depths,
       orientation-aware LS drawing; all figures regenerated.
 
+**Propagated into the code 2026-08-11 (MM active area; see §3a):**
+
+- [x] `include/SimConfig.hh` — `mm_size_u_cm` 38.0 → **39.9**,
+      `mm_size_v_cm` 34.0 → **36.0**, with the sources in a comment block.
+      `src/DetectorConstruction.cc` consumes these directly and needed no edit.
+- [x] `scripts/plot_geometry.py` (`CFG` mirror) and `scripts/plot_mm_layout.py`
+      (`MM_U_HALF`, which carried its own copy); `plot_buildup.py` inherits
+      from `plot_geometry`. All figures regenerated.
+- [x] `README.md`, `HANDOFF_FULL_SIM.md`, this file.
+- [x] DAQ (`nTof_x17_DAQ/run_config_beam.py`) — **not touched, correctly**:
+      checklist item 11 only applies if MM *positions* move, and the active
+      area is centred, so they did not.
+- [ ] Scintillator sizes deliberately unchanged — beam pointing (σ ≈ 47 mm)
+      cannot check a tape measure. See §3a.
+
 **Still open:**
 
 - [ ] Re-run simulations & acceptance with the new geometry — existing sim
-      outputs are now stale (again after the 2026-07-17 changes).
+      outputs are now stale (again after the 2026-08-11 MM active-area change:
+      the chamber is 11 % larger, so acceptance moves).
 - [ ] **Double-check the 6.8 cm bar height** used as the LS-bottom reference.
 - [x] LS horizontal (u) positions MEASURED 2026-07-18 (60 cm reference; see
       §5 table) — LS now placed on the structure at the surveyed centres.

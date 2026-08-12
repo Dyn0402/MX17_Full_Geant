@@ -69,7 +69,7 @@ user may want to update):
 
 | Component | Distance from target centre | Active area |
 |-----------|----------------------------|-------------|
-| MM drift gas front face | 22.0 cm | 38 × 34 cm |
+| MM drift gas front face | 22.0 cm | 38 × 34 cm → **39.9 × 36.0 cm** (measured 2026-08-11) |
 | Plastic scintillator | ~28.0 cm | 48 × 48 cm |
 | LS layer 1 front face | ~31.0 cm | 38 × 38 cm |
 
@@ -264,6 +264,9 @@ getting all the correct material-budget effects for free.
 
 3. **Transverse detector sizes**: plastic scint (48×48 cm) is larger than MM
    (38×34 cm) — this is intentional and must be reproduced.
+   *(2026-08-11: the MM active area was measured and is 39.9 × 36.0 cm; the
+   point of this item — the scintillators overhang the chamber — is unchanged.
+   See README.md and `include/SimConfig.hh`.)*
 
 4. **Step limit in gas**: 100 µm in DriftGas and AmpGas (same as single-arm sim).
 

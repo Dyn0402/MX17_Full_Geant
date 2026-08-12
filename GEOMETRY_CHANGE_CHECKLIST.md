@@ -1,5 +1,10 @@
 # MX17 Geometry-Change Checklist
 
+> **Last change: 2026-08-11** — MM active area 38 × 34 → **39.9 × 36.0 cm**
+> (measured; see `GEOMETRY_COORDINATE_CONVENTION.md` §3a). Items 1, 6, 7, 8, 9,
+> 10 and 12 touched; 2–5 needed no edit (they read the config); 11 correctly
+> untouched (the area is centred, so no MM position moved). **Sims are stale.**
+
 **Every time the detector geometry changes, touch each item below.** The source
 of truth is `include/SimConfig.hh`; everything else must be brought back in sync
 with it. (See `GEOMETRY_COORDINATE_CONVENTION.md` for the coordinate convention

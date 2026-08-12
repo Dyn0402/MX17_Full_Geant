@@ -41,8 +41,11 @@ CFG = dict(
     mm_distance_z_cm      = 20.45,  # ±Z arms (A,C)  (SimConfig.hh)
     # Per-MM tangential pinwheel shift [cm], arm order 0=D(+X) 1=B(−X) 2=A(+Z) 3=C(−Z):
     mm_pinwheel_shift_cm  = (1.55, 1.575, 1.635, 1.73),
-    mm_size_u_cm          = 38.0,
-    mm_size_v_cm          = 34.0,
+    # MM active area, measured 2026-08-11 (was an unsourced 38 × 34). u = the
+    # full metallised strip region; v loses ~19 mm at each end to passivation
+    # on the strip plane along the beam.  See SimConfig.hh for the sources.
+    mm_size_u_cm          = 39.9,
+    mm_size_v_cm          = 36.0,
     # SiPM trigger wall (50×50 cm; 20 bars of 2.5 cm), centered on the STRUCTURE:
     sipm_front_from_mylar_cm = 11.0,   # mylar front → SiPM container front
     sipm_container_depth_cm  =  3.5,   # container depth (measured 2026-07-17; scint centered)

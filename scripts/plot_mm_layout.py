@@ -45,7 +45,8 @@ from matplotlib.patches import Polygon
 # from the beam axis.
 SPAN_BD = 40.8                    # B(−X) ↔ D(+X) mylar-face distance [cm]  → ±20.40
 SPAN_CA = 40.9                    # C(−Z) ↔ A(+Z) mylar-face distance [cm]  → ±20.45
-MM_U_HALF = 38.0 / 2.0           # MM in-plane half-width (active u = 38 cm)
+MM_U_HALF = 39.9 / 2.0           # MM in-plane half-width (active u, measured
+                                 # 2026-08-11; was an unsourced 38 cm)
 
 # ── Per-MM pinwheel (circular) tangential shift ──────────────────────────────
 # Each MM is shifted tangentially (⟂ its outward normal) by a measured amount,
@@ -186,7 +187,7 @@ def plot_mm_layout():
     # ── Legend ───────────────────────────────────────────────────────────────
     handles = [
         mpatches.Patch(color='#4a90d9', alpha=0.85,
-                       label=f'Micromegas  ({2*MM_U_HALF:.0f} cm wide, '
+                       label=f'Micromegas  ({2*MM_U_HALF:.1f} cm active u, '
                              f'{MM_DEPTH:.1f} cm deep)'),
         mpatches.Patch(color='#c0392b', label='MM entrance mylar window (faces target)'),
         mpatches.Patch(color='#99d8f5', label='He-3 target gas bore (Ø20 mm)'),

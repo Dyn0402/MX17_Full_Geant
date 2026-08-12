@@ -70,7 +70,18 @@ the origin. All depths below are measured from that front face.
 | **Amp gas** ★          | **active gas**   | **150 µm**| **`AmpGas`**          |
 | Resistive paste        | C/acrylic, 1.4 g/cm³ | 100 µm | `ResistivePaste`    |
 
-Active area: **38 × 34 cm** (u × v), step limit 100 µm in gas volumes.
+Active area: **39.9 × 36.0 cm** (u × v), step limit 100 µm in gas volumes.
+
+> **Measured 2026-08-11** (this replaced an unsourced 38 × 34 cm estimate — an
+> 11 % area change). `u` is the full metallised strip region: 512 strips at
+> 0.78 mm, 399.36 mm of metal, with no passivation. `v` — **the axis along the
+> beam** — loses ~19 mm at each end to a passivated band on the strip plane,
+> leaving 359.9 ± 1.8 mm. Two independent measurements agree to 1–2 mm: the
+> June 2026 cosmic bench against the M3 telescope (all five chambers,
+> `nTof_x17/common/mx17_active_area.py`) and n_TOF beam run_79 paired strip
+> clusters with no external reference (chambers A/B/C,
+> `nTof_x17/ntof_active_area/report.html`). The band is centred, so no
+> placement offset changed with it.
 
 ### PCB stack
 

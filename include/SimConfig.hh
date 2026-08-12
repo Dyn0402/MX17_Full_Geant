@@ -101,8 +101,24 @@ struct SimConfig {
     // Measured 2026-06-30, halved 2026-07-14 (earlier values were 2× too large).
     double mm_pinwheel_shift_cm[4] = {1.55, 1.575, 1.635, 1.73};
 
-    double mm_size_u_cm    = 38.0;   // MM active area: u [cm]
-    double mm_size_v_cm    = 34.0;   // MM active area: v (along beam) [cm]
+    // ── MM active area (measured 2026-08-11; was an unsourced 38 × 34 cm) ──
+    // u is the full metallised strip region: 512 strips at 0.78 mm, 398.58 mm
+    // centre to centre plus one pitch of metal = 399.36 mm.  There is NO
+    // passivation on this axis.
+    // v loses ~19 mm at each end to a passivated band on the strip plane, so
+    // the efficient extent is 359.9 ± 1.8 mm.  NOTE THE AXIS: the passivated
+    // plane is the chamber's FEU-Y plane, which is the one along the BEAM --
+    // putting the small number on u instead is the easy mistake here.
+    // The band is centred (midpoint 199.1 mm against a strip-plane centre of
+    // 199.3 mm), so no placement offset comes with this.
+    //
+    // Sources, agreeing to 1-2 mm by two independent methods:
+    //   * June 2026 cosmic bench, efficiency 50 % points against the M3
+    //     telescope, all five chambers -- nTof_x17/common/mx17_active_area.py.
+    //   * n_TOF beam run_79, paired strip clusters, chambers A/B/C, no external
+    //     reference -- nTof_x17/ntof_active_area/report.html.
+    double mm_size_u_cm    = 39.9;   // MM active area: u [cm]
+    double mm_size_v_cm    = 36.0;   // MM active area: v (along beam) [cm]
 
     // ══════════════════════════════════════════════════════════════════════
     //  Detector stack, inside → out (measured 2026-07-15; see
