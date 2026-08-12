@@ -8,6 +8,12 @@ MIP (2 cm, scaled ±20%): SiPM 0.458 MeV, **plastic 3.47 MeV**. Fixed SiPM leg a
 
 ## Recommendation (updated 2026-07-22 for the 10 GbE DAQ upgrade)
 
+> **AS-BUILT confirmation, 2026-07-22 evening:** the 1 ms readout start assumed below is
+> now real on the hardware — the N93B acceptance gate's start was moved 5 ms → ~1 ms so
+> the measured in-gate trigger rate is directly comparable to this study's per-pulse
+> background budget. (`nTof_x17_DAQ` `n1081b/CLAUDE.md` → "Acceptance window".) It is an
+> external front-panel setting, not software-readable.
+
 **DAQ change:** the 10 GbE upgrade + readout start pushed to 1 ms raised the
 thermal-band readout budget from ~4 to **~24 events/spill** (`nTof_x17_DAQ`
 `docs/network_upgrade_10g/04_bandwidth_model.md`, IPD 10; ~20 at the IPD-15
