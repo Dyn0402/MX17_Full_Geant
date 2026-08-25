@@ -319,8 +319,40 @@ Measured values: SiPM container front 11 cm from mylar front, container depth
 - [ ] Scintillator sizes deliberately unchanged — beam pointing (σ ≈ 47 mm)
       cannot check a tape measure. See §3a.
 
+**Fixed 2026-08-12 (SiPM read-out window sign, figures only):**
+
+`scripts/plot_geometry.py` computed the read-out window centre as
+`(Nb−1)/2 **+** shift`, i.e. it moved the 16-bar window **away** from the MM,
+with a comment claiming "MM sits at +t". The MM is pinwheel-shifted along
+**−u_hat**, so toward the MM is **−u = lower bar index**. The module therefore
+drew bars 3–18 live (dead 0,1,2 near / 19 far) — the mirror image of the truth.
+
+- Geant4 itself was **always right**: `DetectorConstruction.cc` uses
+  `barCenter = (Nb−1)/2 − shift` → live bars **1–16**, dead **{0}** on the MM
+  (−u, *left* seen from behind the wall) and **{17,18,19}** on the far side
+  (+u, *right*). Same sign in `mx_july_beam_qa/mx17_geom.py`, and §5 above
+  ("drop 3 far, 1 near") already stated it. **No simulation output is affected.**
+- Affected and regenerated: `plot_buildup.py` figures; the whole MPGD2026
+  `mpgd26/` n_TOF sequence (`make_ntof.py` frames 6–9, `make_ntof_plan.py`,
+  the `build_ntof` / `turn_ntof` animations) and the slide assets copied from
+  them. Anything else drawn from this module before 2026-08-12 has the dead
+  bars on the wrong side.
+- Caught by Dylan off the top-down slide, 2026-08-12.
+
 **Still open:**
 
+- [ ] **Verify the read-out window against data, not drawings.** The sign above
+      is now consistent across sim, analysis and figures, but all three trace
+      back to the same written convention — nothing has confirmed it against
+      the hardware. Project reconstructed MM tracks onto the wall plane
+      (`mx17_geom.project_plastic_to_wall` already does the geometry) and ask
+      which bar group actually fires: the u-distribution of wall hits should be
+      **truncated 1 bar early on the −u side and 3 bars early on the +u side**.
+      A mirrored result means the window is flipped in the real detector (or
+      the SiPM group→channel mapping is). Note the pointing blur is σ ≈ 47 mm
+      at the plastic plane (§ "Scintillators: unchanged") ≈ 2 bar widths, so
+      this needs the *edge* of the occupancy, not a single track, and is best
+      done on the 4-bar group boundaries rather than per bar.
 - [ ] Re-run simulations & acceptance with the new geometry — existing sim
       outputs are now stale (again after the 2026-08-11 MM active-area change:
       the chamber is 11 % larger, so acceptance moves).

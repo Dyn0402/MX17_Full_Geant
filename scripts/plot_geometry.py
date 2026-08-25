@@ -128,9 +128,14 @@ w_sipm_b    = sipm_front + sipm_contD       # container back
 w_sipm_sc_f = sipm_front + sipm_contD/2 - sipm_scintT/2   # active scint front (thin)
 w_sipm_sc_b = sipm_front + sipm_contD/2 + sipm_scintT/2   # active scint back
 sipm_wall_hu = CFG['sipm_n_bars'] * bw / 2.0             # full wall half-width (u)
-# Read-out window: MM sits at +t, so the window shifts toward +t (higher index).
+# Read-out window: the bars are centred on the STRUCTURE (u = 0) while the MM is
+# pinwheel-shifted along −u_hat, so "toward the MM" is −u = LOWER index — drop 3
+# bars on the far (+u) side and 1 on the MM (−u) side.  This is the sign
+# DetectorConstruction.cc uses (barCenter = (Nb−1)/2 − shift) and the sign
+# mx_july_beam_qa/mx17_geom.py uses; it was +_sh here until 2026-08-12, which
+# mirrored the dead bars in every figure drawn from this module.
 _Nb, _Nr, _sh = CFG['sipm_n_bars'], CFG['sipm_n_readout'], CFG['sipm_readout_shift_bars']
-_bc = (_Nb - 1) / 2.0 + _sh
+_bc = (_Nb - 1) / 2.0 - _sh
 _barLo = int(round(_bc - (_Nr - 1) / 2.0))
 _barHi = int(round(_bc + (_Nr - 1) / 2.0))
 SIPM_READOUT = set(range(_barLo, _barHi + 1))   # instrumented bar indices (0..Nb-1)
