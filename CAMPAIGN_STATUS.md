@@ -1,6 +1,43 @@
 # MX17 simulation campaign — status & next steps
 
-**Updated:** 2026-07-25 · companion docs:
+**Updated:** 2026-09-15 · companion docs:
+
+---
+
+## 2026-09-15: thermal accounting — where the in-gate neutrons go (no rerun)
+
+`scripts/thermal_accounting.py` reduces the existing nose-first campaign into
+the five-step funnel scoped in `nTof_x17/ntof_athens_26/HANDOFF_THERMAL_ACCOUNTING.md`.
+The stored per-hit birth truth (creator process, birth volume and vertex, parent)
+plus EventTree `capture_vol`/`capture_proc` was enough: **no new truth, no rerun.**
+It runs in two stages: `reduce` per ROOT file (condor cluster 4278922, 225 jobs over
+`neutrons_thermal_trig_2cm_nose`, `pairs_thermal_trig_2cm_nose` and
+`neutrons_thermal_bias1e5_2cm_nose`; parts in `/eos/user/d/dneff/x17/thermal_accounting/parts/`)
+then `merge` anywhere into `accounting.json` + `F1…F5.csv`. Staged copy:
+`/media/dylan/data/x17/sept26_prelim/athens_thermal_accounting/`. Figures and
+full numbers: `nTof_x17/ntof_athens_26/README.md`, "The funnel".
+
+Full statistics (10⁹ neutrons, per neutron entering the capsule, gun r < 11.5 mm = 90.1 %):
+- ³He(n,p) 92.5 % · (n,γ) 0.81 % (Al 61 %, CFRP 3.2 %, elsewhere 35 %) · escapes 6.6 %.
+- 2.1 % of captures put ≥ 1 keV prompt charge in a drift gap. Of those, 15.3 % are capsule
+  e⁺e⁻, 64.5 % capsule Compton, and 18.8 % are made elsewhere.
+- Capsule pairs in a gap: Al external 84.5 %, Al internal (analytic) 15.1 %, CFRP 0.3 %.
+- Prompt trigger legs 123/pulse (legacy 124, trigger_provenance 122): capsule pair 9.7 %,
+  Compton from capsule-capture γ 76.7 %.
+
+**Gotchas found (apply to any new reduction of these files):**
+- **RadioactiveDecay is on and nothing cuts time**: ²⁸Al β decays (and the 1.78 MeV γ
+  Comptons) are ~50 % of DriftGas charged hits, at t ~ 10⁹–10¹³ ns. Cut hit time
+  < 1e8 ns. They give delayed-only gap charge in 3.8 % of captures (vs 2.1 % prompt),
+  but only 0.04 legs/pulse, so the trigger results stand.
+- Biased runs name the process `biasWrapper(nCapture)`.
+- The escapes are nose scatters: even inside the 10 mm bore 5.2 % escape (5.5 mm Al nose).
+  Bias run ³He(n,γ) = 9.59×10⁻⁹ ± 0.03×10⁻⁹ per entering neutron vs analytic 1.03×10⁻⁸.
+- CFRP here is 2.07 % H by mass, so ~96 % of CFRP captures are ¹H(n,γ).
+- "Near the capsule" must be the logical volumes: r < 30 mm about the origin keeps
+  only 39 % of capsule pairs (captures sit in the nose).
+- Where (n,p) happens (10 files): half within 0.19 mm of the gas surface, 90 % within
+  0.9 mm, 99 % within 3.4 mm (supersedes the valve-first `fig_gas_absorption`).
 
 ---
 
