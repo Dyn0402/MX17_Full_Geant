@@ -19,9 +19,11 @@
 #include "G4HadronPhysicsFTFP_BERT_HP.hh"
 #include "G4DecayPhysics.hh"
 #include "G4GenericBiasingPhysics.hh"
+#include "G4ThermalNeutrons.hh"
 #include "G4SystemOfUnits.hh"
 
-PhysicsList::PhysicsList(double biasNCaptureFactor, double gammaCut_um)
+PhysicsList::PhysicsList(double biasNCaptureFactor, double gammaCut_um,
+                         bool thermalScattering)
     : G4VModularPhysicsList(), fGammaCut_um(gammaCut_um) {
     SetVerboseLevel(0);
 
@@ -34,6 +36,13 @@ PhysicsList::PhysicsList(double biasNCaptureFactor, double gammaCut_um)
 
     // Hadronic elastic with HP (high-precision neutron data, <20 MeV)
     RegisterPhysics(new G4HadronElasticPhysicsHP(0));
+
+    // Thermal scattering S(α,β) below 4 eV for the materials G4NDL has tables
+    // for (G4_Al → al_metal, G4_Be → be_metal, G4_GRAPHITE, G4_Fe, ...).  Must
+    // follow the HP elastic constructor, whose neutron hadElastic it extends.
+    // At a reactor beam it matters: Be is transparent above its 3.96 Å Bragg
+    // edge, and free-gas Be over-scatters.  Off by default for n_TOF runs.
+    if (thermalScattering) RegisterPhysics(new G4ThermalNeutrons(0));
 
     // Hadronic inelastic with HP neutrons
     RegisterPhysics(new G4HadronPhysicsFTFP_BERT_HP(0));

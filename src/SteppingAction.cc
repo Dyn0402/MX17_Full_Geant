@@ -66,6 +66,22 @@ void SteppingAction::UserSteppingAction(const G4Step* step) {
     // (library wants nCapture in Al/CFRP; budget wants everything).
     if (fConfig.neutronMode) {
         const G4Track* trk = step->GetTrack();
+        // First physics interaction of the primary (anything but transport):
+        // uncollided transmission for the V1 slab check, and where the beam
+        // first scatters in a target.
+        if (trk->GetTrackID() == 1) {
+            EventData& ed = fEventAction->GetEventData();
+            const G4VProcess* p = step->GetPostStepPoint()->GetProcessDefinedStep();
+            if (ed.first_proc.empty() && p &&
+                p->GetProcessName().find("Transportation") == std::string::npos &&
+                p->GetProcessName() != "StepLimiter") {
+                ed.first_proc = p->GetProcessName();
+                const G4VPhysicalVolume* fpv = step->GetPreStepPoint()->GetPhysicalVolume();
+                ed.first_vol = fpv ? fpv->GetLogicalVolume()->GetName() : "OutOfWorld";
+                const G4ThreeVector fp = step->GetPostStepPoint()->GetPosition();
+                ed.first_x = fp.x() / mm; ed.first_y = fp.y() / mm; ed.first_z = fp.z() / mm;
+            }
+        }
         if (trk->GetTrackID() == 1 &&
             trk->GetTrackStatus() == fStopAndKill &&
             trk->GetDefinition()->GetParticleName() == "neutron") {

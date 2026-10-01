@@ -52,11 +52,32 @@ static void PrintUsage() {
               << "  --mass <MeV>     X17 mass (default: 16.8)\n"
               << "  --energy <MeV>   4He* transition energy for both X17 and IPC (default: 20.58)\n"
               << "  --ipc <frac>     IPC fraction 0..1 (0=all X17, 1=all IPC, default: 0.5)\n"
+              << "  --ipc-multipole ansatz|M1|E0|E1\n"
+              << "                   IPC kinematics: legacy 1/M isotropic ansatz (default) or\n"
+              << "                   the exact Born distribution of one multipole (ipc_born.py)\n"
               << "  --pair-vertex-lib <lib.csv>\n"
               << "                   Sample X17/IPC vertices from a He3Gas capture-position\n"
               << "                   library (make_capture_library.py --gas-lib) instead of\n"
               << "                   uniformly in the gas (thermal self-shielding profile)\n"
               << "  --dist <cm>      Arm distance from target (default: 22.0)\n"
+              << "\n  ILL (HANDOFF_SIM.md in x17_facility_search/ill):\n"
+              << "  --beam ill <spectrum.csv>\n"
+              << "                   Neutron mode with the PF1B/H113 reactor beam (λ from the\n"
+              << "                   CSV, divergence κλ, guide-exit acceptance by back-projection)\n"
+              << "  --beam-radius <mm>   defining aperture radius (default 10)\n"
+              << "  --gun-dist <mm>      aperture → cell entrance window (default 300)\n"
+              << "  --exit-dist <mm>     guide exit → aperture (default 1200)\n"
+              << "  --vertical-axis x|z  sim axis carrying the exit's 200 mm side (default z)\n"
+              << "  --lambda <A>         mono-wavelength instead of the spectrum\n"
+              << "  --kappa <rad/A>      divergence slope (default 0.0017; 0 = pencil)\n"
+              << "  --slab <Mat:mm>      bare Ø100 mm slab at the origin instead of a target\n"
+              << "  --ts | --no-ts       force thermal scattering for solids on/off\n"
+              << "                       (default: on with --beam ill, --target cell, --slab)\n"
+              << "  --target capsule|cell\n"
+              << "  --cell-pressure <bar> --cell-length <mm> --cell-radius <mm> --cell-yw <mm>\n"
+              << "  --skin <Mat:mm>  --rods <N>  --window <Mat:mm>  --aperture <mm>\n"
+              << "  --end-cap <Mat:mm[+Mat:mm]>  --scraper <rin_mm:t_mm | none>\n"
+              << "  --endcap-ring <t_mm:land_mm>\n"
               << "  -h               Print this help\n";
 }
 
@@ -78,6 +99,13 @@ int main(int argc, char** argv) {
         else if (a == "--energy" && i+1<argc) config.transition_energy_MeV  = std::stod(argv[++i]);
         else if (a == "--ipc"    && i+1<argc) config.ipc_fraction            = std::stod(argv[++i]);
         else if (a == "--pair-vertex-lib" && i+1<argc) config.pairVertexLibFile = argv[++i];
+        else if (a == "--ipc-multipole" && i+1<argc) {
+            config.ipcMultipole = argv[++i];
+            if (config.ipcMultipole != "ansatz" && config.ipcMultipole != "M1" &&
+                config.ipcMultipole != "E0" && config.ipcMultipole != "E1") {
+                std::cerr << "--ipc-multipole must be ansatz, M1, E0 or E1\n"; return 1;
+            }
+        }
         else if (a == "--dist"   && i+1<argc) {   // uniform override of both MM front-face distances
             config.mm_distance_x_cm = config.mm_distance_z_cm = std::stod(argv[++i]);
         }
@@ -107,9 +135,62 @@ int main(int argc, char** argv) {
             if (i+1 < argc && argv[i+1][0] != '-')
                 config.trajDumpMaxEvents = std::stoi(argv[++i]);
         }
+        else if (a == "--beam" && i+2<argc) {
+            std::string kind = argv[++i];
+            if (kind != "ill") { std::cerr << "Unknown beam: " << kind << "\n"; return 1; }
+            config.neutronMode     = true;
+            config.illBeam         = true;
+            config.illSpectrumFile = argv[++i];
+        }
+        else if (a == "--beam-radius" && i+1<argc) config.illBeamRadius_mm = std::stod(argv[++i]);
+        else if (a == "--gun-dist"    && i+1<argc) config.illGunDist_mm    = std::stod(argv[++i]);
+        else if (a == "--exit-dist"   && i+1<argc) config.illExitDist_mm   = std::stod(argv[++i]);
+        else if (a == "--vertical-axis" && i+1<argc) {
+            std::string ax = argv[++i];
+            if (ax != "x" && ax != "z") { std::cerr << "--vertical-axis must be x or z\n"; return 1; }
+            config.illVerticalAxis = ax[0];
+        }
+        else if (a == "--lambda" && i+1<argc) config.illLambdaFixed_A   = std::stod(argv[++i]);
+        else if (a == "--kappa"  && i+1<argc) config.illKappa_rad_per_A = std::stod(argv[++i]);
+        else if (a == "--slab"   && i+1<argc) config.slab               = argv[++i];
+        else if (a == "--ts")    config.thermalScattering = 1;
+        else if (a == "--no-ts") config.thermalScattering = 0;
+        else if (a == "--target" && i+1<argc) {
+            std::string t = argv[++i];
+            if      (t == "cell")    config.cellTarget = true;
+            else if (t == "capsule") config.cellTarget = false;
+            else { std::cerr << "Unknown target: " << t << "\n"; return 1; }
+        }
+        else if (a == "--cell-pressure" && i+1<argc) config.cellPressure_bar = std::stod(argv[++i]);
+        else if (a == "--cell-length"   && i+1<argc) config.cellLength_mm    = std::stod(argv[++i]);
+        else if (a == "--cell-radius"   && i+1<argc) config.cellRadius_mm    = std::stod(argv[++i]);
+        else if (a == "--cell-yw"       && i+1<argc) config.cellYw_mm        = std::stod(argv[++i]);
+        else if (a == "--skin"          && i+1<argc) config.cellSkin         = argv[++i];
+        else if (a == "--rods"          && i+1<argc) config.cellRods         = std::stoi(argv[++i]);
+        else if (a == "--window"        && i+1<argc) config.cellWindow       = argv[++i];
+        else if (a == "--aperture"      && i+1<argc) config.cellApertureR_mm = std::stod(argv[++i]);
+        else if (a == "--end-cap"       && i+1<argc) config.cellEndCap       = argv[++i];
+        else if (a == "--scraper"       && i+1<argc) {
+            std::string s = argv[++i];
+            if (s == "none") config.cellScraperRin_mm = 0.0;
+            else {
+                auto c = s.find(':');
+                config.cellScraperRin_mm = std::stod(s.substr(0, c));
+                if (c != std::string::npos) config.cellScraperT_mm = std::stod(s.substr(c + 1));
+            }
+        }
+        else if (a == "--endcap-ring"   && i+1<argc) {
+            std::string s = argv[++i];
+            auto c = s.find(':');
+            config.cellRingThick_mm = std::stod(s.substr(0, c));
+            if (c != std::string::npos) config.cellRingLand_mm = std::stod(s.substr(c + 1));
+        }
         else if (a[0] != '-') macroFile = a;
         else { std::cerr << "Unknown option: " << a << "\n"; PrintUsage(); return 1; }
     }
+
+    if (config.thermalScattering < 0)
+        config.thermalScattering = (config.illBeam || config.cellTarget || !config.slab.empty()) ? 1 : 0;
 
     CLHEP::HepRandom::setTheEngine(new CLHEP::RanecuEngine);
     CLHEP::HepRandom::setTheSeed(config.seed);
@@ -122,8 +203,21 @@ int main(int argc, char** argv) {
               << "  Seed     : " << config.seed << "\n"
               << "  Threads  : " << config.nThreads << "\n"
               << "  Al vessel: " << (config.disableAlCapsule ? "DISABLED (vacuum)" : "enabled") << "\n"
-              << "  Gamma cut: " << config.gammaCut_um << " um\n";
-    if (config.neutronMode)
+              << "  Gamma cut: " << config.gammaCut_um << " um\n"
+              << "  Therm.sc.: " << (config.thermalScattering ? "on" : "off") << "\n";
+    if (config.cellTarget)
+        std::cout << "  Target   : 3He cell " << config.cellPressure_bar << " bar, L="
+                  << config.cellLength_mm << " mm, R=" << config.cellRadius_mm
+                  << " mm, y_w=" << config.cellYw_mm << " mm, skin " << config.cellSkin
+                  << ", rods " << config.cellRods << ", window " << config.cellWindow
+                  << ", end cap " << config.cellEndCap << "\n";
+    if (config.illBeam)
+        std::cout << "  Mode     : ILL PF1B beam  spectrum=" << config.illSpectrumFile
+                  << "  aperture r=" << config.illBeamRadius_mm << " mm at "
+                  << config.illGunDist_mm << " mm upstream of the window, exit "
+                  << config.illExitDist_mm << " mm upstream; vertical="
+                  << config.illVerticalAxis << "\n";
+    else if (config.neutronMode)
         std::cout << "  Mode     : neutron beam  E=[" << config.neutronEmin_eV
                   << ", " << config.neutronEmax_eV << "] eV\n"
                   << "  Flux     : " << config.neutronFluxFile << "\n"
@@ -137,7 +231,8 @@ int main(int argc, char** argv) {
     else {
         std::cout << "  Mode     : X17+IPC pairs  m_X17=" << config.x17Mass_MeV
                   << " MeV  E_transition=" << config.transition_energy_MeV
-                  << " MeV  ipc_fraction=" << config.ipc_fraction << "\n";
+                  << " MeV  ipc_fraction=" << config.ipc_fraction
+                  << "  ipc=" << config.ipcMultipole << "\n";
         if (!config.pairVertexLibFile.empty())
             std::cout << "  Vertices : " << config.pairVertexLibFile << "\n";
     }
@@ -152,7 +247,8 @@ int main(int argc, char** argv) {
 
     auto* detCon = new DetectorConstruction(config);
     runManager->SetUserInitialization(detCon);
-    runManager->SetUserInitialization(new PhysicsList(config.biasNCaptureFactor, config.gammaCut_um));
+    runManager->SetUserInitialization(new PhysicsList(config.biasNCaptureFactor, config.gammaCut_um,
+                                                      config.thermalScattering == 1));
     runManager->SetUserInitialization(new ActionInitialization(config, detCon));
     runManager->Initialize();
 

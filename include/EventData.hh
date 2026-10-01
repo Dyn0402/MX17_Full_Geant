@@ -12,6 +12,8 @@ struct EventTypeInfo : public G4VUserEventInformation {
     int    event_type    = 0;    // 0=X17, 1=IPC, -1=single, 2=neutron, 3=gamma-source
     double inv_mass_MeV  = 0.0;  // m_X17 or sampled Mee (modes 0/1); Eγ [MeV] (mode 3)
     double neutron_E_eV  = 0.0;  // primary neutron energy (mode 2)
+    long   n_thrown      = 1;    // generator attempts for this event (ILL beam:
+                                 // rays thrown at the aperture per accepted ray)
     void Print() const override {}
 };
 
@@ -55,6 +57,10 @@ struct EventData {
     // Neutron mode (event_type = 2): primary energy + terminal interaction.
     // capture_proc: "nCapture" = radiative; "neutronInelastic" = (n,p) etc.
     double      neutron_E_eV = 0.0;
+    long        n_thrown = 1;                      // see EventTypeInfo
+    std::string first_vol;                         // primary neutron's first non-
+    std::string first_proc;                        // transport interaction (V1, budget)
+    double      first_x = 0.0, first_y = 0.0, first_z = 0.0;   // its position [mm]
     std::string capture_vol;                       // empty = escaped world
     std::string capture_proc;
     double      cap_x = 0.0, cap_y = 0.0, cap_z = 0.0;   // position [mm]
@@ -69,6 +75,10 @@ struct EventData {
         hits.clear();
         convPairs.clear();
         neutron_E_eV = 0.0;
+        n_thrown = 1;
+        first_vol.clear();
+        first_proc.clear();
+        first_x = first_y = first_z = 0.0;
         capture_vol.clear();
         capture_proc.clear();
         cap_x = cap_y = cap_z = 0.0;

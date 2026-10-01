@@ -21,6 +21,17 @@ struct SimConfig {
     // 0 = all X17, 1 = all IPC, 0.5 = equal statistics (recommended for building event pools).
     double ipc_fraction = 0.5;
 
+    // IPC kinematics.  "ansatz" (default, the legacy generator): Mee from
+    // dN/dMee ∝ 1/Mee, isotropic decay in the γ* frame.  "M1", "E0", "E1":
+    // the one-photon-exchange (Born) distribution of that multipole, exact in
+    // Mee and in the lepton angle θ* about the γ* direction, from the master
+    // formula of nTof_x17/sept26_prelim_analysis/ipc_born.py (long-wavelength
+    // nuclear factors; at Z = 2, αZ = 0.015, so Born is essentially exact).
+    // Sampled unweighted: ln Mee from the tabulated marginal, cos θ* by
+    // accept/reject.  Check: fraction of pairs above 109° = 4.6 % (M1),
+    // 11 % (E0), 9.9 % (E1) per ipc_born.validate().
+    std::string ipcMultipole = "ansatz";
+
     // Pair-vertex library: CSV of He3Gas capture positions (volume,x_mm,y_mm,z_mm,
     // from make_capture_library.py --gas-lib).  When set, X17/IPC vertices are
     // sampled from these rows instead of uniformly in the gas — this is how the
@@ -44,6 +55,66 @@ struct SimConfig {
     double      neutronEmin_eV = 1e-3;    // sampling window
     double      neutronEmax_eV = 1000.0;  // default: < 1 keV (X17 ROI)
     double      neutronGunY_cm = -20.0;   // start position upstream of vessel tip
+
+    // ── ILL reactor beam (--beam ill; HANDOFF_SIM.md §5a, x17_facility_search) ──
+    // PF1B fed by the H113 ballistic supermirror guide (Abele et al.,
+    // nucl-ex/0510072).  λ from the measured spectrum (Eq. 11 fit, particle
+    // flux, CSV lambda_A,dPhi_dlambda_per_A,...); a round defining aperture of
+    // radius illBeamRadius_mm at the gun plane, illGunDist_mm upstream of the
+    // cell entrance window; divergence uniform in |θ_h|,|θ_v| ≤ κ·λ; each ray
+    // back-projected illExitDist_mm to the 60 × 200 mm guide exit and rejected
+    // if it misses it (weight 1 + grad·x_h/30 mm across the width, applied by
+    // rejection so events stay unweighted).  Collimator captures are not
+    // tracked (site background).  The 200 mm (vertical) side of the exit maps
+    // onto sim axis illVerticalAxis ('x' or 'z'); the beam stays +Y.
+    bool        illBeam            = false;
+    std::string illSpectrumFile;            // data/beam/h113_spectrum.csv
+    double      illBeamRadius_mm   = 10.0;  // defining aperture radius
+    double      illGunDist_mm      = 300.0; // aperture → entrance window
+    double      illExitDist_mm     = 1200.0;// guide exit → aperture
+    double      illExitW_mm        = 60.0;  // exit width (horizontal)
+    double      illExitH_mm        = 200.0; // exit height (vertical)
+    double      illExitGrad        = 0.05;  // weight 1 + grad·(x_h / half-width)
+    double      illKappa_rad_per_A = 0.0017;// κ_eff = 0.017 rad/nm
+    char        illVerticalAxis    = 'z';
+    double      illLambdaFixed_A   = 0.0;   // >0: mono-λ instead of the spectrum (V1 slabs)
+
+    // ── Thermal scattering S(α,β) for solids (G4ThermalNeutrons) ──────────────
+    // −1 = auto (on with --beam ill / --target cell, off otherwise, so n_TOF
+    // runs are unchanged); 0 = off; 1 = on.  Uses the G4NDL TS tables for the
+    // NIST materials that have them (G4_Al, G4_Be, G4_GRAPHITE, G4_Fe, ...).
+    int         thermalScattering  = -1;
+
+    // ── Target: the 500 bar capsule (default) or a low-pressure ³He cell ──────
+    // Cell (--target cell; HANDOFF_SIM.md §5b): ³He gas column of length
+    // cellLength_mm and radius cellRadius_mm along +Y, starting at y = cellYw_mm
+    // (the entrance window's downstream face).  Cylindrical skin outside the
+    // gas, an optional rod cage inside it at the skin radius, a window disk in
+    // the aperture of an upstream Al end ring, a ⁶LiF halo scraper upstream of
+    // that ring, and a downstream end cap.  Materials are "Name:thickness_mm"
+    // with Name ∈ {Be, Al, Mylar, Kapton, LiF6, CFRP, Fe, C}.
+    bool        cellTarget         = false;
+    double      cellPressure_bar   = 1.0;
+    double      cellLength_mm      = 300.0;
+    double      cellRadius_mm      = 40.0;
+    double      cellYw_mm          = -21.6;
+    std::string cellSkin           = "Mylar:0.012";
+    int         cellRods           = 0;      // 0 = none; else 1 flat + (N−1) round CFRP
+    double      cellRodRound_mm    = 2.0;    // round rod diameter
+    double      cellRodFlatW_mm    = 12.0;   // flat rod width (tangential)
+    double      cellRodFlatT_mm    = 1.5;    // flat rod thickness (radial)
+    std::string cellWindow         = "Be:0.5";
+    double      cellApertureR_mm   = 15.0;   // window / upstream-ring aperture radius
+    std::string cellEndCap         = "Al:8"; // "Al:8" or "Al:8+LiF6:3" (LiF on the gas side)
+    double      cellRingThick_mm   = 8.0;    // upstream Al end ring thickness
+    double      cellRingLand_mm    = 6.0;    // ring/cap radial land beyond the skin
+    double      cellScraperRin_mm  = 12.0;   // ⁶LiF scraper inner radius (0 = no scraper)
+    double      cellScraperT_mm    = 5.0;    // ⁶LiF scraper thickness
+
+    // Bare slab (--slab Mat:mm; V1 thermal-scattering check): a disk of radius
+    // 50 mm and the given thickness centred at the origin, normal to the beam,
+    // in place of any target.  Materials as for the cell.
+    std::string slab;
 
     // Cross-section biasing (variance reduction for the rare ³He(n,γ) channel).
     // >1 scales the nCapture cross-section *in the He3Gas only* (region-scoped
