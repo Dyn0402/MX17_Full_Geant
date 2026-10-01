@@ -121,6 +121,18 @@ struct SimConfig {
     // operator, so wall/scint H-captures are untouched and transport is intact).
     // Each biased capture carries weight 1/factor; sum weights in analysis.
     double      biasNCaptureFactor = 1.0;   // 1.0 = analog (off)
+    // Same occurrence biasing of nCapture, separately, in the cell's solid
+    // volumes (window, end ring/cap, skin, rods, ⁶LiF) and in the air (World
+    // LV only; daughters are not biased).  High-statistics wall-capture γ
+    // background with Geant4's own HP capture photons, in place of a line-list
+    // γ-source run.  Every count downstream is weighted by EventTree.weight.
+    // Thin parts (window, skin, rods) take biasWallFactor; thick ones (8 mm
+    // Al end ring and cap, ⁶LiF) take biasThickFactor, kept small so that
+    // B·Σ_c·t ≲ 1 — a large factor on 8 mm Al saturates, and the neutrons
+    // that cross it unabsorbed then carry survival weights ~e^(B Σ t).
+    double      biasWallFactor     = 1.0;
+    double      biasThickFactor    = 1.0;
+    double      biasAirFactor      = 1.0;
 
     // ── Gamma-source mode (event_type = 3, biased wall-background) ──
     // Re-emits capture-cascade gammas from a capture-vertex library CSV

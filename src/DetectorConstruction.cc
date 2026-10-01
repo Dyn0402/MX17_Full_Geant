@@ -338,6 +338,7 @@ G4VPhysicalVolume* DetectorConstruction::Construct() {
 
     auto* worldBox = new G4Box("World", worldHalfXZ, worldHalfY, worldHalfXZ);
     auto* worldLV  = new G4LogicalVolume(worldBox, matAir, "World");
+    fWorldLV = worldLV;
     worldLV->SetVisAttributes(G4VisAttributes::GetInvisible());
     auto* worldPV  = new G4PVPlacement(nullptr, G4ThreeVector(), worldLV,
                                         "World", nullptr, false, 0, true);
@@ -756,6 +757,24 @@ void DetectorConstruction::ConstructSDandField() {
         G4cout << "DetectorConstruction: nCapture cross-section biased ×"
                << fConfig.biasNCaptureFactor << " in He3Gas" << G4endl;
     }
+    if (fConfig.biasWallFactor > 1.0 && !fCellWallLVs.empty()) {
+        auto* op = new NCaptureBiasingOperator(fConfig.biasWallFactor);
+        for (auto* lv : fCellWallLVs) op->AttachTo(lv);
+        G4cout << "DetectorConstruction: nCapture biased ×" << fConfig.biasWallFactor
+               << " in " << fCellWallLVs.size() << " thin cell wall volumes" << G4endl;
+    }
+    if (fConfig.biasThickFactor > 1.0 && !fCellThickLVs.empty()) {
+        auto* op = new NCaptureBiasingOperator(fConfig.biasThickFactor);
+        for (auto* lv : fCellThickLVs) op->AttachTo(lv);
+        G4cout << "DetectorConstruction: nCapture biased ×" << fConfig.biasThickFactor
+               << " in " << fCellThickLVs.size() << " thick cell volumes" << G4endl;
+    }
+    if (fConfig.biasAirFactor > 1.0 && fWorldLV) {
+        auto* op = new NCaptureBiasingOperator(fConfig.biasAirFactor);
+        op->AttachTo(fWorldLV);
+        G4cout << "DetectorConstruction: nCapture biased ×" << fConfig.biasAirFactor
+               << " in the World air" << G4endl;
+    }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -882,6 +901,7 @@ void DetectorConstruction::BuildCell(G4LogicalVolume* worldLV) {
     auto* skinLV = new G4LogicalVolume(new G4Tubs("He3Cell_Skin", R, R + tSkin, L/2, 0, twopi),
                                        CellMat(skin.first), "He3Cell_Skin");
     vis(skinLV, 0.9, 0.7, 0.2, 0.5);
+    fCellWallLVs.push_back(skinLV);
     new G4PVPlacement(rot, atY(yw + L/2), skinLV, "He3Cell_Skin", worldLV, false, 0, true);
 
     // rods: daughters of the gas, in the tube frame.  World "up" (the
@@ -897,6 +917,8 @@ void DetectorConstruction::BuildCell(G4LogicalVolume* worldLV) {
             CellMat("CFRP"), "He3Cell_Rod");
         vis(flatLV, 0.15, 0.15, 0.15, 0.9);
         vis(roundLV, 0.15, 0.15, 0.15, 0.9);
+        fCellWallLVs.push_back(flatLV);
+        fCellWallLVs.push_back(roundLV);
         for (int k = 0; k < c.cellRods; ++k) {
             const G4double th = up + k * twopi / c.cellRods;
             const G4ThreeVector rhat(std::cos(th), std::sin(th), 0);
@@ -920,11 +942,13 @@ void DetectorConstruction::BuildCell(G4LogicalVolume* worldLV) {
     auto* winLV = new G4LogicalVolume(new G4Tubs("He3Cell_Window", 0, rAp, tWin/2, 0, twopi),
                                       CellMat(win.first), "He3Cell_Window");
     vis(winLV, 0.8, 0.8, 0.9, 0.6);
+    fCellWallLVs.push_back(winLV);
     new G4PVPlacement(rot, atY(yw - tWin/2), winLV, "He3Cell_Window", worldLV, false, 0, true);
 
     auto* ringLV = new G4LogicalVolume(new G4Tubs("He3Cell_EndUp", rAp, rOut, tRing/2, 0, twopi),
                                        CellMat("Al"), "He3Cell_EndUp");
     vis(ringLV, 0.7, 0.7, 0.7, 0.7);
+    fCellThickLVs.push_back(ringLV);
     new G4PVPlacement(rot, atY(yw - tRing/2), ringLV, "He3Cell_EndUp", worldLV, false, 0, true);
 
     if (c.cellScraperRin_mm > 0) {
@@ -933,6 +957,7 @@ void DetectorConstruction::BuildCell(G4LogicalVolume* worldLV) {
             new G4Tubs("He3Cell_Scraper", c.cellScraperRin_mm*mm, rOut, tS/2, 0, twopi),
             CellMat("LiF6"), "He3Cell_Scraper");
         vis(scrLV, 0.9, 0.9, 0.9, 0.8);
+        fCellThickLVs.push_back(scrLV);
         new G4PVPlacement(rot, atY(yw - tRing - tS/2), scrLV, "He3Cell_Scraper", worldLV, false, 0, true);
     }
 
@@ -946,6 +971,7 @@ void DetectorConstruction::BuildCell(G4LogicalVolume* worldLV) {
         const std::string nm = (l.first == "LiF6") ? "He3Cell_LiF" : "He3Cell_EndDown";
         auto* lv = new G4LogicalVolume(new G4Tubs(nm, 0, rOut, t/2, 0, twopi), CellMat(l.first), nm);
         vis(lv, 0.7, 0.7, 0.7, 0.7);
+        fCellThickLVs.push_back(lv);
         new G4PVPlacement(rot, atY(y + t/2), lv, nm, worldLV, false, 0, true);
         y += t;
     }

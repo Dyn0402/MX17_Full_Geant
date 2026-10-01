@@ -17,6 +17,7 @@
 #include <iostream>
 #include <string>
 #include <ctime>
+#include <algorithm>
 
 static void PrintUsage() {
     std::cerr << "Usage: mx17_full_sim [options] [macro_file]\n"
@@ -39,6 +40,9 @@ static void PrintUsage() {
               << "                   biased capture carries weight 1/factor). Neutron mode only.\n"
               << "  --no-al          Replace the He3 capsule Al vessel with vacuum (cross-check:\n"
               << "                   does removing Al kill the capture-gamma background).\n"
+              << "  --bias-wall <f> / --bias-thick <f> / --bias-air <f>\n"
+              << "                   Same nCapture biasing in the cell's thin walls (window, skin,\n"
+              << "                   rods) / thick parts (Al ring + cap, 6LiF) / the World air\n"
               << "  --gamma-cut-um <um>\n"
               << "                   Override the gamma production cut (default 100 um).\n"
               << "  --emin <eV>      Neutron sampling window minimum (default: 1e-3)\n"
@@ -122,6 +126,9 @@ int main(int argc, char** argv) {
             config.neutronProfileFile = argv[++i];
         }
         else if (a == "--bias-ncapture" && i+1<argc) config.biasNCaptureFactor = std::stod(argv[++i]);
+        else if (a == "--bias-wall" && i+1<argc) config.biasWallFactor = std::stod(argv[++i]);
+        else if (a == "--bias-air"  && i+1<argc) config.biasAirFactor  = std::stod(argv[++i]);
+        else if (a == "--bias-thick" && i+1<argc) config.biasThickFactor = std::stod(argv[++i]);
         else if (a == "--no-al")                     config.disableAlCapsule  = true;
         else if (a == "--gamma-cut-um" && i+1<argc)  config.gammaCut_um       = std::stod(argv[++i]);
         else if (a == "--emin" && i+1<argc) config.neutronEmin_eV = std::stod(argv[++i]);
@@ -247,7 +254,10 @@ int main(int argc, char** argv) {
 
     auto* detCon = new DetectorConstruction(config);
     runManager->SetUserInitialization(detCon);
-    runManager->SetUserInitialization(new PhysicsList(config.biasNCaptureFactor, config.gammaCut_um,
+    runManager->SetUserInitialization(new PhysicsList(
+        std::max({config.biasNCaptureFactor, config.biasWallFactor, config.biasAirFactor,
+                  config.biasThickFactor}),
+        config.gammaCut_um,
                                                       config.thermalScattering == 1));
     runManager->SetUserInitialization(new ActionInitialization(config, detCon));
     runManager->Initialize();

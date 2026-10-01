@@ -69,6 +69,9 @@ def main():
     ap.add_argument("--flavour", default="workday")
     ap.add_argument("--seed", type=int, default=None, help="master seed (default: crc32 of run/config[_tag])")
     ap.add_argument("--memory", type=int, default=2048)
+    ap.add_argument("--exe", default=None,
+                    help="binary to run (default build/mx17_full_sim); use a frozen copy in "
+                         "bin/ so a rebuild cannot touch running jobs")
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("extra", nargs=argparse.REMAINDER, help="-- extra simulation args")
     a = ap.parse_args()
@@ -77,7 +80,7 @@ def main():
     name = a.config + (f"_{a.tag}" if a.tag else "")
     outdir = Path(EOS_BASE) / a.run / name
     jobdir = Path(JOB_BASE) / a.run / name
-    exe = REPO / "build" / "mx17_full_sim"
+    exe = Path(a.exe).resolve() if a.exe else REPO / "build" / "mx17_full_sim"
     if not exe.is_file():
         sys.exit(f"ERROR: build first ({exe})")
 
@@ -131,8 +134,9 @@ def main():
         "queue outfile,seed,tag from (",
     ] + [f"  {o}, {s}, {t}" for o, s, t in jobs] + [")"]
     sub.write_text("\n".join(lines) + "\n")
-    (jobdir / "README").write_text(f"{a.run}/{name}\n{a.njobs} x {a.nevents} {a.mode}\nargs: {' '.join(sim)}\n")
-    (outdir / "RUN_INFO.txt").write_text(f"{a.run}/{name}\n{a.njobs} x {a.nevents} {a.mode}\nmaster seed {seed0}\nargs: {' '.join(sim)}\n")
+    info = f"{a.run}/{name}\n{a.njobs} x {a.nevents} {a.mode}\nmaster seed {seed0}\nexe {exe}\nargs: {' '.join(sim)}\n"
+    (jobdir / "README").write_text(info)
+    (outdir / "RUN_INFO.txt").write_text(info)
     if os.system(f"condor_submit {sub}") != 0:
         sys.exit("condor_submit failed")
 
