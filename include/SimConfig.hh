@@ -38,6 +38,9 @@ struct SimConfig {
     // thermal self-shielding absorption profile (captures within ~mm of the gas
     // entrance face) enters the signal kinematics.  Empty = uniform (default).
     std::string pairVertexLibFile;
+    // Library rows whose volume contains this string are used (default the
+    // gas; e.g. He3Cell_Window for S2 window internal pairs).
+    std::string pairVertexVol = "He3Gas";
 
     bool        singleParticle            = false;
     std::string singleParticleName        = "e-";
@@ -78,6 +81,19 @@ struct SimConfig {
     double      illKappa_rad_per_A = 0.0017;// κ_eff = 0.017 rad/nm
     char        illVerticalAxis    = 'z';
     double      illLambdaFixed_A   = 0.0;   // >0: mono-λ instead of the spectrum (V1 slabs)
+
+    // ── Cosmic muons (--cosmic; event_type = 4; HANDOFF_SIM.md §5e) ──────────
+    // μ± (charge ratio 1.27) from a cosmicPlane_mm square plane cosmicHeight_mm
+    // above the target, perpendicular to the vertical axis (illVerticalAxis —
+    // at the ILL the zenith is perpendicular to the beam, unlike at n_TOF).
+    // Zenith angle from the flux through a horizontal plane, ∝ cos³θ sinθ
+    // (cos²θ intensity), θ < 85°; momentum from the Reyna (2006) sea-level
+    // vertical spectrum, 0.2–1000 GeV/c (flat in log p below 1 GeV/c, where the
+    // fit is not defined).  Live time: N / (J·A), J = 1 cm⁻² min⁻¹ through a
+    // horizontal surface (PDG), A = plane area — printed at the end of the run.
+    bool        cosmic          = false;
+    double      cosmicPlane_mm  = 3000.0;
+    double      cosmicHeight_mm = 1500.0;
 
     // ── Thermal scattering S(α,β) for solids (G4ThermalNeutrons) ──────────────
     // −1 = auto (on with --beam ill / --target cell, off otherwise, so n_TOF

@@ -57,6 +57,8 @@ X17PrimaryGenerator::X17PrimaryGenerator(const SimConfig& cfg)
     fPositron = pt->FindParticle("e+");
     fNeutron  = pt->FindParticle("neutron");
     fGamma    = pt->FindParticle("gamma");
+    fMuPlus   = pt->FindParticle("mu+");
+    fMuMinus  = pt->FindParticle("mu-");
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -65,7 +67,10 @@ void X17PrimaryGenerator::GeneratePrimaries(G4Event* event) {
     // without depending on a cross-action pointer (fragile in Geant4 MT).
     auto* info = new EventTypeInfo();
 
-    if (fConfig.illBeam) {
+    if (fConfig.cosmic) {
+        info->event_type   = 4;
+        info->inv_mass_MeV = GenerateCosmic(event);    // p [GeV/c] in the inv_mass slot
+    } else if (fConfig.illBeam) {
         info->event_type   = 2;
         info->neutron_E_eV = GenerateIllNeutron(event, info->n_thrown);
     } else if (fConfig.neutronMode) {
@@ -113,14 +118,14 @@ void LoadPairVertexLib(const SimConfig& cfg) {
         if (!std::getline(ss, vol, ',') || !std::getline(ss, sx, ',') ||
             !std::getline(ss, sy, ',')  || !std::getline(ss, sz, ','))
             continue;
-        if (vol.find("He3Gas") == std::string::npos) continue;
+        if (vol.find(cfg.pairVertexVol) == std::string::npos) continue;
         gPairVtxLib.push_back({std::stod(sx), std::stod(sy), std::stod(sz)});
     }
     if (gPairVtxLib.empty())
         G4Exception("X17PrimaryGenerator", "PairVertexLib", FatalException,
-                    "Pair-vertex library contains no He3Gas vertices");
+                    ("Pair-vertex library has no " + cfg.pairVertexVol + " vertices").c_str());
     G4cout << "X17PrimaryGenerator: pair-vertex library — "
-           << gPairVtxLib.size() << " He3Gas capture vertices" << G4endl;
+           << gPairVtxLib.size() << " " << cfg.pairVertexVol << " vertices" << G4endl;
 }
 }   // namespace
 
@@ -613,6 +618,75 @@ G4double X17PrimaryGenerator::GenerateIllNeutron(G4Event* event, long& nThrown) 
     fGun->SetParticleEnergy(E_eV * eV);
     fGun->GeneratePrimaryVertex(event);
     return E_eV;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Cosmic muons (--cosmic; event_type = 4).  See SimConfig.hh.
+// Reyna, hep-ph/0604145: vertical sea-level intensity
+//   I_V(p) = c1 p^-(c2 + c3 L + c4 L² + c5 L³),  L = log10(p / GeV/c),
+//   c = 0.00253, 0.2455, 1.288, −0.2555, 0.0209 (fit range 1–2000 GeV/c).
+// Sampled in log p from a tabulated CDF of p·I_V(p) on [0.2, 1000] GeV/c,
+// with I_V held at its 1 GeV/c value below 1 GeV/c.
+namespace {
+std::vector<double> gMuLogP, gMuCdf;
+std::once_flag gMuOnce;
+void BuildMuonTable() {
+    const int n = 4000;
+    const double lo = std::log10(0.2), hi = std::log10(1000.0);
+    auto IV = [](double p) {
+        const double L = std::log10(std::max(p, 1.0));
+        return 0.00253 * std::pow(std::max(p, 1.0),
+            -(0.2455 + 1.288 * L - 0.2555 * L * L + 0.0209 * L * L * L));
+    };
+    gMuLogP.resize(n);
+    gMuCdf.assign(n, 0.0);
+    double prev = 0;
+    for (int i = 0; i < n; ++i) {
+        const double x = lo + (hi - lo) * i / (n - 1), p = std::pow(10.0, x);
+        const double f = p * IV(p);                   // dN/dlog p ∝ p I(p)
+        gMuLogP[i] = x;
+        if (i) gMuCdf[i] = gMuCdf[i - 1] + 0.5 * (f + prev) * (hi - lo) / (n - 1);
+        prev = f;
+    }
+    for (auto& c : gMuCdf) c /= gMuCdf.back();
+}
+}   // namespace
+
+G4double X17PrimaryGenerator::GenerateCosmic(G4Event* event) {
+    std::call_once(gMuOnce, BuildMuonTable);
+    const auto& c = fConfig;
+    // momentum
+    const double u = G4UniformRand();
+    auto it = std::lower_bound(gMuCdf.begin(), gMuCdf.end(), u);
+    size_t i = std::max<size_t>(1, std::min<size_t>(it - gMuCdf.begin(), gMuCdf.size() - 1));
+    const double t = (gMuCdf[i] > gMuCdf[i - 1]) ? (u - gMuCdf[i - 1]) / (gMuCdf[i] - gMuCdf[i - 1]) : 0.5;
+    const double p_GeV = std::pow(10.0, gMuLogP[i - 1] + t * (gMuLogP[i] - gMuLogP[i - 1]));
+    // zenith: dN/dθ ∝ cos³θ sinθ → cosθ = u^(1/4), θ < 85°
+    double ct;
+    do { ct = std::pow(G4UniformRand(), 0.25); } while (ct < std::cos(85.0 * deg));
+    const double st = std::sqrt(1 - ct * ct), ph = CLHEP::twopi * G4UniformRand();
+    // local frame: a, b span the horizontal plane, w is up
+    const double a = (G4UniformRand() - 0.5) * c.cosmicPlane_mm;
+    const double b = (G4UniformRand() - 0.5) * c.cosmicPlane_mm;
+    const double da = st * std::cos(ph), db = st * std::sin(ph), dw = -ct;
+    G4ThreeVector pos, dir;
+    if (c.illVerticalAxis == 'x') {          // up = +x; horizontal plane (y, z)
+        pos = G4ThreeVector(c.cosmicHeight_mm, a, b) * mm;
+        dir = G4ThreeVector(dw, da, db);
+    } else {                                 // up = +z; horizontal plane (x, y)
+        pos = G4ThreeVector(a, b, c.cosmicHeight_mm) * mm;
+        dir = G4ThreeVector(da, db, dw);
+    }
+    const bool plus = G4UniformRand() < 1.27 / 2.27;
+    G4ParticleDefinition* mu = plus ? fMuPlus : fMuMinus;
+    const double m = mu->GetPDGMass();
+    const double pp = p_GeV * GeV;
+    fGun->SetParticleDefinition(mu);
+    fGun->SetParticlePosition(pos);
+    fGun->SetParticleMomentumDirection(dir);
+    fGun->SetParticleEnergy(std::sqrt(pp * pp + m * m) - m);
+    fGun->GeneratePrimaryVertex(event);
+    return p_GeV;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

@@ -336,6 +336,12 @@ G4VPhysicalVolume* DetectorConstruction::Construct() {
         worldHalfY = std::max({worldHalfY, std::abs(yLo) + 5.0*cm, std::abs(yHi) + 5.0*cm});
     }
 
+    if (fConfig.cosmic) {   // the muon plane must sit inside the world
+        const G4double need = std::max(fConfig.cosmicHeight_mm, fConfig.cosmicPlane_mm / 2) * mm
+                              + 10.0*cm;
+        worldHalfXZ = std::max(worldHalfXZ, need);
+        worldHalfY  = std::max(worldHalfY,  need);
+    }
     auto* worldBox = new G4Box("World", worldHalfXZ, worldHalfY, worldHalfXZ);
     auto* worldLV  = new G4LogicalVolume(worldBox, matAir, "World");
     fWorldLV = worldLV;

@@ -29,6 +29,7 @@ private:
     G4double GenerateNeutron(G4Event* event);     // beam neutron, returns E_n [eV]
     G4double GenerateIllNeutron(G4Event* event, long& nThrown); // PF1B/H113 beam, E_n [eV]
     G4double GenerateGammaSource(G4Event* event); // capture γ, returns Eγ [MeV]
+    G4double GenerateCosmic(G4Event* event);      // cosmic μ±, returns p [GeV/c]
 
     const SimConfig&          fConfig;
     std::unique_ptr<G4ParticleGun> fGun;
@@ -37,4 +38,6 @@ private:
     G4ParticleDefinition* fPositron = nullptr;
     G4ParticleDefinition* fNeutron  = nullptr;
     G4ParticleDefinition* fGamma    = nullptr;
+    G4ParticleDefinition* fMuPlus   = nullptr;
+    G4ParticleDefinition* fMuMinus  = nullptr;
 };

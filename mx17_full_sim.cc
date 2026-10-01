@@ -63,6 +63,7 @@ static void PrintUsage() {
               << "                   Sample X17/IPC vertices from a He3Gas capture-position\n"
               << "                   library (make_capture_library.py --gas-lib) instead of\n"
               << "                   uniformly in the gas (thermal self-shielding profile)\n"
+              << "  --pair-vertex-vol <name>  library volume to use (default He3Gas)\n"
               << "  --dist <cm>      Arm distance from target (default: 22.0)\n"
               << "\n  ILL (HANDOFF_SIM.md in x17_facility_search/ill):\n"
               << "  --beam ill <spectrum.csv>\n"
@@ -77,6 +78,8 @@ static void PrintUsage() {
               << "  --slab <Mat:mm>      bare Ø100 mm slab at the origin instead of a target\n"
               << "  --ts | --no-ts       force thermal scattering for solids on/off\n"
               << "                       (default: on with --beam ill, --target cell, --slab)\n"
+              << "  --cosmic             cosmic muons from a 3 x 3 m plane 1.5 m above the target\n"
+              << "                       (zenith along --vertical-axis; event_type 4)\n"
               << "  --target capsule|cell\n"
               << "  --cell-pressure <bar> --cell-length <mm> --cell-radius <mm> --cell-yw <mm>\n"
               << "  --skin <Mat:mm>  --rods <N>  --window <Mat:mm>  --aperture <mm>\n"
@@ -103,6 +106,7 @@ int main(int argc, char** argv) {
         else if (a == "--energy" && i+1<argc) config.transition_energy_MeV  = std::stod(argv[++i]);
         else if (a == "--ipc"    && i+1<argc) config.ipc_fraction            = std::stod(argv[++i]);
         else if (a == "--pair-vertex-lib" && i+1<argc) config.pairVertexLibFile = argv[++i];
+        else if (a == "--pair-vertex-vol" && i+1<argc) config.pairVertexVol = argv[++i];
         else if (a == "--ipc-multipole" && i+1<argc) {
             config.ipcMultipole = argv[++i];
             if (config.ipcMultipole != "ansatz" && config.ipcMultipole != "M1" &&
@@ -160,6 +164,7 @@ int main(int argc, char** argv) {
         else if (a == "--lambda" && i+1<argc) config.illLambdaFixed_A   = std::stod(argv[++i]);
         else if (a == "--kappa"  && i+1<argc) config.illKappa_rad_per_A = std::stod(argv[++i]);
         else if (a == "--slab"   && i+1<argc) config.slab               = argv[++i];
+        else if (a == "--cosmic") config.cosmic = true;
         else if (a == "--ts")    config.thermalScattering = 1;
         else if (a == "--no-ts") config.thermalScattering = 0;
         else if (a == "--target" && i+1<argc) {
@@ -218,7 +223,13 @@ int main(int argc, char** argv) {
                   << " mm, y_w=" << config.cellYw_mm << " mm, skin " << config.cellSkin
                   << ", rods " << config.cellRods << ", window " << config.cellWindow
                   << ", end cap " << config.cellEndCap << "\n";
-    if (config.illBeam)
+    if (config.cosmic) {
+        const double A_cm2 = config.cosmicPlane_mm * config.cosmicPlane_mm / 100.0;
+        std::cout << "  Mode     : cosmic muons, plane " << config.cosmicPlane_mm << " mm at "
+                  << config.cosmicHeight_mm << " mm along +" << config.illVerticalAxis
+                  << "; live time = N x " << 60.0 / A_cm2 << " s\n";
+    }
+    else if (config.illBeam)
         std::cout << "  Mode     : ILL PF1B beam  spectrum=" << config.illSpectrumFile
                   << "  aperture r=" << config.illBeamRadius_mm << " mm at "
                   << config.illGunDist_mm << " mm upstream of the window, exit "
@@ -269,6 +280,10 @@ int main(int argc, char** argv) {
         UI->ApplyCommand("/control/execute " + macroFile);
 
     delete runManager;
+    if (config.cosmic)
+        std::cout << "Cosmic live time: " << config.nEvents * 60.0 /
+                         (config.cosmicPlane_mm * config.cosmicPlane_mm / 100.0)
+                  << " s\n";
     std::cout << "Done. Output: " << config.outFile << "\n";
     return 0;
 }
