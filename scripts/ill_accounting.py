@@ -47,7 +47,33 @@ import numpy as np
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from thermal_accounting import (MIP_P_EV, MIP_S_EV, LEG_MIP, TIER_A_EV,  # noqa: E402
                                 T_PROMPT_NS, NEUTRAL, SIPM_DET, PLAS_DET,
-                                Vocab, read_hits, per_group_sum)
+                                Vocab, per_group_sum, HIT_BRANCHES)
+from collections import defaultdict  # noqa: E402
+
+
+def read_hits(f, voc: Vocab):
+    """thermal_accounting.read_hits plus global hit positions (gx, gy, gz)."""
+    parts = defaultdict(list)
+    if not f["HitTree"].num_entries:
+        return None
+    sid = None
+    for t in f["HitTree"].iterate(HIT_BRANCHES + ["gx", "gy", "gz"], library="np",
+                                  step_size="150 MB"):
+        det = voc.enc("det", t["detType"])
+        prt = voc.enc("prt", t["particle"])
+        nid = voc.ids("prt", ["neutron"])
+        sid = voc.ids("det", (SIPM_DET,) + PLAS_DET)
+        keep = ~np.isin(prt, nid) | np.isin(det, sid)
+        parts["det"].append(det[keep])
+        parts["prt"].append(prt[keep])
+        parts["ov"].append(voc.enc("ov", t["origin_vol"][keep]))
+        parts["op"].append(voc.enc("op", t["origin_proc"][keep]))
+        for k in ("eventID", "trackID", "parentID", "armID", "edep", "time", "u",
+                  "ox", "oy", "oz", "gx", "gy", "gz"):
+            parts[k].append(t[k][keep])
+    h = {k: np.concatenate(v) for k, v in parts.items()}
+    order = np.argsort(h["eventID"], kind="stable")
+    return {k: v[order] for k, v in h.items()}
 
 SCHEMA = "ill/accounting/1"
 TARGET_PREFIX = ("He3Gas", "He3Cell_", "He3Cap_", "Slab")
@@ -89,7 +115,7 @@ def reduce_file(fp: str) -> dict:
     C["absorbed_np"] = float(w[(vols == "He3Gas") & (procs == "neutronInelastic")].sum())
 
     if h is None:
-        return dict(schema=SCHEMA, C=C)
+        return dict(schema=SCHEMA, C=C, _table=None)
 
     V, names = voc.code, voc.names
     hev = h["eventID"].astype(np.int64)
@@ -158,6 +184,46 @@ def reduce_file(fp: str) -> dict:
         C[f"pairtags.{tag}"] = float(W[ue[cnt >= 2]].sum())
         C[f"pairtags_raw.{tag}"] = int((cnt >= 2).sum())
 
+    # ---- per-event, per-arm table (any trigger menu / accidentals offline) --
+    is_l = det == V["det"].get("LiqScint_1", -9)
+    sc = is_s | is_p | is_l
+    T = None
+    if sc.any() or ta_all.any():
+        evs = np.union1d(np.unique(hev[sc]), np.flatnonzero(ta_all))
+        inn = np.isin(hev, evs)          # hits of events in the table only
+        row = np.clip(np.searchsorted(evs, hev), 0, len(evs) - 1)
+        T = dict(ev=evs, w=W[evs].astype(np.float32))
+        z = lambda: np.zeros((len(evs), 4), np.float32)  # noqa: E731
+        m = is_dg & charged & inn
+        T["gap"] = z()
+        np.add.at(T["gap"], (row[m], arm[m]), edep[m] * 1e-6)
+        # edep-weighted gap centroid per arm, mm (global frame)
+        T["gpos"] = np.full((len(evs), 4, 3), np.nan, np.float32)
+        if m.any():
+            g = np.zeros((len(evs), 4, 3))
+            for c, key in enumerate(("gx", "gy", "gz")):
+                np.add.at(g[:, :, c], (row[m], arm[m]), edep[m] * h[key][m])
+            ok = T["gap"] > 0
+            T["gpos"][ok] = (g[ok] / (T["gap"][ok] * 1e6)[:, None]).astype(np.float32)
+        for tag, tm_ok in (("p", prompt), ("a", np.ones_like(prompt))):
+            for key, mk in (("sipm", is_s), ("plast", is_p)):
+                mm_ = mk & tm_ok
+                T[f"{key}_{tag}"] = z()
+                if mm_.any():
+                    k, ss = per_group_sum((hev[mm_] * 4 + arm[mm_]) * 22 + chan[mm_], edep[mm_])
+                    ea = k // 22
+                    np.maximum.at(T[f"{key}_{tag}"], (np.searchsorted(evs, ea // 4), ea % 4),
+                                  (ss * 1e-6).astype(np.float32))
+            mm_ = is_l & tm_ok & inn
+            T[f"ls_{tag}"] = z()
+            np.add.at(T[f"ls_{tag}"], (row[mm_], arm[mm_]), edep[mm_] * 1e-6)
+        T["t_scint"] = np.full((len(evs), 4), np.inf, np.float32)
+        m = sc & prompt & inn
+        np.minimum.at(T["t_scint"], (row[m], arm[m]), tm[m].astype(np.float32))
+        cv = {v: i for i, v in enumerate(sorted(set(vols)))}
+        T["capvol"] = np.array([cv[v] for v in vols[np.searchsorted(ev, evs)]], np.int16)
+        T["capvol_names"] = np.array(sorted(cv, key=cv.get))
+
     # ---- wall pairs reaching the gaps ------------------------------------
     if conv is not None and len(conv["eventID"]):
         cvol = np.array([s_(x) for x in conv["conv_vol"]])
@@ -182,7 +248,7 @@ def reduce_file(fp: str) -> dict:
                 C["wallpair_gaps_raw"] += 1
                 if len(d[0] | d[1]) > 1:
                     C["wallpair_gaps_2arm"] += float(W[e])
-    return dict(schema=SCHEMA, C=C)
+    return dict(schema=SCHEMA, C=C, _table=T)
 
 
 def merge(parts, outdir, config):
@@ -226,6 +292,9 @@ def main():
     if a.cmd == "reduce":
         d = reduce_file(a.file)
         d["file"] = a.file
+        T = d.pop("_table", None)
+        if T is not None:
+            np.savez_compressed(str(Path(a.out).with_suffix(".npz")), **T)
         Path(a.out).write_text(json.dumps(d))
     else:
         files = []

@@ -16,7 +16,8 @@ direction, vertex) and, per lepton, its FIRST DriftGas hit (position, and the
 momentum direction there), the edep-weighted centroid and a PCA line fit of
 its drift hits in that arm (positions smeared by 0.5 mm, as analyze_pairs.py),
 plus the arm bitmask of trigger legs (SiPM bar ≥ 0.5 MIP AND plastic bar
-≥ 0.5 MIP in one arm, thermal_accounting definitions).
+≥ 0.5 MIP in one arm, thermal_accounting definitions) and, per arm, the
+energy deposited (all particles) in the SiPM wall, the plastics and the LS.
 
 merge evaluates every estimator on the selected events (both leptons in the
 gaps, in different arms, and a pair-tag: legs in ≥ 2 arms):
@@ -106,6 +107,7 @@ def reduce_file(fp: str, out: str, step="200 MB"):
                        fit=np.full((emax, 3), np.nan, np.float32),
                        n=np.zeros(emax, np.int32)) for p in ("em", "ep")}
         sums = {}                     # (event*4+arm)*22+chan -> edep
+        E_arm = {k: np.zeros((emax, 4), np.float32) for k in ("E_sipm", "E_plast", "E_ls")}
 
         def process(t):
             det = _s(t["detType"])
@@ -122,6 +124,12 @@ def reduce_file(fp: str, out: str, step="200 MB"):
                 s = np.bincount(inv, t["edep"][sc])
                 for kk, ss in zip(uk.tolist(), s.tolist()):
                     sums[kk] = sums.get(kk, 0.0) + ss
+            # per-arm calorimetry, MeV (edep is eV)
+            for key, mk in (("E_sipm", det == "PlasticScint"),
+                            ("E_plast", (det == "BackScintL") | (det == "BackScintR")),
+                            ("E_ls", det == "LiqScint_1")):
+                if mk.any():
+                    np.add.at(E_arm[key], (ev[mk], arm[mk]), t["edep"][mk] * 1e-6)
             # primary leptons in the drift gaps
             prt = _s(t["particle"])
             for p, name in (("em", "e-"), ("ep", "e+")):
@@ -163,7 +171,7 @@ def reduce_file(fp: str, out: str, step="200 MB"):
                em_d=np.stack([et["em_px"], et["em_py"], et["em_pz"]], 1).astype(np.float32),
                ep_d=np.stack([et["ep_px"], et["ep_py"], et["ep_pz"]], 1).astype(np.float32),
                V=np.stack([et["vtx_x"], et["vtx_y"], et["vtx_z"]], 1).astype(np.float32),
-               legs=legmask[e])
+               legs=legmask[e], **{k: v[e] for k, v in E_arm.items()})
     for p in ("em", "ep"):
         for key, v in lep[p].items():
             rec[f"{p}_{key}"] = v[e]
@@ -273,6 +281,27 @@ def merge(parts, outdir, config, assumed, dir_smear, seed=5):
     od = Path(outdir)
     od.mkdir(parents=True, exist_ok=True)
     (od / "pairs.json").write_text(json.dumps(out, indent=1))
+    # compact per-event dump of the two-arm events (both leptons in gaps of
+    # different arms) for the sensitivity analysis: reco angles, legs, and the
+    # calorimetry of the two lepton arms
+    k = arm2
+    dump = dict(n_generated=np.array([(R["event_type"] == e).sum() for e in (0, 1)]),
+                event_type=R["event_type"][k], theta=th[k].astype(np.float32),
+                em_ke=R["em_ke"][k], ep_ke=R["ep_ke"][k], inv_mass=R["inv_mass"][k],
+                legs=R["legs"][k], em_arm=R["em_arm"][k], ep_arm=R["ep_arm"][k],
+                V=R["V"][k], y_star=ys[k].astype(np.float32))
+    dump.update({f"reco_{e}": reco[e][k].astype(np.float32) for e in EST})
+    for lp in ("em", "ep"):              # unsmeared first hit, directions, fit
+        for key in ("P", "d0", "fit", "Cs", "n"):
+            dump[f"{lp}_{key}"] = R[f"{lp}_{key}"][k]
+        dump[f"{lp}_d"] = R[f"{lp}_d"][k]
+    if "E_sipm" in R:
+        ia = np.arange(N)[k]
+        for key in ("E_sipm", "E_plast", "E_ls"):
+            dump[f"{key}_em"] = R[key][ia, R["em_arm"][k]]
+            dump[f"{key}_ep"] = R[key][ia, R["ep_arm"][k]]
+            dump[f"{key}_all"] = R[key][k]
+    np.savez_compressed(od / "events.npz", **dump)
     print(f"{config}: {N:,} events, assumed vertex {assumed}, dir smear {dir_smear}°")
     for chn, ch in out["channels"].items():
         print(f"  {chn}: n={ch['n_generated']:,}  MM both {ch['acc_mm_both']:.3f}  2-arm "
