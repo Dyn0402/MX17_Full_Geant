@@ -266,6 +266,10 @@ struct SimConfig {
     double bigPlastic_thick_cm = 0.0;
     // Omit the LS vessels (and their PMTs) — the plastics-replace-LS option.
     bool   noLS = false;
+    // Neutron shield wrapped around each plastic (outside the tape), "MAT:mm",
+    // MAT = LiF6 (95 % 6Li) or B4C.  Empty = none.  The plastic's front face
+    // moves back by the shield thickness.
+    std::string plasticShield = "";
 
     // ── Liquid scintillator vessel (1 per arm, STEP-derived) ───────────────
     // Source: STEP "LS X17.step" (Shapr3D export 2026-06-10, solid 'Corpo 03',

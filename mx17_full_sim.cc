@@ -173,6 +173,7 @@ int main(int argc, char** argv) {
             config.bigPlastic_thick_cm = std::stod(argv[++i]);
         }
         else if (a == "--no-ls") config.noLS = true;
+        else if (a == "--plastic-shield" && i+1<argc) config.plasticShield = argv[++i];
         else if (a == "--sipm-readout" && i+2<argc) {  // N instrumented bars, window shift [bars]
             config.sipm_n_readout          = std::stoi(argv[++i]);
             config.sipm_readout_shift_bars = std::stoi(argv[++i]);

@@ -270,6 +270,16 @@ G4VPhysicalVolume* DetectorConstruction::Construct() {
     G4double bscTape_hu = (bsc_u  + 2*tBscAl + 2*tTape) / 2;
     G4double bscTape_hv = (bsc_v  + 2*tBscAl + 2*tTape) / 2;
     G4double bscTape_hw = (bsc_th + 2*tBscAl + 2*tTape) / 2;
+    // --plastic-shield MAT:mm — neutron absorber wrapped around each plastic
+    G4double tBscSh = 0.0;
+    std::string bscShMat;
+    if (!fConfig.plasticShield.empty()) {
+        auto c = fConfig.plasticShield.find(':');
+        if (c == std::string::npos)
+            throw std::runtime_error("--plastic-shield: expected MAT:mm");
+        bscShMat = fConfig.plasticShield.substr(0, c);
+        tBscSh   = std::stod(fConfig.plasticShield.substr(c + 1)) * mm;
+    }
 
     // ── World volume ─────────────────────────────────────────
     // Per-axis MM front-face distances (target at mylar-box centre) and the
@@ -316,7 +326,7 @@ G4VPhysicalVolume* DetectorConstruction::Construct() {
     // Plastics + LS vessel: per-arm depths (measured 2026-07-17 from the SiPM
     // container back; arm order 0=D 1=B 2=A 3=C).  The LS reference plane is
     // the FLAT slab front face — the front bulge apex sits hCap closer in.
-    G4double plasticEnvD = 2 * bscTape_hw;                             // wrapped-bar depth
+    G4double plasticEnvD = 2 * (bscTape_hw + tBscSh);                  // wrapped-bar depth
     G4double plasticWA[4], lsSlabFrontA[4];
     G4double stackDepth = 0.0;                                          // outermost extent
     for (int i = 0; i < 4; ++i) {
@@ -609,6 +619,19 @@ G4VPhysicalVolume* DetectorConstruction::Construct() {
     new G4PVPlacement(nullptr, G4ThreeVector(), bscAlRLV,    "BackScintAlR_in_tape", bscTapeRLV, false, 0, true);
     new G4PVPlacement(nullptr, G4ThreeVector(), fBackScintLLV,"BackScintL_in_al",    bscAlLLV,   false, 0, true);
     new G4PVPlacement(nullptr, G4ThreeVector(), fBackScintRLV,"BackScintR_in_al",    bscAlRLV,   false, 0, true);
+    // Optional neutron shield: the wrapped bar sits inside it
+    G4LogicalVolume* bscOutLLV = bscTapeLLV;
+    G4LogicalVolume* bscOutRLV = bscTapeRLV;
+    if (tBscSh > 0) {
+        G4Material* shM = CellMat(bscShMat);
+        bscOutLLV = MakeLV("BackScintShieldL", bscTape_hu + tBscSh, bscTape_hv + tBscSh,
+                           bscTape_hw + tBscSh, shM, G4Color(0.3,0.6,0.3,0.5));
+        bscOutRLV = MakeLV("BackScintShieldR", bscTape_hu + tBscSh, bscTape_hv + tBscSh,
+                           bscTape_hw + tBscSh, shM, G4Color(0.3,0.6,0.3,0.5));
+        new G4PVPlacement(nullptr, G4ThreeVector(), bscTapeLLV, "BackScintTapeL_in_shield", bscOutLLV, false, 0, true);
+        new G4PVPlacement(nullptr, G4ThreeVector(), bscTapeRLV, "BackScintTapeR_in_shield", bscOutRLV, false, 0, true);
+        G4cout << "  Plastic neutron shield: " << bscShMat << " " << tBscSh/mm << " mm" << G4endl;
+    }
 
     fDriftGasLV->SetUserLimits(new G4UserLimits(100.*um));
     fAmpGasLV  ->SetUserLimits(new G4UserLimits(100.*um));
@@ -699,11 +722,11 @@ G4VPhysicalVolume* DetectorConstruction::Construct() {
         // 3) Plastics — two wrapped bars side-by-side, centred on the MM;
         //    per-arm front distance (measured 2026-07-17).
         if (bigPl) {
-            place(bscTapeLLV, armFront, 0.0, plasticWA[arm], "BackTapeL");
+            place(bscOutLLV, armFront, 0.0, plasticWA[arm], "BackTapeL");
         } else {
-            G4double uOff = bscTape_hu + bsc_gap / 2.0;
-            place(bscTapeLLV, armFront, -uOff, plasticWA[arm], "BackTapeL");
-            place(bscTapeRLV, armFront, +uOff, plasticWA[arm], "BackTapeR");
+            G4double uOff = bscTape_hu + tBscSh + bsc_gap / 2.0;
+            place(bscOutLLV, armFront, -uOff, plasticWA[arm], "BackTapeL");
+            place(bscOutRLV, armFront, +uOff, plasticWA[arm], "BackTapeR");
         }
 
         // 4) LS vessel — surveyed 2026-07-17/18: flat slab front face at the
@@ -839,6 +862,7 @@ G4Material* DetectorConstruction::CellMat(const std::string& name) {
     }
     if (name == "Mylar")  return nist->FindOrBuildMaterial("G4_MYLAR");
     if (name == "Kapton") return nist->FindOrBuildMaterial("G4_KAPTON");
+    if (name == "B4C")    return nist->FindOrBuildMaterial("G4_BORON_CARBIDE");
     if (name == "CFRP")   return GetMat("CFRP");
     if (name == "LiF6") {
         auto it = fMats.find("LiF6");
