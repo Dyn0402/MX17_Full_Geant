@@ -85,6 +85,9 @@ static void PrintUsage() {
               << "  --skin <Mat:mm>  --rods <N>  --window <Mat:mm>  --aperture <mm>\n"
               << "  --end-cap <Mat:mm[+Mat:mm]>  --scraper <rin_mm:t_mm | none>\n"
               << "  --endcap-ring <t_mm:land_mm>\n"
+              << "  --big-plastic <u_cm> <v_cm> <t_cm>  one plastic slab per arm (trigger study)\n"
+              << "  --no-ls          omit the LS vessels\n"
+              << "  --sipm-readout <N> <shift>  instrumented SiPM bars (default 16 1; all: 20 0)\n"
               << "  -h               Print this help\n";
 }
 
@@ -164,6 +167,16 @@ int main(int argc, char** argv) {
         else if (a == "--lambda" && i+1<argc) config.illLambdaFixed_A   = std::stod(argv[++i]);
         else if (a == "--kappa"  && i+1<argc) config.illKappa_rad_per_A = std::stod(argv[++i]);
         else if (a == "--slab"   && i+1<argc) config.slab               = argv[++i];
+        else if (a == "--big-plastic" && i+3<argc) {   // u v thick [cm], one slab per arm
+            config.bigPlastic_u_cm     = std::stod(argv[++i]);
+            config.bigPlastic_v_cm     = std::stod(argv[++i]);
+            config.bigPlastic_thick_cm = std::stod(argv[++i]);
+        }
+        else if (a == "--no-ls") config.noLS = true;
+        else if (a == "--sipm-readout" && i+2<argc) {  // N instrumented bars, window shift [bars]
+            config.sipm_n_readout          = std::stoi(argv[++i]);
+            config.sipm_readout_shift_bars = std::stoi(argv[++i]);
+        }
         else if (a == "--cosmic") config.cosmic = true;
         else if (a == "--ts")    config.thermalScattering = 1;
         else if (a == "--no-ts") config.thermalScattering = 0;

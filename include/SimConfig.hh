@@ -256,6 +256,17 @@ struct SimConfig {
     // (measured 2026-07-17; was a uniform 7 cm placeholder)
     double gap_sipm_to_plastic_cm[4] = {6.5, 6.1, 6.3, 6.1};
 
+    // Trigger-plastic study (x17_facility_search/trigger_plastics): replace the
+    // two bars by ONE slab per arm of bigPlastic_u × v × thick cm (same front
+    // face, same wrapping, centred on the MM), scored as "BackScintL".  Made
+    // deliberately oversized so that any smaller plastic (width, length,
+    // thickness) is cut out of its hits offline.  0 = off (the as-built bars).
+    double bigPlastic_u_cm     = 0.0;
+    double bigPlastic_v_cm     = 0.0;
+    double bigPlastic_thick_cm = 0.0;
+    // Omit the LS vessels (and their PMTs) — the plastics-replace-LS option.
+    bool   noLS = false;
+
     // ── Liquid scintillator vessel (1 per arm, STEP-derived) ───────────────
     // Source: STEP "LS X17.step" (Shapr3D export 2026-06-10, solid 'Corpo 03',
     // products SCINT1/SCINT2).  CFRP vessel: flat slab (45×45 cm face) +

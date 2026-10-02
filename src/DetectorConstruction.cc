@@ -256,9 +256,11 @@ G4VPhysicalVolume* DetectorConstruction::Construct() {
     G4double sipmBar_hw = tSipmScint / 2;
 
     // Plastic bar: PVT wrapped in Al foil then black mylar tape
-    G4double bsc_u  = fConfig.backscint_u_cm     * cm;
-    G4double bsc_v  = fConfig.backscint_v_cm     * cm;
-    G4double bsc_th = fConfig.backscint_thick_cm * cm;
+    // --big-plastic: one oversized slab per arm in place of the two bars.
+    const bool bigPl = fConfig.bigPlastic_u_cm > 0;
+    G4double bsc_u  = (bigPl ? fConfig.bigPlastic_u_cm     : fConfig.backscint_u_cm)     * cm;
+    G4double bsc_v  = (bigPl ? fConfig.bigPlastic_v_cm     : fConfig.backscint_v_cm)     * cm;
+    G4double bsc_th = (bigPl ? fConfig.bigPlastic_thick_cm : fConfig.backscint_thick_cm) * cm;
     G4double bsc_gap= fConfig.backscint_gap_cm   * cm;
     // Al envelope half-sizes (Al foil directly on scint surface)
     G4double bscAl_hu = (bsc_u  + 2*tBscAl) / 2;
@@ -321,7 +323,7 @@ G4VPhysicalVolume* DetectorConstruction::Construct() {
         G4double pf = sipmBack + fConfig.gap_sipm_to_plastic_cm[i] * cm;
         plasticWA[i]    = pf + plasticEnvD / 2.0;                       // plastics centre depth
         lsSlabFrontA[i] = sipmBack + fConfig.ls_front_from_sipm_back_cm[i] * cm;
-        stackDepth = std::max(stackDepth, lsSlabFrontA[i] + 2*lsTo + hCap);
+        stackDepth = std::max({stackDepth, lsSlabFrontA[i] + 2*lsTo + hCap, pf + plasticEnvD});
     }
 
     G4double lsVExtent   = lsVo + lsFunL + lsNkL + pmtOut;  // vessel+PMT reach along v
@@ -696,9 +698,13 @@ G4VPhysicalVolume* DetectorConstruction::Construct() {
 
         // 3) Plastics — two wrapped bars side-by-side, centred on the MM;
         //    per-arm front distance (measured 2026-07-17).
-        G4double uOff = bscTape_hu + bsc_gap / 2.0;
-        place(bscTapeLLV, armFront, -uOff, plasticWA[arm], "BackTapeL");
-        place(bscTapeRLV, armFront, +uOff, plasticWA[arm], "BackTapeR");
+        if (bigPl) {
+            place(bscTapeLLV, armFront, 0.0, plasticWA[arm], "BackTapeL");
+        } else {
+            G4double uOff = bscTape_hu + bsc_gap / 2.0;
+            place(bscTapeLLV, armFront, -uOff, plasticWA[arm], "BackTapeL");
+            place(bscTapeRLV, armFront, +uOff, plasticWA[arm], "BackTapeR");
+        }
 
         // 4) LS vessel — surveyed 2026-07-17/18: flat slab front face at the
         //    measured per-arm depth; slab centre at the surveyed height
@@ -709,6 +715,11 @@ G4VPhysicalVolume* DetectorConstruction::Construct() {
         //    +u (A, D).  Placed with G4Transform3D (the direct/active-
         //    rotation constructor), matching the active use of ad.rot in the
         //    position math above.
+        if (fConfig.noLS) {
+            G4cout << "  Arm " << arm << " front face at " << armFront/cm
+                   << " cm; SiPM bars " << barLo << "-" << barHi << "; no LS" << G4endl;
+            continue;
+        }
         G4RotationMatrix lsRz; lsRz.rotateZ(fConfig.ls_rot_deg[arm] * deg);
         G4RotationMatrix lsArmR = (ad.rot ? *ad.rot : G4RotationMatrix()) * lsRz;
         G4double lsSlabCenW = lsSlabFrontA[arm] + lsTo;
