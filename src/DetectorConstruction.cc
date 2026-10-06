@@ -952,7 +952,7 @@ void DetectorConstruction::BuildCell(G4LogicalVolume* worldLV) {
     new G4PVPlacement(rot, atY(yw - tWin/2), winLV, "He3Cell_Window", worldLV, false, 0, true);
 
     auto* ringLV = new G4LogicalVolume(new G4Tubs("He3Cell_EndUp", rAp, rOut, tRing/2, 0, twopi),
-                                       CellMat("Al"), "He3Cell_EndUp");
+                                       CellMat(c.cellRingMat), "He3Cell_EndUp");
     vis(ringLV, 0.7, 0.7, 0.7, 0.7);
     fCellThickLVs.push_back(ringLV);
     new G4PVPlacement(rot, atY(yw - tRing/2), ringLV, "He3Cell_EndUp", worldLV, false, 0, true);
@@ -965,6 +965,20 @@ void DetectorConstruction::BuildCell(G4LogicalVolume* worldLV) {
         vis(scrLV, 0.9, 0.9, 0.9, 0.8);
         fCellThickLVs.push_back(scrLV);
         new G4PVPlacement(rot, atY(yw - tRing - tS/2), scrLV, "He3Cell_Scraper", worldLV, false, 0, true);
+    }
+
+    // optional ⁶LiF liner on the ring's gas side: an annulus inside the gas at
+    // its upstream face, r ∈ [r_ap, R − 2.1 mm] (clear of the rods), so neutrons
+    // scattered back toward the ring are absorbed by ⁶Li(n,t)α (no γ)
+    if (c.cellRingLiner_mm > 0) {
+        const G4double tL = c.cellRingLiner_mm * mm;
+        const G4double rLo = (c.cellRods > 0) ? R - 2.1*mm : R - 0.001*mm;
+        auto* linLV = new G4LogicalVolume(new G4Tubs("He3Cell_RingLiner", rAp, rLo, tL/2, 0, twopi),
+                                          CellMat("LiF6"), "He3Cell_RingLiner");
+        vis(linLV, 0.9, 0.9, 0.9, 0.8);
+        fCellThickLVs.push_back(linLV);
+        new G4PVPlacement(nullptr, G4ThreeVector(0, 0, -L/2 + tL/2), linLV, "He3Cell_RingLiner",
+                          gasLV, false, 0, true);
     }
 
     // downstream end cap: ⁶LiF liner (if any) on the gas side, then the rest
@@ -990,7 +1004,7 @@ void DetectorConstruction::BuildCell(G4LogicalVolume* worldLV) {
     G4cout << "  Skin         : " << skin.first << " " << tSkin/mm << " mm; rods "
            << c.cellRods << " (flat at +" << c.illVerticalAxis << ")" << G4endl;
     G4cout << "  Window       : " << win.first << " " << tWin/mm << " mm, aperture r="
-           << rAp/mm << " mm; Al ring " << tRing/mm << " mm to r=" << rOut/mm << " mm" << G4endl;
+           << rAp/mm << " mm; " << c.cellRingMat << " ring " << tRing/mm << " mm to r=" << rOut/mm << " mm" << G4endl;
     G4cout << "  Scraper      : " << (c.cellScraperRin_mm > 0
                                        ? "6LiF r>" + std::to_string(c.cellScraperRin_mm) + " mm"
                                        : std::string("none")) << G4endl;

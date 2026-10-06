@@ -84,7 +84,7 @@ static void PrintUsage() {
               << "  --cell-pressure <bar> --cell-length <mm> --cell-radius <mm> --cell-yw <mm>\n"
               << "  --skin <Mat:mm>  --rods <N>  --window <Mat:mm>  --aperture <mm>\n"
               << "  --end-cap <Mat:mm[+Mat:mm]>  --scraper <rin_mm:t_mm | none>\n"
-              << "  --endcap-ring <t_mm:land_mm>\n"
+              << "  --endcap-ring <t_mm:land_mm>  --ring <Mat>  --ring-liner <mm>\n"
               << "  -h               Print this help\n";
 }
 
@@ -191,6 +191,8 @@ int main(int argc, char** argv) {
                 if (c != std::string::npos) config.cellScraperT_mm = std::stod(s.substr(c + 1));
             }
         }
+        else if (a == "--ring"          && i+1<argc) config.cellRingMat      = argv[++i];
+        else if (a == "--ring-liner"    && i+1<argc) config.cellRingLiner_mm = std::stod(argv[++i]);
         else if (a == "--endcap-ring"   && i+1<argc) {
             std::string s = argv[++i];
             auto c = s.find(':');
@@ -222,7 +224,9 @@ int main(int argc, char** argv) {
                   << config.cellLength_mm << " mm, R=" << config.cellRadius_mm
                   << " mm, y_w=" << config.cellYw_mm << " mm, skin " << config.cellSkin
                   << ", rods " << config.cellRods << ", window " << config.cellWindow
-                  << ", end cap " << config.cellEndCap << "\n";
+                  << ", end cap " << config.cellEndCap << ", ring " << config.cellRingMat
+                  << (config.cellRingLiner_mm > 0 ? " + 6LiF liner " + std::to_string(config.cellRingLiner_mm) + " mm" : "")
+                  << "\n";
     if (config.cosmic) {
         const double A_cm2 = config.cosmicPlane_mm * config.cosmicPlane_mm / 100.0;
         std::cout << "  Mode     : cosmic muons, plane " << config.cosmicPlane_mm << " mm at "

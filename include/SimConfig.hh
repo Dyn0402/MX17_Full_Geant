@@ -122,7 +122,9 @@ struct SimConfig {
     std::string cellWindow         = "Be:0.5";
     double      cellApertureR_mm   = 15.0;   // window / upstream-ring aperture radius
     std::string cellEndCap         = "Al:8"; // "Al:8" or "Al:8+LiF6:3" (LiF on the gas side)
-    double      cellRingThick_mm   = 8.0;    // upstream Al end ring thickness
+    double      cellRingThick_mm   = 8.0;    // upstream end ring thickness
+    std::string cellRingMat        = "Al";   // upstream end ring material (CellMat name)
+    double      cellRingLiner_mm   = 0.0;    // ⁶LiF annulus on the ring's gas side (0 = none)
     double      cellRingLand_mm    = 6.0;    // ring/cap radial land beyond the skin
     double      cellScraperRin_mm  = 12.0;   // ⁶LiF scraper inner radius (0 = no scraper)
     double      cellScraperT_mm    = 5.0;    // ⁶LiF scraper thickness
