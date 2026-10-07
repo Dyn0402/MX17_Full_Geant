@@ -85,6 +85,7 @@ static void PrintUsage() {
               << "  --skin <Mat:mm>  --rods <N>  --window <Mat:mm>  --aperture <mm>\n"
               << "  --end-cap <Mat:mm[+Mat:mm]>  --scraper <rin_mm:t_mm | none>\n"
               << "  --endcap-ring <t_mm:land_mm>  --ring <Mat>  --ring-liner <mm>\n"
+              << "  --flight-tube <He|Vac>[:r_mm]  --tube-wall <Mat:mm>  --tube-window <Mat:mm>\n"
               << "  -h               Print this help\n";
 }
 
@@ -193,6 +194,14 @@ int main(int argc, char** argv) {
         }
         else if (a == "--ring"          && i+1<argc) config.cellRingMat      = argv[++i];
         else if (a == "--ring-liner"    && i+1<argc) config.cellRingLiner_mm = std::stod(argv[++i]);
+        else if (a == "--flight-tube"   && i+1<argc) {
+            std::string s = argv[++i];
+            auto c = s.find(':');
+            config.flightTubeGas = s.substr(0, c);
+            if (c != std::string::npos) config.flightTubeR_mm = std::stod(s.substr(c + 1));
+        }
+        else if (a == "--tube-wall"     && i+1<argc) config.flightTubeWall = argv[++i];
+        else if (a == "--tube-window"   && i+1<argc) config.flightTubeWin  = argv[++i];
         else if (a == "--endcap-ring"   && i+1<argc) {
             std::string s = argv[++i];
             auto c = s.find(':');
@@ -226,6 +235,9 @@ int main(int argc, char** argv) {
                   << ", rods " << config.cellRods << ", window " << config.cellWindow
                   << ", end cap " << config.cellEndCap << ", ring " << config.cellRingMat
                   << (config.cellRingLiner_mm > 0 ? " + 6LiF liner " + std::to_string(config.cellRingLiner_mm) + " mm" : "")
+                  << (config.flightTubeGas.empty() ? std::string() : ", flight tube " + config.flightTubeGas
+                      + " r=" + std::to_string(config.flightTubeR_mm) + " wall " + config.flightTubeWall
+                      + " window " + config.flightTubeWin)
                   << "\n";
     if (config.cosmic) {
         const double A_cm2 = config.cosmicPlane_mm * config.cosmicPlane_mm / 100.0;

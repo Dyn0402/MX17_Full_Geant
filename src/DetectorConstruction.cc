@@ -967,6 +967,41 @@ void DetectorConstruction::BuildCell(G4LogicalVolume* worldLV) {
         new G4PVPlacement(rot, atY(yw - tRing - tS/2), scrLV, "He3Cell_Scraper", worldLV, false, 0, true);
     }
 
+    // optional beam flight tube from just after the gun plane to the cell's
+    // upstream face (scraper or ring): He or vacuum instead of the 300 mm of
+    // air, with its own wall and an upstream window at the gun end
+    if (!c.flightTubeGas.empty()) {
+        if (!c.illBeam) throw std::runtime_error("--flight-tube needs the ILL beam (--gun-dist)");
+        G4Material* gas = nullptr;
+        if (c.flightTubeGas == "He")       gas = G4NistManager::Instance()->FindOrBuildMaterial("G4_He");
+        else if (c.flightTubeGas == "Vac") gas = G4NistManager::Instance()->FindOrBuildMaterial("G4_Galactic");
+        else throw std::runtime_error("--flight-tube: gas must be He or Vac");
+        const auto wall = ParseLayers(c.flightTubeWall).at(0);
+        const auto twin = ParseLayers(c.flightTubeWin).at(0);
+        const G4double rT = c.flightTubeR_mm * mm, tW = wall.second * mm, tTw = twin.second * mm;
+        const G4double yEnd = yw - tRing - (c.cellScraperRin_mm > 0 ? c.cellScraperT_mm * mm : 0.0);
+        const G4double yBeg = yw - c.illGunDist_mm * mm + 1.0*mm;     // gun plane + 1 mm
+        const G4double yGas = yBeg + tTw;
+        if (yGas >= yEnd) throw std::runtime_error("--flight-tube: no room between gun and cell");
+        const G4double hG = (yEnd - yGas) / 2;
+        auto* tgLV = new G4LogicalVolume(new G4Tubs("FlightTube_Gas", 0, rT, hG, 0, twopi), gas, "FlightTube_Gas");
+        vis(tgLV, 0.9, 0.9, 0.5, 0.15);
+        new G4PVPlacement(rot, atY(yGas + hG), tgLV, "FlightTube_Gas", worldLV, false, 0, true);
+        auto* twLV = new G4LogicalVolume(new G4Tubs("FlightTube_Wall", rT, rT + tW, hG + tTw/2, 0, twopi),
+                                         CellMat(wall.first), "FlightTube_Wall");
+        vis(twLV, 0.6, 0.6, 0.6, 0.5);
+        fCellThickLVs.push_back(twLV);
+        new G4PVPlacement(rot, atY(yBeg + (yEnd - yBeg)/2), twLV, "FlightTube_Wall", worldLV, false, 0, true);
+        auto* tnLV = new G4LogicalVolume(new G4Tubs("FlightTube_Win", 0, rT, tTw/2, 0, twopi),
+                                         CellMat(twin.first), "FlightTube_Win");
+        vis(tnLV, 0.8, 0.8, 0.9, 0.6);
+        fCellWallLVs.push_back(tnLV);
+        new G4PVPlacement(rot, atY(yBeg + tTw/2), tnLV, "FlightTube_Win", worldLV, false, 0, true);
+        G4cout << "  Flight tube  : " << c.flightTubeGas << " r=" << rT/mm << " mm, y=[" << yBeg/mm << ", "
+               << yEnd/mm << "] mm; wall " << wall.first << " " << tW/mm << " mm; window "
+               << twin.first << " " << tTw/mm << " mm" << G4endl;
+    }
+
     // optional ⁶LiF liner on the ring's gas side: an annulus inside the gas at
     // its upstream face, r ∈ [r_ap, R − 2.1 mm] (clear of the rods), so neutrons
     // scattered back toward the ring are absorbed by ⁶Li(n,t)α (no γ)

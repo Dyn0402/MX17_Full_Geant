@@ -125,6 +125,10 @@ struct SimConfig {
     double      cellRingThick_mm   = 8.0;    // upstream end ring thickness
     std::string cellRingMat        = "Al";   // upstream end ring material (CellMat name)
     double      cellRingLiner_mm   = 0.0;    // ⁶LiF annulus on the ring's gas side (0 = none)
+    std::string flightTubeGas      = "";     // He / Vac: beam flight tube gun → cell (empty = air)
+    double      flightTubeR_mm     = 30.0;   // tube inner radius
+    std::string flightTubeWall     = "Al:1"; // tube wall Mat:mm
+    std::string flightTubeWin      = "Mylar:0.025"; // tube upstream window (at the gun) Mat:mm
     double      cellRingLand_mm    = 6.0;    // ring/cap radial land beyond the skin
     double      cellScraperRin_mm  = 12.0;   // ⁶LiF scraper inner radius (0 = no scraper)
     double      cellScraperT_mm    = 5.0;    // ⁶LiF scraper thickness
