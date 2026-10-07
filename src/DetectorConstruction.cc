@@ -257,9 +257,11 @@ G4VPhysicalVolume* DetectorConstruction::Construct() {
     G4double sipmBar_hw = tSipmScint / 2;
 
     // Plastic bar: PVT wrapped in Al foil then black mylar tape
-    G4double bsc_u  = fConfig.backscint_u_cm     * cm;
-    G4double bsc_v  = fConfig.backscint_v_cm     * cm;
-    G4double bsc_th = fConfig.backscint_thick_cm * cm;
+    // --big-plastic: one oversized slab per arm in place of the two bars.
+    const bool bigPl = fConfig.bigPlastic_u_cm > 0;
+    G4double bsc_u  = (bigPl ? fConfig.bigPlastic_u_cm     : fConfig.backscint_u_cm)     * cm;
+    G4double bsc_v  = (bigPl ? fConfig.bigPlastic_v_cm     : fConfig.backscint_v_cm)     * cm;
+    G4double bsc_th = (bigPl ? fConfig.bigPlastic_thick_cm : fConfig.backscint_thick_cm) * cm;
     G4double bsc_gap= fConfig.backscint_gap_cm   * cm;
     // Al envelope half-sizes (Al foil directly on scint surface)
     G4double bscAl_hu = (bsc_u  + 2*tBscAl) / 2;
@@ -269,6 +271,16 @@ G4VPhysicalVolume* DetectorConstruction::Construct() {
     G4double bscTape_hu = (bsc_u  + 2*tBscAl + 2*tTape) / 2;
     G4double bscTape_hv = (bsc_v  + 2*tBscAl + 2*tTape) / 2;
     G4double bscTape_hw = (bsc_th + 2*tBscAl + 2*tTape) / 2;
+    // --plastic-shield MAT:mm — neutron absorber wrapped around each plastic
+    G4double tBscSh = 0.0;
+    std::string bscShMat;
+    if (!fConfig.plasticShield.empty()) {
+        auto c = fConfig.plasticShield.find(':');
+        if (c == std::string::npos)
+            throw std::runtime_error("--plastic-shield: expected MAT:mm");
+        bscShMat = fConfig.plasticShield.substr(0, c);
+        tBscSh   = std::stod(fConfig.plasticShield.substr(c + 1)) * mm;
+    }
 
     // ── World volume ─────────────────────────────────────────
     // Per-axis MM front-face distances (target at mylar-box centre) and the
@@ -315,14 +327,14 @@ G4VPhysicalVolume* DetectorConstruction::Construct() {
     // Plastics + LS vessel: per-arm depths (measured 2026-07-17 from the SiPM
     // container back; arm order 0=D 1=B 2=A 3=C).  The LS reference plane is
     // the FLAT slab front face — the front bulge apex sits hCap closer in.
-    G4double plasticEnvD = 2 * bscTape_hw;                             // wrapped-bar depth
+    G4double plasticEnvD = 2 * (bscTape_hw + tBscSh);                  // wrapped-bar depth
     G4double plasticWA[4], lsSlabFrontA[4];
     G4double stackDepth = 0.0;                                          // outermost extent
     for (int i = 0; i < 4; ++i) {
         G4double pf = sipmBack + fConfig.gap_sipm_to_plastic_cm[i] * cm;
         plasticWA[i]    = pf + plasticEnvD / 2.0;                       // plastics centre depth
         lsSlabFrontA[i] = sipmBack + fConfig.ls_front_from_sipm_back_cm[i] * cm;
-        stackDepth = std::max(stackDepth, lsSlabFrontA[i] + 2*lsTo + hCap);
+        stackDepth = std::max({stackDepth, lsSlabFrontA[i] + 2*lsTo + hCap, pf + plasticEnvD});
     }
 
     G4double lsVExtent   = lsVo + lsFunL + lsNkL + pmtOut;  // vessel+PMT reach along v
@@ -614,6 +626,19 @@ G4VPhysicalVolume* DetectorConstruction::Construct() {
     new G4PVPlacement(nullptr, G4ThreeVector(), bscAlRLV,    "BackScintAlR_in_tape", bscTapeRLV, false, 0, true);
     new G4PVPlacement(nullptr, G4ThreeVector(), fBackScintLLV,"BackScintL_in_al",    bscAlLLV,   false, 0, true);
     new G4PVPlacement(nullptr, G4ThreeVector(), fBackScintRLV,"BackScintR_in_al",    bscAlRLV,   false, 0, true);
+    // Optional neutron shield: the wrapped bar sits inside it
+    G4LogicalVolume* bscOutLLV = bscTapeLLV;
+    G4LogicalVolume* bscOutRLV = bscTapeRLV;
+    if (tBscSh > 0) {
+        G4Material* shM = CellMat(bscShMat);
+        bscOutLLV = MakeLV("BackScintShieldL", bscTape_hu + tBscSh, bscTape_hv + tBscSh,
+                           bscTape_hw + tBscSh, shM, G4Color(0.3,0.6,0.3,0.5));
+        bscOutRLV = MakeLV("BackScintShieldR", bscTape_hu + tBscSh, bscTape_hv + tBscSh,
+                           bscTape_hw + tBscSh, shM, G4Color(0.3,0.6,0.3,0.5));
+        new G4PVPlacement(nullptr, G4ThreeVector(), bscTapeLLV, "BackScintTapeL_in_shield", bscOutLLV, false, 0, true);
+        new G4PVPlacement(nullptr, G4ThreeVector(), bscTapeRLV, "BackScintTapeR_in_shield", bscOutRLV, false, 0, true);
+        G4cout << "  Plastic neutron shield: " << bscShMat << " " << tBscSh/mm << " mm" << G4endl;
+    }
 
     fDriftGasLV->SetUserLimits(new G4UserLimits(100.*um));
     fAmpGasLV  ->SetUserLimits(new G4UserLimits(100.*um));
@@ -703,9 +728,13 @@ G4VPhysicalVolume* DetectorConstruction::Construct() {
 
         // 3) Plastics — two wrapped bars side-by-side, centred on the MM;
         //    per-arm front distance (measured 2026-07-17).
-        G4double uOff = bscTape_hu + bsc_gap / 2.0;
-        place(bscTapeLLV, armFront, -uOff, plasticWA[arm], "BackTapeL");
-        place(bscTapeRLV, armFront, +uOff, plasticWA[arm], "BackTapeR");
+        if (bigPl) {
+            place(bscOutLLV, armFront, 0.0, plasticWA[arm], "BackTapeL");
+        } else {
+            G4double uOff = bscTape_hu + tBscSh + bsc_gap / 2.0;
+            place(bscOutLLV, armFront, -uOff, plasticWA[arm], "BackTapeL");
+            place(bscOutRLV, armFront, +uOff, plasticWA[arm], "BackTapeR");
+        }
 
         // 4) LS vessel — surveyed 2026-07-17/18: flat slab front face at the
         //    measured per-arm depth; slab centre at the surveyed height
@@ -716,6 +745,11 @@ G4VPhysicalVolume* DetectorConstruction::Construct() {
         //    +u (A, D).  Placed with G4Transform3D (the direct/active-
         //    rotation constructor), matching the active use of ad.rot in the
         //    position math above.
+        if (fConfig.noLS) {
+            G4cout << "  Arm " << arm << " front face at " << armFront/cm
+                   << " cm; SiPM bars " << barLo << "-" << barHi << "; no LS" << G4endl;
+            continue;
+        }
         G4RotationMatrix lsRz; lsRz.rotateZ(fConfig.ls_rot_deg[arm] * deg);
         G4RotationMatrix lsArmR = (ad.rot ? *ad.rot : G4RotationMatrix()) * lsRz;
         G4double lsSlabCenW = lsSlabFrontA[arm] + lsTo;
@@ -844,6 +878,7 @@ G4Material* DetectorConstruction::CellMat(const std::string& name) {
     if (name == "Ti")     return nist->FindOrBuildMaterial("G4_Ti");
     if (name == "Vac")    return nist->FindOrBuildMaterial("G4_Galactic");
     if (name == "Kapton") return nist->FindOrBuildMaterial("G4_KAPTON");
+    if (name == "B4C")    return nist->FindOrBuildMaterial("G4_BORON_CARBIDE");
     if (name == "CFRP")   return GetMat("CFRP");
     if (name == "LiF6") {
         auto it = fMats.find("LiF6");

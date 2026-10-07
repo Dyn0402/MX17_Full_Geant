@@ -126,10 +126,12 @@ void SteppingAction::UserSteppingAction(const G4Step* step) {
     // Nested volumes carry copy number 0 (wrong for arms 1-3), so we walk up
     // the touchable to the ancestor that has the arm copy number:
     //   BackScintL/R: BackScint → BackScintAl → BackScintTape[arm copy]
+    //                 (→ BackScintShield[arm copy] with --plastic-shield)
     //   LiqScint_1:   LiqScint_1 → LS_VesselCFRP[arm copy]
     int armID;
     if (volName == "BackScintL" || volName == "BackScintR") {
-        armID = pre->GetTouchable()->GetVolume(2)->GetCopyNo();
+        const int d = fConfig.plasticShield.empty() ? 2 : 3;
+        armID = pre->GetTouchable()->GetVolume(d)->GetCopyNo();
     } else if (volName == "LiqScint_1") {
         armID = pre->GetTouchable()->GetVolume(1)->GetCopyNo();
     } else {
