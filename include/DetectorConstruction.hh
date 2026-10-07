@@ -40,6 +40,7 @@ private:
     // Low-pressure ³He cell (--target cell; HANDOFF_SIM.md §5b).
     void BuildCell(G4LogicalVolume* worldLV);
     void BuildSlab(G4LogicalVolume* worldLV);   // --slab (V1 check)
+    void BuildLiTarget(G4LogicalVolume* worldLV);  // --target li (LNL)
     G4Material* CellMat(const std::string& name);
 
     const SimConfig& fConfig;

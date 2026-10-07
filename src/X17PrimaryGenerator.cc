@@ -31,6 +31,7 @@
 #include "G4SystemOfUnits.hh"
 #include "G4PhysicalConstants.hh"
 #include "G4Exception.hh"
+#include "G4Material.hh"
 #include "Randomize.hh"
 
 #include <algorithm>
@@ -76,6 +77,9 @@ void X17PrimaryGenerator::GeneratePrimaries(G4Event* event) {
     } else if (fConfig.neutronMode) {
         info->event_type   = 2;
         info->neutron_E_eV = GenerateNeutron(event);
+    } else if (!fConfig.gammaLines.empty()) {
+        info->event_type   = 3;
+        info->inv_mass_MeV = GenerateGammaLines(event);
     } else if (fConfig.gammaSourceMode) {
         info->event_type   = 3;
         info->inv_mass_MeV = GenerateGammaSource(event);
@@ -139,6 +143,27 @@ static G4ThreeVector SampleHe3Vertex(const SimConfig& cfg) {
         const auto& p = gPairVtxLib[static_cast<size_t>(
             G4UniformRand() * gPairVtxLib.size()) % gPairVtxLib.size()];
         return G4ThreeVector(p[0] * mm, p[1] * mm, p[2] * mm);
+    }
+    if (cfg.liTarget) {     // LNL: Gaussian beam spot, uniform through the film depth
+        // film thickness from the areal density and the material DetectorConstruction built
+        static const double tFilm_mm = [&cfg] {
+            const auto c = cfg.liFilm.find(':');
+            const std::string m = cfg.liFilm.substr(0, c);
+            const std::string nist = m == "Li2O" ? "G4_LITHIUM_OXIDE" : m == "LiF" ? "G4_LITHIUM_FLUORIDE"
+                                   : m == "Li" ? "G4_Li" : "";
+            const G4Material* mat = nist.empty() ? nullptr : G4Material::GetMaterial(nist, false);
+            if (!mat)
+                G4Exception("X17PrimaryGenerator", "LiFilm", FatalException,
+                            ("Unknown Li film material: " + m).c_str());
+            return std::stod(cfg.liFilm.substr(c + 1)) * 1e-6 * g/cm2 / mat->GetDensity() / mm;
+        }();
+        const double rMax = 0.95 * cfg.liHolderRout_mm;   // the film disk radius (DetectorConstruction)
+        double x, z;
+        do {
+            x = G4RandGauss::shoot(0.0, cfg.liSpotSigma_mm);
+            z = G4RandGauss::shoot(0.0, cfg.liSpotSigma_mm);
+        } while (x * x + z * z > rMax * rMax);
+        return G4ThreeVector(x * mm, -tFilm_mm * G4UniformRand() * mm, z * mm);
     }
     if (cfg.cellTarget) {   // uniform in the cell's gas column
         G4double r   = cfg.cellRadius_mm * mm * std::sqrt(G4UniformRand());
@@ -775,6 +800,44 @@ G4double X17PrimaryGenerator::GenerateGammaSource(G4Event* event) {
 
     fGun->SetParticleDefinition(fGamma);
     fGun->SetParticlePosition(G4ThreeVector(p[0] * mm, p[1] * mm, p[2] * mm));
+    fGun->SetParticleMomentumDirection(IsotropicDirection());
+    fGun->SetParticleEnergy(line.e_MeV * MeV);
+    fGun->GeneratePrimaryVertex(event);
+    return line.e_MeV;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// γ-line source (--gamma-lines E:w,E:w,...; event_type 3).  One isotropic γ per
+// event from the pair-vertex distribution, line drawn ∝ w; returns E_γ [MeV].
+namespace {
+std::vector<CascadeLine> gGammaLines;
+std::once_flag gGammaLinesOnce;
+
+void ParseGammaLines(const SimConfig& cfg) {
+    std::stringstream ss(cfg.gammaLines);
+    std::string item;
+    while (std::getline(ss, item, ',')) {
+        const auto c = item.find(':');
+        const double e = std::stod(item.substr(0, c));
+        const double w = (c == std::string::npos) ? 1.0 : std::stod(item.substr(c + 1));
+        if (e <= 0 || w < 0)
+            G4Exception("X17PrimaryGenerator", "GammaLines", FatalException,
+                        ("Bad --gamma-lines entry: " + item).c_str());
+        gGammaLines.push_back({e, w});
+    }
+    if (gGammaLines.empty())
+        G4Exception("X17PrimaryGenerator", "GammaLines", FatalException, "Empty --gamma-lines");
+    G4cout << "X17PrimaryGenerator: gamma lines —";
+    for (const auto& l : gGammaLines) G4cout << " " << l.e_MeV << " MeV (w " << l.intensity << ")";
+    G4cout << G4endl;
+}
+}   // namespace
+
+G4double X17PrimaryGenerator::GenerateGammaLines(G4Event* event) {
+    std::call_once(gGammaLinesOnce, ParseGammaLines, std::cref(fConfig));
+    const auto& line = SampleLine(gGammaLines);
+    fGun->SetParticleDefinition(fGamma);
+    fGun->SetParticlePosition(SampleHe3Vertex(fConfig));
     fGun->SetParticleMomentumDirection(IsotropicDirection());
     fGun->SetParticleEnergy(line.e_MeV * MeV);
     fGun->GeneratePrimaryVertex(event);

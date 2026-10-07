@@ -133,6 +133,43 @@ struct SimConfig {
     double      cellScraperRin_mm  = 12.0;   // ⁶LiF scraper inner radius (0 = no scraper)
     double      cellScraperT_mm    = 5.0;    // ⁶LiF scraper thickness
 
+    // ── LNL ⁷Li(p,e⁺e⁻)⁸Be target region (--target li; x17_facility_search/lnl/GEANT_PREP.md) ──
+    // A thin vacuum chamber along the beam (+Y) replaces the ³He target.  Inside
+    // it, upstream first: the Li film (⊥ beam, downstream face at y = 0, so all
+    // vertices sit in it), the backing foil right behind it, an annular holder
+    // frame behind the backing outside the beam spot, and the beam dump.  The
+    // proton beam itself is not tracked: pairs (--energy/--mass/--ipc) and
+    // --gamma-lines start in the film from a Gaussian beam spot.
+    //   film     Mat:ug_cm2   Mat ∈ {Li2O, LiF, Li}  (natural Li, Li₂O 2.01, LiF 2.635, Li 0.534 g/cm³)
+    //   backing  Mat:um       (Al, C, Cu, ...; "none" = self-supporting film)
+    //   holder   Mat:mm       annulus [liHolderRin_mm, liHolderRout_mm] ("none" = no frame)
+    //   chamber  Mat:t_mm:r_mm  tube wall around a vacuum bore of radius r, |y| ≤ liChamberHalfLen_mm,
+    //            closed by flanges of liFlange (upstream one with a liFlangeHoleR_mm beam hole)
+    //   dump     Mat:mm at y = liDumpDist_mm ("none" = beam leaves the chamber)
+    // Volume names: LiTarget_Film, LiTarget_Backing, LiTarget_Holder,
+    // LiChamber_Vac, LiChamber_Wall, LiChamber_Flange, BeamDump.
+    bool        liTarget           = false;
+    std::string liFilm             = "Li2O:300";
+    std::string liBacking          = "Al:10";
+    std::string liHolder           = "Al:1";
+    double      liHolderRin_mm     = 10.0;
+    double      liHolderRout_mm    = 20.0;
+    std::string liChamber          = "CFRP:0.4:25";
+    double      liChamberHalfLen_mm = 300.0;
+    std::string liFlange           = "Al:5";
+    double      liFlangeHoleR_mm   = 10.0;
+    std::string liDump             = "Ta:2";
+    double      liDumpDist_mm      = 250.0;
+    double      liSpotSigma_mm     = 2.0;    // Gaussian beam spot (x, z), as MEG II
+
+    // ── γ-line source (--gamma-lines E:w,E:w,...; event_type 3) ─────────────
+    // One isotropic mono-energetic γ per event from the pair-vertex
+    // distribution (the beam spot in the film with --target li), the line
+    // drawn with probability ∝ w.  EventTree.inv_mass carries E_γ, so each
+    // line can be reweighted in analysis.  For EPC, γ singles and accidentals
+    // from the target region; does not need a capture library.
+    std::string gammaLines;
+
     // Bare slab (--slab Mat:mm; V1 thermal-scattering check): a disk of radius
     // 50 mm and the given thickness centred at the origin, normal to the beam,
     // in place of any target.  Materials as for the cell.

@@ -80,12 +80,21 @@ static void PrintUsage() {
               << "                       (default: on with --beam ill, --target cell, --slab)\n"
               << "  --cosmic             cosmic muons from a 3 x 3 m plane 1.5 m above the target\n"
               << "                       (zenith along --vertical-axis; event_type 4)\n"
-              << "  --target capsule|cell\n"
+              << "  --target capsule|cell|li\n"
               << "  --cell-pressure <bar> --cell-length <mm> --cell-radius <mm> --cell-yw <mm>\n"
               << "  --skin <Mat:mm>  --rods <N>  --window <Mat:mm>  --aperture <mm>\n"
               << "  --end-cap <Mat:mm[+Mat:mm]>  --scraper <rin_mm:t_mm | none>\n"
               << "  --endcap-ring <t_mm:land_mm>  --ring <Mat>  --ring-liner <mm>\n"
               << "  --flight-tube <He|Vac>[:r_mm]  --tube-wall <Mat:mm>  --tube-window <Mat:mm>\n"
+              << "\n  LNL (x17_facility_search/lnl/GEANT_PREP.md), with --target li:\n"
+              << "  --film <Li2O|LiF|Li:ug_cm2>   (default Li2O:300)   --backing <Mat:um|none> (Al:10)\n"
+              << "  --holder <Mat:mm|none> (Al:1)  --holder-r <rin_mm:rout_mm> (10:20)\n"
+              << "  --chamber <Mat:t_mm:r_mm> (CFRP:0.4:25)  --chamber-len <half_mm> (300)\n"
+              << "  --flange <Mat:mm> (Al:5)  --dump <Mat:mm|none> (Ta:2)  --dump-dist <mm> (250)\n"
+              << "  --spot-sigma <mm>    Gaussian beam spot for pair / gamma vertices (default 2)\n"
+              << "  --gamma-lines <E:w,E:w,...>\n"
+              << "                   one isotropic γ per event from the pair vertices, line ∝ w\n"
+              << "                   (event_type 3, inv_mass = Eγ)\n"
               << "  -h               Print this help\n";
 }
 
@@ -172,6 +181,7 @@ int main(int argc, char** argv) {
             std::string t = argv[++i];
             if      (t == "cell")    config.cellTarget = true;
             else if (t == "capsule") config.cellTarget = false;
+            else if (t == "li")      config.liTarget   = true;
             else { std::cerr << "Unknown target: " << t << "\n"; return 1; }
         }
         else if (a == "--cell-pressure" && i+1<argc) config.cellPressure_bar = std::stod(argv[++i]);
@@ -208,6 +218,23 @@ int main(int argc, char** argv) {
             config.cellRingThick_mm = std::stod(s.substr(0, c));
             if (c != std::string::npos) config.cellRingLand_mm = std::stod(s.substr(c + 1));
         }
+        else if (a == "--film"        && i+1<argc) config.liFilm    = argv[++i];
+        else if (a == "--backing"     && i+1<argc) config.liBacking = argv[++i];
+        else if (a == "--holder"      && i+1<argc) config.liHolder  = argv[++i];
+        else if (a == "--holder-r"    && i+1<argc) {
+            std::string s = argv[++i];
+            auto c = s.find(':');
+            if (c == std::string::npos) { std::cerr << "--holder-r needs rin:rout\n"; return 1; }
+            config.liHolderRin_mm  = std::stod(s.substr(0, c));
+            config.liHolderRout_mm = std::stod(s.substr(c + 1));
+        }
+        else if (a == "--chamber"     && i+1<argc) config.liChamber = argv[++i];
+        else if (a == "--chamber-len" && i+1<argc) config.liChamberHalfLen_mm = std::stod(argv[++i]);
+        else if (a == "--flange"      && i+1<argc) config.liFlange  = argv[++i];
+        else if (a == "--dump"        && i+1<argc) config.liDump    = argv[++i];
+        else if (a == "--dump-dist"   && i+1<argc) config.liDumpDist_mm  = std::stod(argv[++i]);
+        else if (a == "--spot-sigma"  && i+1<argc) config.liSpotSigma_mm = std::stod(argv[++i]);
+        else if (a == "--gamma-lines" && i+1<argc) config.gammaLines = argv[++i];
         else if (a[0] != '-') macroFile = a;
         else { std::cerr << "Unknown option: " << a << "\n"; PrintUsage(); return 1; }
     }
@@ -239,6 +266,15 @@ int main(int argc, char** argv) {
                       + " r=" + std::to_string(config.flightTubeR_mm) + " wall " + config.flightTubeWall
                       + " window " + config.flightTubeWin)
                   << "\n";
+    if (config.liTarget)
+        std::cout << "  Target   : LNL Li film " << config.liFilm << " ug/cm2 on " << config.liBacking
+                  << ", holder " << config.liHolder << ", chamber " << config.liChamber
+                  << " |y|<=" << config.liChamberHalfLen_mm << " mm, dump " << config.liDump
+                  << ", spot sigma " << config.liSpotSigma_mm << " mm\n";
+    if (config.liTarget && (config.cellTarget || config.neutronMode)) {
+        std::cerr << "--target li is for pairs, --gamma-lines, --single or --cosmic, not neutron beams\n";
+        return 1;
+    }
     if (config.cosmic) {
         const double A_cm2 = config.cosmicPlane_mm * config.cosmicPlane_mm / 100.0;
         std::cout << "  Mode     : cosmic muons, plane " << config.cosmicPlane_mm << " mm at "
@@ -256,6 +292,8 @@ int main(int argc, char** argv) {
                   << ", " << config.neutronEmax_eV << "] eV\n"
                   << "  Flux     : " << config.neutronFluxFile << "\n"
                   << "  Profile  : " << config.neutronProfileFile << "\n";
+    else if (!config.gammaLines.empty())
+        std::cout << "  Mode     : gamma lines " << config.gammaLines << "\n";
     else if (config.gammaSourceMode)
         std::cout << "  Mode     : gamma-source (biased wall background)\n"
                   << "  Library  : " << config.captureLibFile << "\n";

@@ -52,6 +52,7 @@
 #include <vector>
 #include <utility>
 #include <algorithm>
+#include <tuple>
 
 DetectorConstruction::DetectorConstruction(const SimConfig& cfg)
     : G4VUserDetectorConstruction(), fConfig(cfg) {}
@@ -335,6 +336,10 @@ G4VPhysicalVolume* DetectorConstruction::Construct() {
         G4double yHi = (fConfig.cellYw_mm + fConfig.cellLength_mm)*mm + 30.0*mm;
         worldHalfY = std::max({worldHalfY, std::abs(yLo) + 5.0*cm, std::abs(yHi) + 5.0*cm});
     }
+    if (fConfig.liTarget) {   // the chamber and its flanges must fit along Y
+        const G4double tF = std::stod(fConfig.liFlange.substr(fConfig.liFlange.find(':') + 1)) * mm;
+        worldHalfY = std::max(worldHalfY, fConfig.liChamberHalfLen_mm*mm + tF + 5.0*cm);
+    }
 
     if (fConfig.cosmic) {   // the muon plane must sit inside the world
         const G4double need = std::max(fConfig.cosmicHeight_mm, fConfig.cosmicPlane_mm / 2) * mm
@@ -372,6 +377,8 @@ G4VPhysicalVolume* DetectorConstruction::Construct() {
 
     if (fConfig.cellTarget) {
         BuildCell(worldLV);
+    } else if (fConfig.liTarget) {
+        BuildLiTarget(worldLV);
     } else if (!fConfig.slab.empty()) {
         BuildSlab(worldLV);
     } else {
@@ -827,6 +834,15 @@ G4Material* DetectorConstruction::CellMat(const std::string& name) {
         return m;
     }
     if (name == "Mylar")  return nist->FindOrBuildMaterial("G4_MYLAR");
+    // LNL target region: natural-Li compounds (NIST densities: Li₂O 2.013,
+    // LiF 2.635, Li 0.534 g/cm³), backings and the beam dump.
+    if (name == "Li2O")   return nist->FindOrBuildMaterial("G4_LITHIUM_OXIDE");
+    if (name == "LiF")    return nist->FindOrBuildMaterial("G4_LITHIUM_FLUORIDE");
+    if (name == "Li")     return nist->FindOrBuildMaterial("G4_Li");
+    if (name == "Cu")     return nist->FindOrBuildMaterial("G4_Cu");
+    if (name == "Ta")     return nist->FindOrBuildMaterial("G4_Ta");
+    if (name == "Ti")     return nist->FindOrBuildMaterial("G4_Ti");
+    if (name == "Vac")    return nist->FindOrBuildMaterial("G4_Galactic");
     if (name == "Kapton") return nist->FindOrBuildMaterial("G4_KAPTON");
     if (name == "CFRP")   return GetMat("CFRP");
     if (name == "LiF6") {
@@ -1062,4 +1078,116 @@ void DetectorConstruction::BuildSlab(G4LogicalVolume* worldLV) {
     G4cout << "\n=== X17 Full-Experiment Geometry ===" << G4endl;
     G4cout << "  Target       : SLAB " << sl.first << " " << t/mm << " mm ("
            << lv->GetMaterial()->GetName() << ") at the origin" << G4endl;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// LNL ⁷Li(p,e⁺e⁻)⁸Be target region (--target li; x17_facility_search/lnl/GEANT_PREP.md §2a).
+// A vacuum bore of radius r along the beam, |y| ≤ H, inside a tube wall of the
+// chamber material, closed by two flanges (the upstream one with a beam hole).
+// Inside the bore, along +Y: the Li film ⊥ beam with its downstream face at
+// y = 0, the backing foil behind it, the holder annulus behind the backing,
+// and the beam dump downstream.  The proton beam is not tracked; the generator
+// puts the pair / γ vertices in the film (X17PrimaryGenerator SampleHe3Vertex).
+// Logical-volume names are what the reductions classify on.
+void DetectorConstruction::BuildLiTarget(G4LogicalVolume* worldLV) {
+    const auto& c = fConfig;
+    auto parse3 = [](const std::string& s) {   // "CFRP:0.4:25" → {CFRP, 0.4, 25}
+        const auto a = s.find(':'), b = s.find(':', a + 1);
+        if (a == std::string::npos || b == std::string::npos)
+            throw std::runtime_error("li: expected Mat:t_mm:r_mm, got '" + s + "'");
+        return std::make_tuple(s.substr(0, a), std::stod(s.substr(a + 1, b - a - 1)),
+                               std::stod(s.substr(b + 1)));
+    };
+    const auto [wallMat, tWall_mm, rBore_mm] = parse3(c.liChamber);
+    const G4double rB = rBore_mm * mm, tW = tWall_mm * mm, H = c.liChamberHalfLen_mm * mm;
+    const auto fl = ParseLayers(c.liFlange).at(0);
+    const G4double tF = fl.second * mm;
+
+    auto* rot = new G4RotationMatrix();
+    rot->rotateX(+90.*deg);                       // local +z → world +y
+    auto atY = [](G4double y) { return G4ThreeVector(0, y, 0); };
+    auto atZ = [](G4double z) { return G4ThreeVector(0, 0, z); };   // in the bore frame, z = world y
+    auto vis = [](G4LogicalVolume* lv, G4double r, G4double g, G4double b, G4double a) {
+        lv->SetVisAttributes(new G4VisAttributes(G4Color(r, g, b, a)));
+    };
+
+    // chamber: wall tube, flanges, vacuum bore
+    auto* wallLV = new G4LogicalVolume(new G4Tubs("LiChamber_Wall", rB, rB + tW, H, 0, twopi),
+                                       CellMat(wallMat), "LiChamber_Wall");
+    vis(wallLV, 0.3, 0.3, 0.3, 0.4);
+    new G4PVPlacement(rot, G4ThreeVector(), wallLV, "LiChamber_Wall", worldLV, false, 0, true);
+    auto* flUpLV = new G4LogicalVolume(new G4Tubs("LiChamber_Flange", c.liFlangeHoleR_mm*mm, rB + tW, tF/2, 0, twopi),
+                                       CellMat(fl.first), "LiChamber_Flange");
+    auto* flDnLV = new G4LogicalVolume(new G4Tubs("LiChamber_Flange", 0, rB + tW, tF/2, 0, twopi),
+                                       CellMat(fl.first), "LiChamber_Flange");
+    vis(flUpLV, 0.7, 0.7, 0.7, 0.6);
+    vis(flDnLV, 0.7, 0.7, 0.7, 0.6);
+    new G4PVPlacement(rot, atY(-H - tF/2), flUpLV, "LiChamber_Flange", worldLV, false, 0, true);
+    new G4PVPlacement(rot, atY(+H + tF/2), flDnLV, "LiChamber_Flange", worldLV, false, 1, true);
+    auto* vacLV = new G4LogicalVolume(new G4Tubs("LiChamber_Vac", 0, rB, H, 0, twopi),
+                                      CellMat("Vac"), "LiChamber_Vac");
+    vacLV->SetVisAttributes(G4VisAttributes::GetInvisible());
+    new G4PVPlacement(rot, G4ThreeVector(), vacLV, "LiChamber_Vac", worldLV, false, 0, true);
+
+    // film: areal density → thickness through the material density
+    const auto film = ParseLayers(c.liFilm).at(0);
+    G4Material* filmMat = CellMat(film.first);
+    const G4double tFilm = film.second * 1e-6 * g/cm2 / filmMat->GetDensity();
+    // film and backing disks span the holder's outer radius (the generator keeps
+    // vertices inside 0.95 of it)
+    const G4double rDisk = c.liHolderRout_mm * mm;
+    if (rDisk > rB - 0.1*mm || c.liHolderRin_mm >= c.liHolderRout_mm)
+        throw std::runtime_error("li: need holder rin < rout <= chamber bore - 0.1 mm");
+    auto* filmLV = new G4LogicalVolume(new G4Tubs("LiTarget_Film", 0, rDisk, tFilm/2, 0, twopi),
+                                       filmMat, "LiTarget_Film");
+    vis(filmLV, 0.9, 0.2, 0.2, 0.9);
+    new G4PVPlacement(nullptr, atZ(-tFilm/2), filmLV, "LiTarget_Film", vacLV, false, 0, true);
+    G4double z = 0;
+    std::string backDesc = "none", holdDesc = "none", dumpDesc = "none";
+    if (c.liBacking != "none") {
+        const auto bk = ParseLayers(c.liBacking).at(0);
+        const G4double t = bk.second * um;
+        auto* lv = new G4LogicalVolume(new G4Tubs("LiTarget_Backing", 0, rDisk, t/2, 0, twopi),
+                                       CellMat(bk.first), "LiTarget_Backing");
+        vis(lv, 0.75, 0.75, 0.8, 0.8);
+        new G4PVPlacement(nullptr, atZ(z + t/2), lv, "LiTarget_Backing", vacLV, false, 0, true);
+        z += t;
+        backDesc = bk.first + " " + std::to_string(bk.second) + " um";
+    }
+    if (c.liHolder != "none") {
+        const auto hd = ParseLayers(c.liHolder).at(0);
+        const G4double t = hd.second * mm;
+        auto* lv = new G4LogicalVolume(new G4Tubs("LiTarget_Holder", c.liHolderRin_mm*mm,
+                                                  c.liHolderRout_mm*mm, t/2, 0, twopi),
+                                       CellMat(hd.first), "LiTarget_Holder");
+        vis(lv, 0.6, 0.6, 0.6, 0.8);
+        new G4PVPlacement(nullptr, atZ(z + t/2), lv, "LiTarget_Holder", vacLV, false, 0, true);
+        holdDesc = hd.first + " " + std::to_string(hd.second) + " mm, r=[" +
+                   std::to_string(c.liHolderRin_mm) + ", " + std::to_string(c.liHolderRout_mm) + "] mm";
+        z += t;
+    }
+    if (c.liDump != "none") {
+        const auto dp = ParseLayers(c.liDump).at(0);
+        const G4double t = dp.second * mm, y0 = c.liDumpDist_mm * mm;
+        if (y0 <= z || y0 + t > H)
+            throw std::runtime_error("li: beam dump must sit between the target and the downstream flange");
+        auto* lv = new G4LogicalVolume(new G4Tubs("BeamDump", 0, rB - 0.1*mm, t/2, 0, twopi),
+                                       CellMat(dp.first), "BeamDump");
+        vis(lv, 0.5, 0.3, 0.1, 0.9);
+        new G4PVPlacement(nullptr, atZ(y0 + t/2), lv, "BeamDump", vacLV, false, 0, true);
+        dumpDesc = dp.first + " " + std::to_string(dp.second) + " mm at y=" + std::to_string(c.liDumpDist_mm) + " mm";
+    }
+
+    G4cout << "\n=== X17 Full-Experiment Geometry ===" << G4endl;
+    G4cout << "  Beam axis    : +Y (protons, not tracked)" << G4endl;
+    G4cout << "  Li target    : " << film.first << " " << film.second << " ug/cm2 = "
+           << tFilm/um << " um (" << filmMat->GetName() << "), r=" << rDisk/mm
+           << " mm, downstream face at y=0" << G4endl;
+    G4cout << "  Backing      : " << backDesc << G4endl;
+    G4cout << "  Holder       : " << holdDesc << G4endl;
+    G4cout << "  Chamber      : " << wallMat << " " << tW/mm << " mm, bore r=" << rB/mm
+           << " mm, |y|<=" << H/mm << " mm; flanges " << c.liFlange
+           << " (upstream hole r=" << c.liFlangeHoleR_mm << " mm)" << G4endl;
+    G4cout << "  Beam dump    : " << dumpDesc << G4endl;
+    G4cout << "  Beam spot    : sigma=" << c.liSpotSigma_mm << " mm (pair / gamma vertices)" << G4endl;
 }

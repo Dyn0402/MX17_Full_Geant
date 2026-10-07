@@ -4,7 +4,8 @@
 // Single mode  : fires one particle at a chosen energy/angle (efficiency cross-checks).
 // Neutron mode : fires beam neutrons sampled from the EAR2 flux + radial profile,
 //                or (--beam ill) from the PF1B/H113 reactor beam model.
-// Gamma mode   : re-emits capture-cascade gammas from a capture-vertex library.
+// Gamma mode   : re-emits capture-cascade gammas from a capture-vertex library,
+//                or (--gamma-lines) mono-energetic γ lines from the pair vertices.
 
 #include "G4VUserPrimaryGeneratorAction.hh"
 #include "G4ParticleGun.hh"
@@ -30,6 +31,7 @@ private:
     G4double GenerateIllNeutron(G4Event* event, long& nThrown); // PF1B/H113 beam, E_n [eV]
     G4double GenerateGammaSource(G4Event* event); // capture γ, returns Eγ [MeV]
     G4double GenerateCosmic(G4Event* event);      // cosmic μ±, returns p [GeV/c]
+    G4double GenerateGammaLines(G4Event* event);  // --gamma-lines γ, returns Eγ [MeV]
 
     const SimConfig&          fConfig;
     std::unique_ptr<G4ParticleGun> fGun;
