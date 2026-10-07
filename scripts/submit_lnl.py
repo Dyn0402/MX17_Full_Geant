@@ -46,6 +46,9 @@ GAMMA_LINES = {
     "8Be": "18.15:1,17.64:1,15.1:1,14.6:1",
     "19F": "6.13:1,6.92:1,7.12:1",
     "7Li": "0.478:1",
+    # 27Al(p,g)28Si, 992 keV resonance (Al backing / holder when the beam crosses
+    # 992 keV in Al): mainly 10.76 MeV to the 1.78 MeV 2+, then 1.78 MeV
+    "Al28": "10.76:1,1.78:1",
 }
 
 
