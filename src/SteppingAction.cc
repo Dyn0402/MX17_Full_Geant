@@ -51,11 +51,13 @@ void SteppingAction::UserSteppingAction(const G4Step* step) {
     // ── Trajectory dump for event displays (--trajdump) ──────────────────
     if (fConfig.trajDump) DumpTrajectoryStep(step);
 
-    // ── γ→e⁺e⁻ pair-production truth (neutron mode) ──────────────────────
+    // ── γ→e⁺e⁻ pair-production truth (neutron mode, --gamma-lines) ─────────
     // The Al(n,γ) 7.72 MeV capture γ pair-produces in the Al capsule, faking
     // the IPC/X17 e⁺e⁻ final state.  Record every conversion's birth kinematics
     // (opening angle is the only surviving discriminant — no vertex, no calo).
-    if (fConfig.neutronMode) RecordConvPair(step);
+    // At LNL the same record gives the external pair conversion (EPC) of the
+    // ⁸Be γ lines in the target, backing and chamber.
+    if (fConfig.neutronMode || !fConfig.gammaLines.empty()) RecordConvPair(step);
 
     // ── Neutron terminal-interaction recording (neutron mode) ────────────
     // Record where the PRIMARY neutron track ENDS via a hadronic interaction:
