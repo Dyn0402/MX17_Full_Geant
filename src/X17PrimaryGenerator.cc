@@ -319,13 +319,17 @@ G4double X17PrimaryGenerator::GenerateIPC(G4Event* event) {
         const std::string& kind = fConfig.ipcMultipole;
         const double W = E_transition;
         std::call_once(gBornOnce, BuildBornTable, kind, W, me);
+        const double cosMax = std::cos(fConfig.ipcMinOpenDeg * CLHEP::deg);
+        G4LorentzVector p4em, p4ep;
+        double M = 0;
+        for (;;) {   // rejection on the lab opening angle (--ipc-min-open; one pass when 0)
         // ln M from the marginal (linear interpolation of the CDF)
         const double u = G4UniformRand();
         auto it = std::lower_bound(gBorn.cdf.begin(), gBorn.cdf.end(), u);
         size_t i = std::max<size_t>(1, std::min<size_t>(it - gBorn.cdf.begin(), gBorn.cdf.size() - 1));
         const double c0 = gBorn.cdf[i - 1], c1 = gBorn.cdf[i];
         const double t = (c1 > c0) ? (u - c0) / (c1 - c0) : 0.5;
-        const double M = std::exp(gBorn.lnM[i - 1] + t * (gBorn.lnM[i] - gBorn.lnM[i - 1]));
+        M = std::exp(gBorn.lnM[i - 1] + t * (gBorn.lnM[i] - gBorn.lnM[i - 1]));
         // cos θ* about the γ* direction
         const double k  = std::sqrt(std::max(0.0, W * W - M * M));
         const double b2 = std::max(0.0, 1 - 4 * me * me / (M * M));
@@ -340,10 +344,14 @@ G4double X17PrimaryGenerator::GenerateIPC(G4Event* event) {
         const double phi = CLHEP::twopi * G4UniformRand(), sn = std::sqrt(1 - cs * cs);
         const G4ThreeVector decDir = cs * kdir + sn * (std::cos(phi) * e1 + std::sin(phi) * e2);
         const double E_e = M / 2, p_e = std::sqrt(std::max(0.0, E_e * E_e - me * me));
-        G4LorentzVector p4em(-p_e * decDir, E_e), p4ep(p_e * decDir, E_e);
+        p4em = G4LorentzVector(-p_e * decDir, E_e);
+        p4ep = G4LorentzVector(p_e * decDir, E_e);
         const G4ThreeVector beta = (k / W) * kdir;
         p4em.boost(beta);
         p4ep.boost(beta);
+        if (fConfig.ipcMinOpenDeg <= 0 ||
+            p4em.vect().unit().dot(p4ep.vect().unit()) <= cosMax) break;
+        }
 
         const G4ThreeVector vertex = SampleHe3Vertex(fConfig);
         fGun->SetParticlePosition(vertex);

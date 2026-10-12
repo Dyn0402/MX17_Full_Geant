@@ -31,6 +31,11 @@ struct SimConfig {
     // accept/reject.  Check: fraction of pairs above 109° = 4.6 % (M1),
     // 11 % (E0), 9.9 % (E1) per ipc_born.validate().
     std::string ipcMultipole = "ansatz";
+    // Born IPC only: keep a pair only if its lab opening angle is >= this many
+    // degrees (rejection; the nucleus is at rest, so this is exactly the Born
+    // distribution conditioned on theta >= cut).  Normalise offline by the Born
+    // fraction above the cut (lnl_rates.ipc_vectors).  0 = no cut (default).
+    double ipcMinOpenDeg = 0.0;
 
     // Pair-vertex library: CSV of He3Gas capture positions (volume,x_mm,y_mm,z_mm,
     // from make_capture_library.py --gas-lib).  When set, X17/IPC vertices are

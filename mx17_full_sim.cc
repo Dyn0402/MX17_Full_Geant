@@ -59,6 +59,9 @@ static void PrintUsage() {
               << "  --ipc-multipole ansatz|M1|E0|E1\n"
               << "                   IPC kinematics: legacy 1/M isotropic ansatz (default) or\n"
               << "                   the exact Born distribution of one multipole (ipc_born.py)\n"
+              << "  --ipc-min-open <deg>\n"
+              << "                   Born IPC only: generate only pairs with lab opening angle >= deg\n"
+              << "                   (rejection; normalise by the Born fraction above the cut)\n"
               << "  --pair-vertex-lib <lib.csv>\n"
               << "                   Sample X17/IPC vertices from a He3Gas capture-position\n"
               << "                   library (make_capture_library.py --gas-lib) instead of\n"
@@ -120,6 +123,9 @@ int main(int argc, char** argv) {
         else if (a == "--ipc"    && i+1<argc) config.ipc_fraction            = std::stod(argv[++i]);
         else if (a == "--pair-vertex-lib" && i+1<argc) config.pairVertexLibFile = argv[++i];
         else if (a == "--pair-vertex-vol" && i+1<argc) config.pairVertexVol = argv[++i];
+        else if (a == "--ipc-min-open" && i+1<argc) {
+            config.ipcMinOpenDeg = std::stod(argv[++i]);
+        }
         else if (a == "--ipc-multipole" && i+1<argc) {
             config.ipcMultipole = argv[++i];
             if (config.ipcMultipole != "ansatz" && config.ipcMultipole != "M1" &&
