@@ -13,7 +13,9 @@ public:
     // biasing (the region-scoped operator is attached to the gas in
     // DetectorConstruction::ConstructSDandField).
     // gammaCut_um overrides the gamma production-cut set in SetCuts (default 100 um).
-    explicit PhysicsList(double biasNCaptureFactor = 1.0, double gammaCut_um = 100.0);
+    // thermalScattering registers G4ThermalNeutrons (S(α,β) for solids).
+    explicit PhysicsList(double biasNCaptureFactor = 1.0, double gammaCut_um = 100.0,
+                         bool thermalScattering = false);
     ~PhysicsList() override = default;
     void SetCuts() override;
 

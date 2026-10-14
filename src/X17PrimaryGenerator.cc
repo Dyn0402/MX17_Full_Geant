@@ -31,10 +31,12 @@
 #include "G4SystemOfUnits.hh"
 #include "G4PhysicalConstants.hh"
 #include "G4Exception.hh"
+#include "G4Material.hh"
 #include "Randomize.hh"
 
 #include <algorithm>
 #include <array>
+#include <cctype>
 #include <cmath>
 #include <fstream>
 #include <mutex>
@@ -45,6 +47,8 @@
 #include "TFile.h"
 #include "TH1.h"
 #include "TH2.h"
+#include "TTree.h"
+#include "TString.h"
 #endif
 
 X17PrimaryGenerator::X17PrimaryGenerator(const SimConfig& cfg)
@@ -56,6 +60,8 @@ X17PrimaryGenerator::X17PrimaryGenerator(const SimConfig& cfg)
     fPositron = pt->FindParticle("e+");
     fNeutron  = pt->FindParticle("neutron");
     fGamma    = pt->FindParticle("gamma");
+    fMuPlus   = pt->FindParticle("mu+");
+    fMuMinus  = pt->FindParticle("mu-");
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -64,9 +70,18 @@ void X17PrimaryGenerator::GeneratePrimaries(G4Event* event) {
     // without depending on a cross-action pointer (fragile in Geant4 MT).
     auto* info = new EventTypeInfo();
 
-    if (fConfig.neutronMode) {
+    if (fConfig.cosmic) {
+        info->event_type   = 4;
+        info->inv_mass_MeV = GenerateCosmic(event);    // p [GeV/c] in the inv_mass slot
+    } else if (fConfig.illBeam) {
+        info->event_type   = 2;
+        info->neutron_E_eV = GenerateIllNeutron(event, info->n_thrown);
+    } else if (fConfig.neutronMode) {
         info->event_type   = 2;
         info->neutron_E_eV = GenerateNeutron(event);
+    } else if (!fConfig.gammaLines.empty()) {
+        info->event_type   = 3;
+        info->inv_mass_MeV = GenerateGammaLines(event);
     } else if (fConfig.gammaSourceMode) {
         info->event_type   = 3;
         info->inv_mass_MeV = GenerateGammaSource(event);
@@ -109,14 +124,14 @@ void LoadPairVertexLib(const SimConfig& cfg) {
         if (!std::getline(ss, vol, ',') || !std::getline(ss, sx, ',') ||
             !std::getline(ss, sy, ',')  || !std::getline(ss, sz, ','))
             continue;
-        if (vol.find("He3Gas") == std::string::npos) continue;
+        if (vol.find(cfg.pairVertexVol) == std::string::npos) continue;
         gPairVtxLib.push_back({std::stod(sx), std::stod(sy), std::stod(sz)});
     }
     if (gPairVtxLib.empty())
         G4Exception("X17PrimaryGenerator", "PairVertexLib", FatalException,
-                    "Pair-vertex library contains no He3Gas vertices");
+                    ("Pair-vertex library has no " + cfg.pairVertexVol + " vertices").c_str());
     G4cout << "X17PrimaryGenerator: pair-vertex library — "
-           << gPairVtxLib.size() << " He3Gas capture vertices" << G4endl;
+           << gPairVtxLib.size() << " " << cfg.pairVertexVol << " vertices" << G4endl;
 }
 }   // namespace
 
@@ -130,6 +145,33 @@ static G4ThreeVector SampleHe3Vertex(const SimConfig& cfg) {
         const auto& p = gPairVtxLib[static_cast<size_t>(
             G4UniformRand() * gPairVtxLib.size()) % gPairVtxLib.size()];
         return G4ThreeVector(p[0] * mm, p[1] * mm, p[2] * mm);
+    }
+    if (cfg.liTarget) {     // LNL: Gaussian beam spot, uniform through the film depth
+        // film thickness from the areal density and the material DetectorConstruction built
+        static const double tFilm_mm = [&cfg] {
+            const auto c = cfg.liFilm.find(':');
+            const std::string m = cfg.liFilm.substr(0, c);
+            const std::string nist = m == "Li2O" ? "G4_LITHIUM_OXIDE" : m == "LiF" ? "G4_LITHIUM_FLUORIDE"
+                                   : m == "Li" ? "G4_Li" : "";
+            const G4Material* mat = nist.empty() ? nullptr : G4Material::GetMaterial(nist, false);
+            if (!mat)
+                G4Exception("X17PrimaryGenerator", "LiFilm", FatalException,
+                            ("Unknown Li film material: " + m).c_str());
+            return std::stod(cfg.liFilm.substr(c + 1)) * 1e-6 * g/cm2 / mat->GetDensity() / mm;
+        }();
+        const double rMax = 0.95 * cfg.liHolderRout_mm;   // the film disk radius (DetectorConstruction)
+        double x, z;
+        do {
+            x = G4RandGauss::shoot(0.0, cfg.liSpotSigma_mm);
+            z = G4RandGauss::shoot(0.0, cfg.liSpotSigma_mm);
+        } while (x * x + z * z > rMax * rMax);
+        return G4ThreeVector(x * mm, -tFilm_mm * G4UniformRand() * mm, z * mm);
+    }
+    if (cfg.cellTarget) {   // uniform in the cell's gas column
+        G4double r   = cfg.cellRadius_mm * mm * std::sqrt(G4UniformRand());
+        G4double phi = CLHEP::twopi * G4UniformRand();
+        G4double y   = (cfg.cellYw_mm + cfg.cellLength_mm * G4UniformRand()) * mm;
+        return G4ThreeVector(r * std::cos(phi), y, r * std::sin(phi));
     }
     const G4double R  = cfg.he3_radius_cm      * cm;
     const G4double Hl = cfg.he3_half_length_cm * cm;
@@ -212,10 +254,119 @@ void X17PrimaryGenerator::GeneratePair(G4Event* event) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Born multipole IPC (--ipc-multipole M1|E0|E1).  ipc_born.py's master formula
+// in (ln M, c = cos θ*):
+//   f(lnM, c) = [N_T S_T(c) + N_L S_L(c)] / M⁴ · k · β* · 2M²
+//   S_T = 2M²[(1 + c²) + (1 − β*²)(1 − c²)],  S_L = 2M²(1 − β*² c²)
+//   M1: N_T = k², N_L = 0;  E1: N_T = 2W², N_L = M²;  E0: N_T = 0, N_L = M²k²
+// with k = √(W² − M²), β* = √(1 − 4m²/M²).  The ln M marginal is tabulated
+// once (analytic c-integral) and inverted; c is then drawn by accept/reject
+// against max(g(0), g(1)), g quadratic in c², so efficiency ≥ 50 %.
+namespace {
+struct BornTable {
+    std::vector<double> lnM, cdf;
+    bool ok = false;
+};
+BornTable      gBorn;
+std::once_flag gBornOnce;
+
+void BornNT_NL(const std::string& kind, double k, double M, double W,
+               double& nT, double& nL) {
+    if (kind == "M1")      { nT = k * k;      nL = 0.0; }
+    else if (kind == "E1") { nT = 2.0 * W * W; nL = M * M; }
+    else                   { nT = 0.0;        nL = M * M * k * k; }   // E0
+}
+
+// angular part g(c) = N_T S_T + N_L S_L (without the common factors)
+double BornG(double nT, double nL, double M, double b2, double c) {
+    const double c2 = c * c;
+    const double sT = 2 * M * M * ((1 + c2) + (1 - b2) * (1 - c2));
+    const double sL = 2 * M * M * (1 - b2 * c2);
+    return nT * sT + nL * sL;
+}
+
+void BuildBornTable(const std::string& kind, double W, double me) {
+    const int n = 20000;
+    const double lo = std::log(2 * me * (1 + 1e-9)), hi = std::log(W * (1 - 1e-12));
+    gBorn.lnM.resize(n);
+    gBorn.cdf.assign(n, 0.0);
+    double prev = 0.0;
+    for (int i = 0; i < n; ++i) {
+        const double x = lo + (hi - lo) * i / (n - 1);
+        const double M = std::exp(x);
+        const double k = std::sqrt(std::max(0.0, W * W - M * M));
+        const double b2 = std::max(0.0, 1 - 4 * me * me / (M * M));
+        double nT, nL; BornNT_NL(kind, k, M, W, nT, nL);
+        // ∫_{-1}^{1} dc of S_T and S_L, analytically
+        const double iT = 2 * M * M * (8.0 / 3.0 + (1 - b2) * 4.0 / 3.0);
+        const double iL = 2 * M * M * (2 - b2 * 2.0 / 3.0);
+        const double f = (nT * iT + nL * iL) / std::pow(M, 4) * k * std::sqrt(b2) * 2 * M * M;
+        gBorn.lnM[i] = x;
+        if (i > 0) gBorn.cdf[i] = gBorn.cdf[i - 1] + 0.5 * (f + prev) * (hi - lo) / (n - 1);
+        prev = f;
+    }
+    for (auto& c : gBorn.cdf) c /= gBorn.cdf.back();
+    gBorn.ok = true;
+    G4cout << "X17PrimaryGenerator: Born " << kind << " IPC table built (W = "
+           << W / MeV << " MeV)" << G4endl;
+}
+}   // namespace
+
 // Returns the sampled invariant mass [MeV/c²] (stored in EventTypeInfo).
 G4double X17PrimaryGenerator::GenerateIPC(G4Event* event) {
     const G4double me     = fElectron->GetPDGMass();
     G4double E_transition = fConfig.transition_energy_MeV * MeV;
+
+    if (fConfig.ipcMultipole != "ansatz") {
+        const std::string& kind = fConfig.ipcMultipole;
+        const double W = E_transition;
+        std::call_once(gBornOnce, BuildBornTable, kind, W, me);
+        const double cosMax = std::cos(fConfig.ipcMinOpenDeg * CLHEP::deg);
+        G4LorentzVector p4em, p4ep;
+        double M = 0;
+        for (;;) {   // rejection on the lab opening angle (--ipc-min-open; one pass when 0)
+        // ln M from the marginal (linear interpolation of the CDF)
+        const double u = G4UniformRand();
+        auto it = std::lower_bound(gBorn.cdf.begin(), gBorn.cdf.end(), u);
+        size_t i = std::max<size_t>(1, std::min<size_t>(it - gBorn.cdf.begin(), gBorn.cdf.size() - 1));
+        const double c0 = gBorn.cdf[i - 1], c1 = gBorn.cdf[i];
+        const double t = (c1 > c0) ? (u - c0) / (c1 - c0) : 0.5;
+        M = std::exp(gBorn.lnM[i - 1] + t * (gBorn.lnM[i] - gBorn.lnM[i - 1]));
+        // cos θ* about the γ* direction
+        const double k  = std::sqrt(std::max(0.0, W * W - M * M));
+        const double b2 = std::max(0.0, 1 - 4 * me * me / (M * M));
+        double nT, nL; BornNT_NL(kind, k, M, W, nT, nL);
+        const double gmax = std::max(BornG(nT, nL, M, b2, 0.0), BornG(nT, nL, M, b2, 1.0));
+        double cs;
+        do { cs = 2 * G4UniformRand() - 1; } while (G4UniformRand() * gmax > BornG(nT, nL, M, b2, cs));
+
+        // γ* direction isotropic; leptons back-to-back at θ* about it
+        const G4ThreeVector kdir = IsotropicDirection();
+        const G4ThreeVector e1 = kdir.orthogonal().unit(), e2 = kdir.cross(e1);
+        const double phi = CLHEP::twopi * G4UniformRand(), sn = std::sqrt(1 - cs * cs);
+        const G4ThreeVector decDir = cs * kdir + sn * (std::cos(phi) * e1 + std::sin(phi) * e2);
+        const double E_e = M / 2, p_e = std::sqrt(std::max(0.0, E_e * E_e - me * me));
+        p4em = G4LorentzVector(-p_e * decDir, E_e);
+        p4ep = G4LorentzVector(p_e * decDir, E_e);
+        const G4ThreeVector beta = (k / W) * kdir;
+        p4em.boost(beta);
+        p4ep.boost(beta);
+        if (fConfig.ipcMinOpenDeg <= 0 ||
+            p4em.vect().unit().dot(p4ep.vect().unit()) <= cosMax) break;
+        }
+
+        const G4ThreeVector vertex = SampleHe3Vertex(fConfig);
+        fGun->SetParticlePosition(vertex);
+        fGun->SetParticleDefinition(fElectron);
+        fGun->SetParticleEnergy(std::max(0.0, p4em.e() - me));
+        fGun->SetParticleMomentumDirection(p4em.vect().unit());
+        fGun->GeneratePrimaryVertex(event);
+        fGun->SetParticleDefinition(fPositron);
+        fGun->SetParticleEnergy(std::max(0.0, p4ep.e() - me));
+        fGun->SetParticleMomentumDirection(p4ep.vect().unit());
+        fGun->GeneratePrimaryVertex(event);
+        return M / MeV;
+    }
 
     // Inverse CDF of dN/dMee ∝ 1/Mee on [2me, E_transition]
     G4double Mee = 2.0 * me * std::pow(E_transition / (2.0 * me), G4UniformRand());
@@ -233,26 +384,39 @@ G4double X17PrimaryGenerator::GenerateIPC(G4Event* event) {
 // of fluxEAR2-Ph3_in_different_units.root, restricted to
 // [neutronEmin_eV, neutronEmax_eV]; log-uniform spread inside each bin.
 //
-// Transverse position: the radial profile row of Lambda2D
-// (lamda2DvsEn_EAR2.root; 240 log E bins × 3000 r bins to 3 cm) nearest to the
-// sampled energy.  Row weights are MC counts per radial bin — they already
-// include the 2πr area factor, so the row CDF is sampled directly in r.
-// Beam axis = +Y, so the transverse plane is world (x, z).
+// Transverse position and direction: the 2D beam profile at the station from
+// nTof_x17/ear2_beam/optical_transport.py (n_TOF's phase-4 FLUKA phase space
+// through the EAR2 collimation, by the method of the n_TOF optical transport
+// code; validated against the PPACMon beam-interception factors at 19.95 m).
+// One TH2D "prof_NNN" (x, z in cm about the beam axis) per log-E band, and a
+// "bands" tree with the band edges, the cone slope (ray angle = slope × r,
+// mrad/cm) and the local angular spread (mrad).  The gun plane must be the
+// table's height (neutronGunY_cm below the capsule origin); the cone slope
+// carries the divergence on from there.
 //
-// The beam data are loaded once (master + worker threads share the static
-// tables, guarded by std::once_flag) and used read-only afterwards.
+// NOTE (2026-10-14): this used to sample a radius from Lambda2D in
+// lamda2DvsEn_EAR2.root.  That histogram is the n_TOF RESOLUTION FUNCTION
+// (lambda = moderation length, cm, transport.cc HIST_LAMBDA), not a radial
+// profile; it made the beam ~5x too narrow (r50 2.5 mm vs 12.5 mm).  Such a
+// file is now refused.
+//
+// Energy: neutrons per bin from either the Phase-3 file
+// (flux_n_pulse_NOisolet_100bpd, n/pulse per bin) or the Phase-4 evaluation
+// (h_flux_ear2, E dN/dE per pulse -> × ln(hi/lo)); log-uniform inside the bin.
 
 #ifdef USE_ROOT
 namespace {
+struct ProfileBand {
+    double eLo = 0, eHi = 0;
+    double slope = 0;                 // rad per mm of position
+    double spread = 0;                // rad (local, per axis)
+    std::vector<double> cdf;          // over nx*nz cells, row-major (ix*nz+iz)
+};
 struct BeamData {
-    // energy CDF (per-bin lo/hi kept separately: window may contain
-    // zero-flux bins, so accepted bins need not be contiguous)
     std::vector<double> eLo, eHi;  // accepted-bin edges [eV]
     std::vector<double> eCdf;      // cumulative flux, normalised to 1
-    // radial profile per energy row
-    std::vector<double> profLogE;  // log10(E/eV) row centres
-    std::vector<std::vector<double>> rCdf;   // per-row CDF over radius
-    std::vector<double> rEdges;    // radial bin edges [cm]
+    std::vector<ProfileBand> bands;
+    std::vector<double> xEdges, zEdges;   // mm
     bool ok = false;
 };
 BeamData      gBeam;
@@ -266,10 +430,12 @@ void LoadBeamData(const SimConfig& cfg) {
                     ("Cannot open flux file: " + cfg.neutronFluxFile).c_str());
         return;
     }
+    bool lethargic = false;
     auto* hFlux = dynamic_cast<TH1*>(ff.Get("flux_n_pulse_NOisolet_100bpd"));
+    if (!hFlux) { hFlux = dynamic_cast<TH1*>(ff.Get("h_flux_ear2")); lethargic = (hFlux != nullptr); }
     if (!hFlux) {
         G4Exception("X17PrimaryGenerator", "BeamData", FatalException,
-                    "Histogram flux_n_pulse_NOisolet_100bpd not found");
+                    "Neither flux_n_pulse_NOisolet_100bpd nor h_flux_ear2 found");
         return;
     }
     double cum = 0.0;
@@ -278,9 +444,13 @@ void LoadBeamData(const SimConfig& cfg) {
         double hi = lo + hFlux->GetBinWidth(i);
         if (hi < cfg.neutronEmin_eV || lo > cfg.neutronEmax_eV) continue;
         double w = hFlux->GetBinContent(i);
+        if (lethargic) w *= std::log(hi / lo);
+        // a bin cut by the window keeps its share (log-uniform inside)
+        const double clo = std::max(lo, cfg.neutronEmin_eV), chi = std::min(hi, cfg.neutronEmax_eV);
+        w *= std::log(chi / clo) / std::log(hi / lo);
         if (w <= 0) continue;
-        gBeam.eLo.push_back(std::max(lo, cfg.neutronEmin_eV));
-        gBeam.eHi.push_back(std::min(hi, cfg.neutronEmax_eV));
+        gBeam.eLo.push_back(clo);
+        gBeam.eHi.push_back(chi);
         cum += w;
         gBeam.eCdf.push_back(cum);
     }
@@ -292,53 +462,68 @@ void LoadBeamData(const SimConfig& cfg) {
     }
     for (auto& c : gBeam.eCdf) c /= cum;
 
-    // ── radial profile ────────────────────────────────────────────────────
+    // ── 2D profile table ─────────────────────────────────────────────────
     TFile fp(cfg.neutronProfileFile.c_str(), "READ");
     if (fp.IsZombie()) {
         G4Exception("X17PrimaryGenerator", "BeamData", FatalException,
                     ("Cannot open profile file: " + cfg.neutronProfileFile).c_str());
         return;
     }
-    auto* h2 = dynamic_cast<TH2*>(fp.Get("Lambda2D"));
-    if (!h2) {
+    if (fp.Get("Lambda2D")) {
         G4Exception("X17PrimaryGenerator", "BeamData", FatalException,
-                    "Histogram Lambda2D not found");
+                    "lamda2DvsEn_EAR2.root is the n_TOF resolution function (lambda), "
+                    "not a beam profile. Use ear2_profile_*.root from nTof_x17/ear2_beam.");
         return;
     }
-    const int nE = h2->GetNbinsX();
-    const int nR = h2->GetNbinsY();
-    const int rebin = 50;                       // 10 µm → 0.5 mm bins
-    const int nRr = nR / rebin;
-    gBeam.rEdges.resize(nRr + 1);
-    for (int j = 0; j <= nRr; ++j)
-        gBeam.rEdges[j] = h2->GetYaxis()->GetBinLowEdge(j * rebin + 1);
-
-    for (int i = 1; i <= nE; ++i) {
-        std::vector<double> cdf(nRr, 0.0);
-        double rcum = 0.0;
-        for (int j = 0; j < nRr; ++j) {
-            double s = 0.0;
-            for (int k = 1; k <= rebin; ++k)
-                s += h2->GetBinContent(i, j * rebin + k);
-            rcum += s;
-            cdf[j] = rcum;
+    auto* tb = dynamic_cast<TTree*>(fp.Get("bands"));
+    if (!tb) {
+        G4Exception("X17PrimaryGenerator", "BeamData", FatalException,
+                    "Profile file has no 'bands' tree");
+        return;
+    }
+    Long64_t band = 0; double eLo = 0, eHi = 0, slope = 0, spread = 0;
+    tb->SetBranchAddress("band", &band);
+    tb->SetBranchAddress("e_lo", &eLo);
+    tb->SetBranchAddress("e_hi", &eHi);
+    tb->SetBranchAddress("slope_x_per_cm_mrad", &slope);
+    tb->SetBranchAddress("local_spread_mrad", &spread);
+    for (Long64_t k = 0; k < tb->GetEntries(); ++k) {
+        tb->GetEntry(k);
+        auto* h = dynamic_cast<TH2*>(fp.Get(Form("prof_%03lld", band)));
+        if (!h) continue;
+        const int nx = h->GetNbinsX(), nz = h->GetNbinsY();
+        if (gBeam.xEdges.empty()) {
+            for (int i = 1; i <= nx + 1; ++i) gBeam.xEdges.push_back(10.0 * h->GetXaxis()->GetBinLowEdge(i));
+            for (int j = 1; j <= nz + 1; ++j) gBeam.zEdges.push_back(10.0 * h->GetYaxis()->GetBinLowEdge(j));
         }
-        if (rcum <= 0) continue;                // empty energy row — skip
-        for (auto& c : cdf) c /= rcum;
-        gBeam.profLogE.push_back(std::log10(h2->GetXaxis()->GetBinCenter(i)));
-        gBeam.rCdf.push_back(std::move(cdf));
+        ProfileBand B;
+        B.eLo = eLo; B.eHi = eHi;
+        B.slope = slope * 1e-3 / 10.0;      // mrad/cm -> rad/mm
+        B.spread = spread * 1e-3;
+        B.cdf.resize(nx * nz);
+        double c = 0;
+        for (int i = 0; i < nx; ++i)
+            for (int j = 0; j < nz; ++j) {
+                c += std::max(0.0, h->GetBinContent(i + 1, j + 1));
+                B.cdf[i * nz + j] = c;
+            }
+        if (c <= 0) continue;
+        for (auto& v : B.cdf) v /= c;
+        gBeam.bands.push_back(std::move(B));
     }
     fp.Close();
-    if (gBeam.rCdf.empty()) {
+    if (gBeam.bands.empty()) {
         G4Exception("X17PrimaryGenerator", "BeamData", FatalException,
-                    "Lambda2D has no populated energy rows");
+                    "Profile file has no populated bands");
         return;
     }
     gBeam.ok = true;
     G4cout << "X17PrimaryGenerator: beam data loaded — "
            << gBeam.eCdf.size() << " flux bins in ["
-           << cfg.neutronEmin_eV << ", " << cfg.neutronEmax_eV << "] eV, "
-           << gBeam.rCdf.size() << " profile rows" << G4endl;
+           << cfg.neutronEmin_eV << ", " << cfg.neutronEmax_eV << "] eV"
+           << (lethargic ? " (phase-4 lethargy flux)" : "") << ", "
+           << gBeam.bands.size() << " 2D profile bands; beam centre ("
+           << cfg.neutronBeamX_mm << ", " << cfg.neutronBeamZ_mm << ") mm" << G4endl;
 }
 }   // namespace
 #endif  // USE_ROOT
@@ -359,33 +544,226 @@ G4double X17PrimaryGenerator::GenerateNeutron(G4Event* event) {
     const double lo = gBeam.eLo[idx], hi = gBeam.eHi[idx];
     const double E_eV = lo * std::pow(hi / lo, G4UniformRand());
 
-    // ── radius: nearest profile row in log10(E) ──────────────────────────
-    const double le = std::log10(E_eV);
-    const auto rit = std::lower_bound(gBeam.profLogE.begin(),
-                                      gBeam.profLogE.end(), le);
-    size_t row = static_cast<size_t>(rit - gBeam.profLogE.begin());
-    if (row > 0 && (row == gBeam.profLogE.size() ||
-                    le - gBeam.profLogE[row - 1] < gBeam.profLogE[row] - le))
-        --row;
-    const auto& cdf = gBeam.rCdf[row];
-    const double ur = G4UniformRand();
-    const auto jit = std::lower_bound(cdf.begin(), cdf.end(), ur);
-    const auto j = static_cast<size_t>(jit - cdf.begin());
-    const double r_cm = gBeam.rEdges[j] +
-        G4UniformRand() * (gBeam.rEdges[j + 1] - gBeam.rEdges[j]);
+    // ── band: the one containing E, else the nearest in log E ───────────
+    size_t kb = 0;
+    double best = 1e99;
+    for (size_t k = 0; k < gBeam.bands.size(); ++k) {
+        const auto& B = gBeam.bands[k];
+        if (E_eV >= B.eLo && E_eV < B.eHi) { kb = k; break; }
+        const double d = std::fabs(std::log(E_eV / std::sqrt(B.eLo * B.eHi)));
+        if (d < best) { best = d; kb = k; }
+    }
+    const auto& B = gBeam.bands[kb];
 
-    const double phi = CLHEP::twopi * G4UniformRand();
-    const G4ThreeVector pos(r_cm * std::cos(phi) * cm,
+    // ── position: a cell from the 2D CDF, uniform inside it ─────────────
+    const size_t nz = gBeam.zEdges.size() - 1;
+    const auto cit = std::lower_bound(B.cdf.begin(), B.cdf.end(), G4UniformRand());
+    size_t cell = static_cast<size_t>(cit - B.cdf.begin());
+    if (cell >= B.cdf.size()) cell = B.cdf.size() - 1;
+    const size_t ix = cell / nz, iz = cell % nz;
+    const double x_mm = gBeam.xEdges[ix] + G4UniformRand() * (gBeam.xEdges[ix + 1] - gBeam.xEdges[ix]);
+    const double z_mm = gBeam.zEdges[iz] + G4UniformRand() * (gBeam.zEdges[iz + 1] - gBeam.zEdges[iz]);
+
+    // ── direction: the collimated cone plus the local spread ────────────
+    const double ax = B.slope * x_mm + B.spread * G4RandGauss::shoot();
+    const double az = B.slope * z_mm + B.spread * G4RandGauss::shoot();
+
+    const G4ThreeVector pos((x_mm + fConfig.neutronBeamX_mm) * mm,
                             fConfig.neutronGunY_cm * cm,
-                            r_cm * std::sin(phi) * cm);
+                            (z_mm + fConfig.neutronBeamZ_mm) * mm);
 
     fGun->SetParticleDefinition(fNeutron);
     fGun->SetParticlePosition(pos);
-    fGun->SetParticleMomentumDirection(G4ThreeVector(0, 1, 0));
+    fGun->SetParticleMomentumDirection(G4ThreeVector(ax, 1.0, az).unit());
     fGun->SetParticleEnergy(E_eV * eV);
     fGun->GeneratePrimaryVertex(event);
     return E_eV;
 #endif
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ILL PF1B beam (--beam ill; event_type = 2).  HANDOFF_SIM.md §5a.
+//
+// H113 ballistic supermirror guide, Abele et al., nucl-ex/0510072:
+//   λ        from the measured particle-flux spectrum (Eq. 11 fit; CSV
+//            lambda_A,dPhi_dlambda_per_A,...), trapezoid bins, uniform inside;
+//   aperture a round disk of radius illBeamRadius_mm at the gun plane, which
+//            sits illGunDist_mm upstream of the target's entrance (cell window,
+//            or the capsule tip at y = −35 mm);
+//   angles   uniform in |θ_h|, |θ_v| ≤ κ·λ (Eqs. 17–18);
+//   exit     each ray is back-projected illExitDist_mm to the 60 × 200 mm guide
+//            exit and rejected if it misses; inside, the exit's ±5 % gradient
+//            across the width is applied by rejection (events stay unweighted).
+// The thrown count per accepted ray goes to EventTree.n_thrown, so the
+// aperture acceptance (and the rate, with beam_spot.py's exit density) is
+// Σ1 / Σn_thrown.  Horizontal (h) and vertical (v) map onto sim (x, z) by
+// illVerticalAxis; the beam is +Y.
+namespace {
+struct IllSpectrum {
+    std::vector<double> lo, hi, cdf;   // trapezoid bins [Å], normalised CDF
+};
+IllSpectrum    gIll;
+std::once_flag gIllOnce;
+
+void LoadIllSpectrum(const SimConfig& cfg) {
+    std::ifstream in(cfg.illSpectrumFile);
+    if (!in) {
+        G4Exception("X17PrimaryGenerator", "IllBeam", FatalException,
+                    ("Cannot open ILL spectrum: " + cfg.illSpectrumFile).c_str());
+        return;
+    }
+    std::vector<double> lam, f;
+    std::string line;
+    while (std::getline(in, line)) {
+        if (line.empty() || line[0] == '#' || !std::isdigit(static_cast<unsigned char>(line[0])))
+            continue;                                   // header / comments
+        std::istringstream ss(line);
+        std::string a, b;
+        if (!std::getline(ss, a, ',') || !std::getline(ss, b, ',')) continue;
+        lam.push_back(std::stod(a));
+        f.push_back(std::stod(b));
+    }
+    double cum = 0.0;
+    for (size_t i = 0; i + 1 < lam.size(); ++i) {
+        const double w = 0.5 * (f[i] + f[i + 1]) * (lam[i + 1] - lam[i]);
+        if (w <= 0) continue;
+        cum += w;
+        gIll.lo.push_back(lam[i]);
+        gIll.hi.push_back(lam[i + 1]);
+        gIll.cdf.push_back(cum);
+    }
+    if (gIll.cdf.empty())
+        G4Exception("X17PrimaryGenerator", "IllBeam", FatalException,
+                    "ILL spectrum has no positive bins");
+    for (auto& v : gIll.cdf) v /= cum;
+    G4cout << "X17PrimaryGenerator: ILL spectrum — " << gIll.cdf.size()
+           << " bins, " << gIll.lo.front() << "–" << gIll.hi.back() << " Å" << G4endl;
+}
+}   // namespace
+
+G4double X17PrimaryGenerator::GenerateIllNeutron(G4Event* event, long& nThrown) {
+    std::call_once(gIllOnce, LoadIllSpectrum, std::cref(fConfig));
+    const auto& c = fConfig;
+    const double a     = c.illBeamRadius_mm;
+    const double D     = c.illExitDist_mm;
+    const double halfW = c.illExitW_mm / 2, halfH = c.illExitH_mm / 2;
+    // reference plane: cell window, slab front face, or the capsule tip
+    double yRef = -35.0;
+    if (c.cellTarget) yRef = c.cellYw_mm;
+    else if (!c.slab.empty())
+        yRef = -0.5 * std::stod(c.slab.substr(c.slab.find(':') + 1));
+    const double yGun = yRef - c.illGunDist_mm;
+
+    nThrown = 0;
+    double lamA = 0, h = 0, v = 0, th = 0, tv = 0;
+    while (true) {
+        ++nThrown;
+        const double u = G4UniformRand();
+        auto it = std::lower_bound(gIll.cdf.begin(), gIll.cdf.end(), u);
+        size_t i = std::min(static_cast<size_t>(it - gIll.cdf.begin()), gIll.cdf.size() - 1);
+        lamA = gIll.lo[i] + G4UniformRand() * (gIll.hi[i] - gIll.lo[i]);
+        if (c.illLambdaFixed_A > 0) lamA = c.illLambdaFixed_A;
+
+        const double r = a * std::sqrt(G4UniformRand());
+        const double phi = CLHEP::twopi * G4UniformRand();
+        h = r * std::cos(phi);
+        v = r * std::sin(phi);
+        const double k = c.illKappa_rad_per_A * lamA;
+        th = std::tan(k * (2.0 * G4UniformRand() - 1.0));
+        tv = std::tan(k * (2.0 * G4UniformRand() - 1.0));
+
+        const double h0 = h - D * th, v0 = v - D * tv;   // where the ray left the guide
+        if (std::abs(h0) > halfW || std::abs(v0) > halfH) continue;
+        const double w = 1.0 + c.illExitGrad * h0 / halfW;
+        if (G4UniformRand() * (1.0 + std::abs(c.illExitGrad)) > w) continue;
+        break;
+    }
+
+    G4ThreeVector pos, dir;
+    if (c.illVerticalAxis == 'x') {          // v → x, h → z
+        pos = G4ThreeVector(v * mm, yGun * mm, h * mm);
+        dir = G4ThreeVector(tv, 1.0, th).unit();
+    } else {                                 // v → z, h → x
+        pos = G4ThreeVector(h * mm, yGun * mm, v * mm);
+        dir = G4ThreeVector(th, 1.0, tv).unit();
+    }
+    const double E_eV = 81.804e-3 / (lamA * lamA);       // E[meV] = 81.804 / λ[Å]²
+
+    fGun->SetParticleDefinition(fNeutron);
+    fGun->SetParticlePosition(pos);
+    fGun->SetParticleMomentumDirection(dir);
+    fGun->SetParticleEnergy(E_eV * eV);
+    fGun->GeneratePrimaryVertex(event);
+    return E_eV;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Cosmic muons (--cosmic; event_type = 4).  See SimConfig.hh.
+// Reyna, hep-ph/0604145: vertical sea-level intensity
+//   I_V(p) = c1 p^-(c2 + c3 L + c4 L² + c5 L³),  L = log10(p / GeV/c),
+//   c = 0.00253, 0.2455, 1.288, −0.2555, 0.0209 (fit range 1–2000 GeV/c).
+// Sampled in log p from a tabulated CDF of p·I_V(p) on [0.2, 1000] GeV/c,
+// with I_V held at its 1 GeV/c value below 1 GeV/c.
+namespace {
+std::vector<double> gMuLogP, gMuCdf;
+std::once_flag gMuOnce;
+void BuildMuonTable() {
+    const int n = 4000;
+    const double lo = std::log10(0.2), hi = std::log10(1000.0);
+    auto IV = [](double p) {
+        const double L = std::log10(std::max(p, 1.0));
+        return 0.00253 * std::pow(std::max(p, 1.0),
+            -(0.2455 + 1.288 * L - 0.2555 * L * L + 0.0209 * L * L * L));
+    };
+    gMuLogP.resize(n);
+    gMuCdf.assign(n, 0.0);
+    double prev = 0;
+    for (int i = 0; i < n; ++i) {
+        const double x = lo + (hi - lo) * i / (n - 1), p = std::pow(10.0, x);
+        const double f = p * IV(p);                   // dN/dlog p ∝ p I(p)
+        gMuLogP[i] = x;
+        if (i) gMuCdf[i] = gMuCdf[i - 1] + 0.5 * (f + prev) * (hi - lo) / (n - 1);
+        prev = f;
+    }
+    for (auto& c : gMuCdf) c /= gMuCdf.back();
+}
+}   // namespace
+
+G4double X17PrimaryGenerator::GenerateCosmic(G4Event* event) {
+    std::call_once(gMuOnce, BuildMuonTable);
+    const auto& c = fConfig;
+    // momentum
+    const double u = G4UniformRand();
+    auto it = std::lower_bound(gMuCdf.begin(), gMuCdf.end(), u);
+    size_t i = std::max<size_t>(1, std::min<size_t>(it - gMuCdf.begin(), gMuCdf.size() - 1));
+    const double t = (gMuCdf[i] > gMuCdf[i - 1]) ? (u - gMuCdf[i - 1]) / (gMuCdf[i] - gMuCdf[i - 1]) : 0.5;
+    const double p_GeV = std::pow(10.0, gMuLogP[i - 1] + t * (gMuLogP[i] - gMuLogP[i - 1]));
+    // zenith: dN/dθ ∝ cos³θ sinθ → cosθ = u^(1/4), θ < 85°
+    double ct;
+    do { ct = std::pow(G4UniformRand(), 0.25); } while (ct < std::cos(85.0 * deg));
+    const double st = std::sqrt(1 - ct * ct), ph = CLHEP::twopi * G4UniformRand();
+    // local frame: a, b span the horizontal plane, w is up
+    const double a = (G4UniformRand() - 0.5) * c.cosmicPlane_mm;
+    const double b = (G4UniformRand() - 0.5) * c.cosmicPlane_mm;
+    const double da = st * std::cos(ph), db = st * std::sin(ph), dw = -ct;
+    G4ThreeVector pos, dir;
+    if (c.illVerticalAxis == 'x') {          // up = +x; horizontal plane (y, z)
+        pos = G4ThreeVector(c.cosmicHeight_mm, a, b) * mm;
+        dir = G4ThreeVector(dw, da, db);
+    } else {                                 // up = +z; horizontal plane (x, y)
+        pos = G4ThreeVector(a, b, c.cosmicHeight_mm) * mm;
+        dir = G4ThreeVector(da, db, dw);
+    }
+    const bool plus = G4UniformRand() < 1.27 / 2.27;
+    G4ParticleDefinition* mu = plus ? fMuPlus : fMuMinus;
+    const double m = mu->GetPDGMass();
+    const double pp = p_GeV * GeV;
+    fGun->SetParticleDefinition(mu);
+    fGun->SetParticlePosition(pos);
+    fGun->SetParticleMomentumDirection(dir);
+    fGun->SetParticleEnergy(std::sqrt(pp * pp + m * m) - m);
+    fGun->GeneratePrimaryVertex(event);
+    return p_GeV;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -474,6 +852,44 @@ G4double X17PrimaryGenerator::GenerateGammaSource(G4Event* event) {
 
     fGun->SetParticleDefinition(fGamma);
     fGun->SetParticlePosition(G4ThreeVector(p[0] * mm, p[1] * mm, p[2] * mm));
+    fGun->SetParticleMomentumDirection(IsotropicDirection());
+    fGun->SetParticleEnergy(line.e_MeV * MeV);
+    fGun->GeneratePrimaryVertex(event);
+    return line.e_MeV;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// γ-line source (--gamma-lines E:w,E:w,...; event_type 3).  One isotropic γ per
+// event from the pair-vertex distribution, line drawn ∝ w; returns E_γ [MeV].
+namespace {
+std::vector<CascadeLine> gGammaLines;
+std::once_flag gGammaLinesOnce;
+
+void ParseGammaLines(const SimConfig& cfg) {
+    std::stringstream ss(cfg.gammaLines);
+    std::string item;
+    while (std::getline(ss, item, ',')) {
+        const auto c = item.find(':');
+        const double e = std::stod(item.substr(0, c));
+        const double w = (c == std::string::npos) ? 1.0 : std::stod(item.substr(c + 1));
+        if (e <= 0 || w < 0)
+            G4Exception("X17PrimaryGenerator", "GammaLines", FatalException,
+                        ("Bad --gamma-lines entry: " + item).c_str());
+        gGammaLines.push_back({e, w});
+    }
+    if (gGammaLines.empty())
+        G4Exception("X17PrimaryGenerator", "GammaLines", FatalException, "Empty --gamma-lines");
+    G4cout << "X17PrimaryGenerator: gamma lines —";
+    for (const auto& l : gGammaLines) G4cout << " " << l.e_MeV << " MeV (w " << l.intensity << ")";
+    G4cout << G4endl;
+}
+}   // namespace
+
+G4double X17PrimaryGenerator::GenerateGammaLines(G4Event* event) {
+    std::call_once(gGammaLinesOnce, ParseGammaLines, std::cref(fConfig));
+    const auto& line = SampleLine(gGammaLines);
+    fGun->SetParticleDefinition(fGamma);
+    fGun->SetParticlePosition(SampleHe3Vertex(fConfig));
     fGun->SetParticleMomentumDirection(IsotropicDirection());
     fGun->SetParticleEnergy(line.e_MeV * MeV);
     fGun->GeneratePrimaryVertex(event);

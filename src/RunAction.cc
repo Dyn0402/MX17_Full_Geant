@@ -53,6 +53,10 @@ struct RunAction::Impl {
     Char_t   e_capture_proc[32];            // "nCapture" | "neutronInelastic" | ...
     Double_t e_cap_x, e_cap_y, e_cap_z;     // interaction position [mm]
     Double_t e_weight;                       // track weight at interaction (bias)
+    Long64_t e_n_thrown;                     // generator attempts (ILL beam acceptance)
+    Char_t   e_first_vol[32];                // primary's first interaction: volume
+    Char_t   e_first_proc[32];               // ... and process
+    Double_t e_first_x, e_first_y, e_first_z; // ... and position [mm]
 
     // ConvPairTree branches — one entry per γ→e⁺e⁻ conversion (neutron mode).
     // The Al(n,γ) 7.72 MeV capture-γ pair-production background to X17/IPC.
@@ -151,6 +155,12 @@ void RunAction::BeginOfRunAction(const G4Run*) {
     fImpl->evtTree->Branch("cap_y",        &fImpl->e_cap_y);
     fImpl->evtTree->Branch("cap_z",        &fImpl->e_cap_z);
     fImpl->evtTree->Branch("weight",       &fImpl->e_weight);    // bias weight
+    fImpl->evtTree->Branch("n_thrown",     &fImpl->e_n_thrown);  // ILL: rays thrown per event
+    fImpl->evtTree->Branch("first_vol",    fImpl->e_first_vol,  "first_vol[32]/C");
+    fImpl->evtTree->Branch("first_proc",   fImpl->e_first_proc, "first_proc[32]/C");
+    fImpl->evtTree->Branch("first_x",      &fImpl->e_first_x);
+    fImpl->evtTree->Branch("first_y",      &fImpl->e_first_y);
+    fImpl->evtTree->Branch("first_z",      &fImpl->e_first_z);
 
     // ── ConvPairTree ──────────────────────────────────────
     fImpl->convTree = new TTree("ConvPairTree", "Per-conversion e+e- truth");
@@ -256,6 +266,12 @@ void RunAction::RecordEvent(const EventData& data) {
     fImpl->e_cap_y = data.cap_y;
     fImpl->e_cap_z = data.cap_z;
     fImpl->e_weight = data.weight;
+    fImpl->e_n_thrown = data.n_thrown;
+    std::strncpy(fImpl->e_first_vol, data.first_vol.c_str(), 31);
+    fImpl->e_first_vol[31] = '\0';
+    std::strncpy(fImpl->e_first_proc, data.first_proc.c_str(), 31);
+    fImpl->e_first_proc[31] = '\0';
+    fImpl->e_first_x = data.first_x; fImpl->e_first_y = data.first_y; fImpl->e_first_z = data.first_z;
     fImpl->evtTree->Fill();
 
     // HitTree

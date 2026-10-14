@@ -28,7 +28,8 @@ Reference: Sabaté-Gilarte et al., evaluated flux for n_TOF Phase 3.
 **Normalisation conventions:**
 - All histograms assume **7×10¹² protons per pulse** on the spallation target.
 - The cm²-normalised histograms assume a **uniform beam within r = 2.5 cm** — this is
-  a simplification; use `lamda2DvsEn_EAR2.root` for the true spatial profile.
+  a simplification; use `ear2_profile_*.root` for the true spatial profile
+  (NOT `lamda2DvsEn_EAR2.root`, which is the resolution function).
 - ~3.2×10⁵ n/pulse pass through the full 2.5 cm collimator in the X17 ROI (10–20 MeV).
 
 **For Geant4:** Read `flux_n_pulse_NOisolet_100bpd` to get the number of neutrons per
@@ -38,35 +39,43 @@ characterises the beam.
 
 ---
 
-### `lamda2DvsEn_EAR2.root`
-**The spatial beam profile file.** Contains one object:
+### `lamda2DvsEn_EAR2.root` — ⚠ the RESOLUTION FUNCTION, not a beam profile
 
-- `Lambda2D` — `TH2D`, shape **(240 energy bins) × (3000 radial bins)**
-  - X axis: neutron energy (eV), log-spaced, **1 meV to ~1 GeV**, 240 bins
-  - Y axis: radial distance from beam axis (cm), **0 to 3.0 cm**, bin width 10 µm
+**Corrected 2026-10-14.** This section used to call `Lambda2D` "the spatial beam
+profile" with a radial y axis. It is not. Its y axis is titled **"lambda (cm)"**: it is
+the n_TOF optical transport code's `HIST_LAMBDA` output (`transport.cc`:
+`lambda = (t·v − L)·100`), the equivalent moderation distance that defines the
+time-to-energy **resolution function**. It sits in Marta Sabaté-Gilarte's directory
+next to `lamda2DvsEn_EAR2.root_sammyudr.txt`, its SAMMY user-defined-resolution
+export. Reading it as a radius made the beam ~5× too narrow (half the beam within
+2.5 mm instead of ~10.5 mm at 19.5 m) and put ~95 % of it on the ³He bore instead
+of ~46 %. Every neutron-mode run before 2026-10-14 (`*_nose`, `*_2cm`, the
+`full_sim/neutrons*` campaigns) used it that way.
 
-Source: `/afs/cern.ch/work/m/msabateg/public/n_TOF-files/` (Marta Sabaté-Gilarte)  
-Produced by: the n_TOF optical transport code (`ntof/transport`) run on FLUKA
-spallation-target output, propagated to L = 19.5 m (EAR2 sample position).
+The generator now **refuses** this file. Use:
 
-**How to interpret:** Each row (energy bin) gives the radial distribution of neutrons
-at the EAR2 sample position for that energy. The values are Monte Carlo weights
-(not absolute flux); normalise each energy row by its sum to get the probability
-density dP/dr. The radial bins are fine (10 µm), so rebin by ~50× before use
-(0.5 mm resolution is adequate).
+### `ear2_profile_<variant>_L<height>.root` — the 2D beam profile table
 
-**Key results from this file:**
-- At thermal/eV energies: beam is narrow, ~90% within r < 0.5 cm.
-- At 1 MeV: beam has broadened, ~90% within r < 1.5 cm.
-- In X17 ROI (10–20 MeV): ~47% within r < 0.5 cm, ~91% within r < 1.0 cm,
-  essentially 100% within r < 1.5 cm.
-- Above ~100 MeV: beam spreads to fill the full 3 cm scoring window.
+From `nTof_x17/ear2_beam/optical_transport.py`: n_TOF's phase-4 FLUKA phase space
+(`/eos/experiment/ntof/simul/phase4/data_fluka_4.5.1`) through the EAR2 collimation
+(`simul/transport/input/ear2_july2021.inp`, small second collimator) by the method of
+the n_TOF transport code. Validated against the PPACMon beam-interception factors at
+19.95 m (Pavón-Rodríguez et al., EPJ A 61 (2025), arXiv:2505.00042) to 1–2 %.
 
-**For Geant4:** To sample the (x, y) position of a primary neutron at a given energy E:
-1. Find the energy bin index for E in the X axis.
-2. Extract that row as the radial probability distribution dP/dr.
-3. Sample r from this distribution (using inverse CDF or rejection sampling).
-4. Sample φ uniformly in [0, 2π); convert to (x, y) = (r·cos φ, r·sin φ).
+- One `TH2D prof_NNN` per log-E band (4 per decade), x and z in cm about the beam axis.
+- Tree `bands`: `band, e_lo, e_hi` (eV), `slope_x_per_cm_mrad` (the collimated cone:
+  ray angle = slope × distance from the axis), `local_spread_mrad`, `r50_mm`, `cx_mm, cz_mm`.
+- `L<height>` is the table's flight path. The gun plane is `--gun-y-cm` (default
+  −20 cm) below the capsule origin, so for a capsule at 19.5 m use `L19.3`, and
+  for 19.95 m use `L19.75`.
+- Below ~1 keV the profile is energy-independent: r50 ≈ 10 mm, FWHM ≈ 22 mm at 19.5 m;
+  it ends sharply at r ≈ 22 mm.
+
+### `Final_evaluated_flux_Phase4_EAR2.root`
+
+The post-2021-target evaluated flux (`/eos/experiment/ntof/2021_Commissioning/flux/EAR2/`),
+`h_flux_ear2` in E dN/dE per pulse (the generator converts to per bin). It is ×1.19 the
+Phase-3 file in the 14–124 meV window and ×1.32 below 1 keV.
 
 ---
 

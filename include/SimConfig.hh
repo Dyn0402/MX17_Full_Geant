@@ -21,12 +21,31 @@ struct SimConfig {
     // 0 = all X17, 1 = all IPC, 0.5 = equal statistics (recommended for building event pools).
     double ipc_fraction = 0.5;
 
+    // IPC kinematics.  "ansatz" (default, the legacy generator): Mee from
+    // dN/dMee ∝ 1/Mee, isotropic decay in the γ* frame.  "M1", "E0", "E1":
+    // the one-photon-exchange (Born) distribution of that multipole, exact in
+    // Mee and in the lepton angle θ* about the γ* direction, from the master
+    // formula of nTof_x17/sept26_prelim_analysis/ipc_born.py (long-wavelength
+    // nuclear factors; at Z = 2, αZ = 0.015, so Born is essentially exact).
+    // Sampled unweighted: ln Mee from the tabulated marginal, cos θ* by
+    // accept/reject.  Check: fraction of pairs above 109° = 4.6 % (M1),
+    // 11 % (E0), 9.9 % (E1) per ipc_born.validate().
+    std::string ipcMultipole = "ansatz";
+    // Born IPC only: keep a pair only if its lab opening angle is >= this many
+    // degrees (rejection; the nucleus is at rest, so this is exactly the Born
+    // distribution conditioned on theta >= cut).  Normalise offline by the Born
+    // fraction above the cut (lnl_rates.ipc_vectors).  0 = no cut (default).
+    double ipcMinOpenDeg = 0.0;
+
     // Pair-vertex library: CSV of He3Gas capture positions (volume,x_mm,y_mm,z_mm,
     // from make_capture_library.py --gas-lib).  When set, X17/IPC vertices are
     // sampled from these rows instead of uniformly in the gas — this is how the
     // thermal self-shielding absorption profile (captures within ~mm of the gas
     // entrance face) enters the signal kinematics.  Empty = uniform (default).
     std::string pairVertexLibFile;
+    // Library rows whose volume contains this string are used (default the
+    // gas; e.g. He3Cell_Window for S2 window internal pairs).
+    std::string pairVertexVol = "He3Gas";
 
     bool        singleParticle            = false;
     std::string singleParticleName        = "e-";
@@ -36,20 +55,150 @@ struct SimConfig {
 
     // ── Neutron-beam mode (event_type = 2) ──────────────────
     // Fires neutrons along +Y from y = neutronGunY_cm with energy sampled
-    // from the EAR2 evaluated flux and transverse position from the
-    // energy-dependent radial profile (both ROOT files in data/).
+    // from the EAR2 evaluated flux and transverse position + direction from
+    // the energy-binned 2D beam profile at the station (data/ear2_profile_*).
     bool        neutronMode    = false;
-    std::string neutronFluxFile;     // fluxEAR2-Ph3_in_different_units.root
-    std::string neutronProfileFile;  // lamda2DvsEn_EAR2.root
+    std::string neutronFluxFile;     // Final_evaluated_flux_Phase4_EAR2.root (or the Ph3 file)
+    std::string neutronProfileFile;  // ear2_profile_*.root (nTof_x17/ear2_beam); NOT lamda2DvsEn
+    double      neutronBeamX_mm = 0.0;    // beam-axis offset from the world origin (--beam-offset)
+    double      neutronBeamZ_mm = 0.0;
     double      neutronEmin_eV = 1e-3;    // sampling window
     double      neutronEmax_eV = 1000.0;  // default: < 1 keV (X17 ROI)
     double      neutronGunY_cm = -20.0;   // start position upstream of vessel tip
+
+    // ── ILL reactor beam (--beam ill; HANDOFF_SIM.md §5a, x17_facility_search) ──
+    // PF1B fed by the H113 ballistic supermirror guide (Abele et al.,
+    // nucl-ex/0510072).  λ from the measured spectrum (Eq. 11 fit, particle
+    // flux, CSV lambda_A,dPhi_dlambda_per_A,...); a round defining aperture of
+    // radius illBeamRadius_mm at the gun plane, illGunDist_mm upstream of the
+    // cell entrance window; divergence uniform in |θ_h|,|θ_v| ≤ κ·λ; each ray
+    // back-projected illExitDist_mm to the 60 × 200 mm guide exit and rejected
+    // if it misses it (weight 1 + grad·x_h/30 mm across the width, applied by
+    // rejection so events stay unweighted).  Collimator captures are not
+    // tracked (site background).  The 200 mm (vertical) side of the exit maps
+    // onto sim axis illVerticalAxis ('x' or 'z'); the beam stays +Y.
+    bool        illBeam            = false;
+    std::string illSpectrumFile;            // data/beam/h113_spectrum.csv
+    double      illBeamRadius_mm   = 10.0;  // defining aperture radius
+    double      illGunDist_mm      = 300.0; // aperture → entrance window
+    double      illExitDist_mm     = 1200.0;// guide exit → aperture
+    double      illExitW_mm        = 60.0;  // exit width (horizontal)
+    double      illExitH_mm        = 200.0; // exit height (vertical)
+    double      illExitGrad        = 0.05;  // weight 1 + grad·(x_h / half-width)
+    double      illKappa_rad_per_A = 0.0017;// κ_eff = 0.017 rad/nm
+    char        illVerticalAxis    = 'z';
+    double      illLambdaFixed_A   = 0.0;   // >0: mono-λ instead of the spectrum (V1 slabs)
+
+    // ── Cosmic muons (--cosmic; event_type = 4; HANDOFF_SIM.md §5e) ──────────
+    // μ± (charge ratio 1.27) from a cosmicPlane_mm square plane cosmicHeight_mm
+    // above the target, perpendicular to the vertical axis (illVerticalAxis —
+    // at the ILL the zenith is perpendicular to the beam, unlike at n_TOF).
+    // Zenith angle from the flux through a horizontal plane, ∝ cos³θ sinθ
+    // (cos²θ intensity), θ < 85°; momentum from the Reyna (2006) sea-level
+    // vertical spectrum, 0.2–1000 GeV/c (flat in log p below 1 GeV/c, where the
+    // fit is not defined).  Live time: N / (J·A), J = 1 cm⁻² min⁻¹ through a
+    // horizontal surface (PDG), A = plane area — printed at the end of the run.
+    bool        cosmic          = false;
+    double      cosmicPlane_mm  = 3000.0;
+    double      cosmicHeight_mm = 1500.0;
+
+    // ── Thermal scattering S(α,β) for solids (G4ThermalNeutrons) ──────────────
+    // −1 = auto (on with --beam ill / --target cell, off otherwise, so n_TOF
+    // runs are unchanged); 0 = off; 1 = on.  Uses the G4NDL TS tables for the
+    // NIST materials that have them (G4_Al, G4_Be, G4_GRAPHITE, G4_Fe, ...).
+    int         thermalScattering  = -1;
+
+    // ── Target: the 500 bar capsule (default) or a low-pressure ³He cell ──────
+    // Cell (--target cell; HANDOFF_SIM.md §5b): ³He gas column of length
+    // cellLength_mm and radius cellRadius_mm along +Y, starting at y = cellYw_mm
+    // (the entrance window's downstream face).  Cylindrical skin outside the
+    // gas, an optional rod cage inside it at the skin radius, a window disk in
+    // the aperture of an upstream Al end ring, a ⁶LiF halo scraper upstream of
+    // that ring, and a downstream end cap.  Materials are "Name:thickness_mm"
+    // with Name ∈ {Be, Al, Mylar, Kapton, LiF6, CFRP, Fe, C}.
+    bool        cellTarget         = false;
+    double      cellPressure_bar   = 1.0;
+    double      cellLength_mm      = 300.0;
+    double      cellRadius_mm      = 40.0;
+    double      cellYw_mm          = -21.6;
+    std::string cellSkin           = "Mylar:0.012";
+    int         cellRods           = 0;      // 0 = none; else 1 flat + (N−1) round CFRP
+    double      cellRodRound_mm    = 2.0;    // round rod diameter
+    double      cellRodFlatW_mm    = 12.0;   // flat rod width (tangential)
+    double      cellRodFlatT_mm    = 1.5;    // flat rod thickness (radial)
+    std::string cellWindow         = "Be:0.5";
+    double      cellApertureR_mm   = 15.0;   // window / upstream-ring aperture radius
+    std::string cellEndCap         = "Al:8"; // "Al:8" or "Al:8+LiF6:3" (LiF on the gas side)
+    double      cellRingThick_mm   = 8.0;    // upstream end ring thickness
+    std::string cellRingMat        = "Al";   // upstream end ring material (CellMat name)
+    double      cellRingLiner_mm   = 0.0;    // ⁶LiF annulus on the ring's gas side (0 = none)
+    std::string flightTubeGas      = "";     // He / Vac: beam flight tube gun → cell (empty = air)
+    double      flightTubeR_mm     = 30.0;   // tube inner radius
+    std::string flightTubeWall     = "Al:1"; // tube wall Mat:mm
+    std::string flightTubeWin      = "Mylar:0.025"; // tube upstream window (at the gun) Mat:mm
+    double      cellRingLand_mm    = 6.0;    // ring/cap radial land beyond the skin
+    double      cellScraperRin_mm  = 12.0;   // ⁶LiF scraper inner radius (0 = no scraper)
+    double      cellScraperT_mm    = 5.0;    // ⁶LiF scraper thickness
+
+    // ── LNL ⁷Li(p,e⁺e⁻)⁸Be target region (--target li; x17_facility_search/lnl/GEANT_PREP.md) ──
+    // A thin vacuum chamber along the beam (+Y) replaces the ³He target.  Inside
+    // it, upstream first: the Li film (⊥ beam, downstream face at y = 0, so all
+    // vertices sit in it), the backing foil right behind it, an annular holder
+    // frame behind the backing outside the beam spot, and the beam dump.  The
+    // proton beam itself is not tracked: pairs (--energy/--mass/--ipc) and
+    // --gamma-lines start in the film from a Gaussian beam spot.
+    //   film     Mat:ug_cm2   Mat ∈ {Li2O, LiF, Li}  (natural Li, Li₂O 2.01, LiF 2.635, Li 0.534 g/cm³)
+    //   backing  Mat:um       (Al, C, Cu, ...; "none" = self-supporting film)
+    //   holder   Mat:mm       annulus [liHolderRin_mm, liHolderRout_mm] ("none" = no frame)
+    //   chamber  Mat:t_mm:r_mm  tube wall around a vacuum bore of radius r, |y| ≤ liChamberHalfLen_mm,
+    //            closed by flanges of liFlange (upstream one with a liFlangeHoleR_mm beam hole)
+    //   dump     Mat:mm at y = liDumpDist_mm ("none" = beam leaves the chamber)
+    // Volume names: LiTarget_Film, LiTarget_Backing, LiTarget_Holder,
+    // LiChamber_Vac, LiChamber_Wall, LiChamber_Flange, BeamDump.
+    bool        liTarget           = false;
+    std::string liFilm             = "Li2O:300";
+    std::string liBacking          = "Al:10";
+    std::string liHolder           = "Al:1";
+    double      liHolderRin_mm     = 10.0;
+    double      liHolderRout_mm    = 20.0;
+    std::string liChamber          = "CFRP:0.4:25";
+    double      liChamberHalfLen_mm = 300.0;
+    std::string liFlange           = "Al:5";
+    double      liFlangeHoleR_mm   = 10.0;
+    std::string liDump             = "Ta:2";
+    double      liDumpDist_mm      = 250.0;
+    double      liSpotSigma_mm     = 2.0;    // Gaussian beam spot (x, z), as MEG II
+
+    // ── γ-line source (--gamma-lines E:w,E:w,...; event_type 3) ─────────────
+    // One isotropic mono-energetic γ per event from the pair-vertex
+    // distribution (the beam spot in the film with --target li), the line
+    // drawn with probability ∝ w.  EventTree.inv_mass carries E_γ, so each
+    // line can be reweighted in analysis.  For EPC, γ singles and accidentals
+    // from the target region; does not need a capture library.
+    std::string gammaLines;
+
+    // Bare slab (--slab Mat:mm; V1 thermal-scattering check): a disk of radius
+    // 50 mm and the given thickness centred at the origin, normal to the beam,
+    // in place of any target.  Materials as for the cell.
+    std::string slab;
 
     // Cross-section biasing (variance reduction for the rare ³He(n,γ) channel).
     // >1 scales the nCapture cross-section *in the He3Gas only* (region-scoped
     // operator, so wall/scint H-captures are untouched and transport is intact).
     // Each biased capture carries weight 1/factor; sum weights in analysis.
     double      biasNCaptureFactor = 1.0;   // 1.0 = analog (off)
+    // Same occurrence biasing of nCapture, separately, in the cell's solid
+    // volumes (window, end ring/cap, skin, rods, ⁶LiF) and in the air (World
+    // LV only; daughters are not biased).  High-statistics wall-capture γ
+    // background with Geant4's own HP capture photons, in place of a line-list
+    // γ-source run.  Every count downstream is weighted by EventTree.weight.
+    // Thin parts (window, skin, rods) take biasWallFactor; thick ones (8 mm
+    // Al end ring and cap, ⁶LiF) take biasThickFactor, kept small so that
+    // B·Σ_c·t ≲ 1 — a large factor on 8 mm Al saturates, and the neutrons
+    // that cross it unabsorbed then carry survival weights ~e^(B Σ t).
+    double      biasWallFactor     = 1.0;
+    double      biasThickFactor    = 1.0;
+    double      biasAirFactor      = 1.0;
 
     // ── Gamma-source mode (event_type = 3, biased wall-background) ──
     // Re-emits capture-cascade gammas from a capture-vertex library CSV
@@ -156,6 +305,21 @@ struct SimConfig {
     // SiPM container back → plastics front, per arm [0]=D [1]=B [2]=A [3]=C
     // (measured 2026-07-17; was a uniform 7 cm placeholder)
     double gap_sipm_to_plastic_cm[4] = {6.5, 6.1, 6.3, 6.1};
+
+    // Trigger-plastic study (x17_facility_search/trigger_plastics): replace the
+    // two bars by ONE slab per arm of bigPlastic_u × v × thick cm (same front
+    // face, same wrapping, centred on the MM), scored as "BackScintL".  Made
+    // deliberately oversized so that any smaller plastic (width, length,
+    // thickness) is cut out of its hits offline.  0 = off (the as-built bars).
+    double bigPlastic_u_cm     = 0.0;
+    double bigPlastic_v_cm     = 0.0;
+    double bigPlastic_thick_cm = 0.0;
+    // Omit the LS vessels (and their PMTs) — the plastics-replace-LS option.
+    bool   noLS = false;
+    // Neutron shield wrapped around each plastic (outside the tape), "MAT:mm",
+    // MAT = LiF6 (95 % 6Li) or B4C.  Empty = none.  The plastic's front face
+    // moves back by the shield thickness.
+    std::string plasticShield = "";
 
     // ── Liquid scintillator vessel (1 per arm, STEP-derived) ───────────────
     // Source: STEP "LS X17.step" (Shapr3D export 2026-06-10, solid 'Corpo 03',

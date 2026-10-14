@@ -51,11 +51,13 @@ void SteppingAction::UserSteppingAction(const G4Step* step) {
     // ── Trajectory dump for event displays (--trajdump) ──────────────────
     if (fConfig.trajDump) DumpTrajectoryStep(step);
 
-    // ── γ→e⁺e⁻ pair-production truth (neutron mode) ──────────────────────
+    // ── γ→e⁺e⁻ pair-production truth (neutron mode, --gamma-lines) ─────────
     // The Al(n,γ) 7.72 MeV capture γ pair-produces in the Al capsule, faking
     // the IPC/X17 e⁺e⁻ final state.  Record every conversion's birth kinematics
     // (opening angle is the only surviving discriminant — no vertex, no calo).
-    if (fConfig.neutronMode) RecordConvPair(step);
+    // At LNL the same record gives the external pair conversion (EPC) of the
+    // ⁸Be γ lines in the target, backing and chamber.
+    if (fConfig.neutronMode || !fConfig.gammaLines.empty()) RecordConvPair(step);
 
     // ── Neutron terminal-interaction recording (neutron mode) ────────────
     // Record where the PRIMARY neutron track ENDS via a hadronic interaction:
@@ -66,6 +68,22 @@ void SteppingAction::UserSteppingAction(const G4Step* step) {
     // (library wants nCapture in Al/CFRP; budget wants everything).
     if (fConfig.neutronMode) {
         const G4Track* trk = step->GetTrack();
+        // First physics interaction of the primary (anything but transport):
+        // uncollided transmission for the V1 slab check, and where the beam
+        // first scatters in a target.
+        if (trk->GetTrackID() == 1) {
+            EventData& ed = fEventAction->GetEventData();
+            const G4VProcess* p = step->GetPostStepPoint()->GetProcessDefinedStep();
+            if (ed.first_proc.empty() && p &&
+                p->GetProcessName().find("Transportation") == std::string::npos &&
+                p->GetProcessName() != "StepLimiter") {
+                ed.first_proc = p->GetProcessName();
+                const G4VPhysicalVolume* fpv = step->GetPreStepPoint()->GetPhysicalVolume();
+                ed.first_vol = fpv ? fpv->GetLogicalVolume()->GetName() : "OutOfWorld";
+                const G4ThreeVector fp = step->GetPostStepPoint()->GetPosition();
+                ed.first_x = fp.x() / mm; ed.first_y = fp.y() / mm; ed.first_z = fp.z() / mm;
+            }
+        }
         if (trk->GetTrackID() == 1 &&
             trk->GetTrackStatus() == fStopAndKill &&
             trk->GetDefinition()->GetParticleName() == "neutron") {
@@ -108,10 +126,12 @@ void SteppingAction::UserSteppingAction(const G4Step* step) {
     // Nested volumes carry copy number 0 (wrong for arms 1-3), so we walk up
     // the touchable to the ancestor that has the arm copy number:
     //   BackScintL/R: BackScint → BackScintAl → BackScintTape[arm copy]
+    //                 (→ BackScintShield[arm copy] with --plastic-shield)
     //   LiqScint_1:   LiqScint_1 → LS_VesselCFRP[arm copy]
     int armID;
     if (volName == "BackScintL" || volName == "BackScintR") {
-        armID = pre->GetTouchable()->GetVolume(2)->GetCopyNo();
+        const int d = fConfig.plasticShield.empty() ? 2 : 3;
+        armID = pre->GetTouchable()->GetVolume(d)->GetCopyNo();
     } else if (volName == "LiqScint_1") {
         armID = pre->GetTouchable()->GetVolume(1)->GetCopyNo();
     } else {

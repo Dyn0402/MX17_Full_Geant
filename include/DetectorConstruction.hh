@@ -11,6 +11,7 @@
 #include <map>
 #include <string>
 #include <array>
+#include <vector>
 
 class G4Material;
 
@@ -36,6 +37,11 @@ public:
 private:
     void DefineMaterials();
     G4Material* GetMat(const std::string& name) const;
+    // Low-pressure ³He cell (--target cell; HANDOFF_SIM.md §5b).
+    void BuildCell(G4LogicalVolume* worldLV);
+    void BuildSlab(G4LogicalVolume* worldLV);   // --slab (V1 check)
+    void BuildLiTarget(G4LogicalVolume* worldLV);  // --target li (LNL)
+    G4Material* CellMat(const std::string& name);
 
     const SimConfig& fConfig;
     std::map<std::string, G4Material*> fMats;
@@ -51,6 +57,9 @@ private:
     G4LogicalVolume* fBackScintRLV  = nullptr;
 
     G4LogicalVolume* fHe3GasLV      = nullptr;   // target gas: nCapture-bias host
+    std::vector<G4LogicalVolume*> fCellWallLVs;  // --bias-wall hosts (thin)
+    std::vector<G4LogicalVolume*> fCellThickLVs; // --bias-thick hosts
+    G4LogicalVolume* fWorldLV       = nullptr;   // --bias-air host
 
     std::array<ArmAxes, 4> fArmAxes;
 };

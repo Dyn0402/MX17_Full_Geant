@@ -48,6 +48,11 @@
 
 #include <stdexcept>
 #include <cmath>
+#include <sstream>
+#include <vector>
+#include <utility>
+#include <algorithm>
+#include <tuple>
 
 DetectorConstruction::DetectorConstruction(const SimConfig& cfg)
     : G4VUserDetectorConstruction(), fConfig(cfg) {}
@@ -252,9 +257,11 @@ G4VPhysicalVolume* DetectorConstruction::Construct() {
     G4double sipmBar_hw = tSipmScint / 2;
 
     // Plastic bar: PVT wrapped in Al foil then black mylar tape
-    G4double bsc_u  = fConfig.backscint_u_cm     * cm;
-    G4double bsc_v  = fConfig.backscint_v_cm     * cm;
-    G4double bsc_th = fConfig.backscint_thick_cm * cm;
+    // --big-plastic: one oversized slab per arm in place of the two bars.
+    const bool bigPl = fConfig.bigPlastic_u_cm > 0;
+    G4double bsc_u  = (bigPl ? fConfig.bigPlastic_u_cm     : fConfig.backscint_u_cm)     * cm;
+    G4double bsc_v  = (bigPl ? fConfig.bigPlastic_v_cm     : fConfig.backscint_v_cm)     * cm;
+    G4double bsc_th = (bigPl ? fConfig.bigPlastic_thick_cm : fConfig.backscint_thick_cm) * cm;
     G4double bsc_gap= fConfig.backscint_gap_cm   * cm;
     // Al envelope half-sizes (Al foil directly on scint surface)
     G4double bscAl_hu = (bsc_u  + 2*tBscAl) / 2;
@@ -264,6 +271,16 @@ G4VPhysicalVolume* DetectorConstruction::Construct() {
     G4double bscTape_hu = (bsc_u  + 2*tBscAl + 2*tTape) / 2;
     G4double bscTape_hv = (bsc_v  + 2*tBscAl + 2*tTape) / 2;
     G4double bscTape_hw = (bsc_th + 2*tBscAl + 2*tTape) / 2;
+    // --plastic-shield MAT:mm — neutron absorber wrapped around each plastic
+    G4double tBscSh = 0.0;
+    std::string bscShMat;
+    if (!fConfig.plasticShield.empty()) {
+        auto c = fConfig.plasticShield.find(':');
+        if (c == std::string::npos)
+            throw std::runtime_error("--plastic-shield: expected MAT:mm");
+        bscShMat = fConfig.plasticShield.substr(0, c);
+        tBscSh   = std::stod(fConfig.plasticShield.substr(c + 1)) * mm;
+    }
 
     // ── World volume ─────────────────────────────────────────
     // Per-axis MM front-face distances (target at mylar-box centre) and the
@@ -310,22 +327,41 @@ G4VPhysicalVolume* DetectorConstruction::Construct() {
     // Plastics + LS vessel: per-arm depths (measured 2026-07-17 from the SiPM
     // container back; arm order 0=D 1=B 2=A 3=C).  The LS reference plane is
     // the FLAT slab front face — the front bulge apex sits hCap closer in.
-    G4double plasticEnvD = 2 * bscTape_hw;                             // wrapped-bar depth
+    G4double plasticEnvD = 2 * (bscTape_hw + tBscSh);                  // wrapped-bar depth
     G4double plasticWA[4], lsSlabFrontA[4];
     G4double stackDepth = 0.0;                                          // outermost extent
     for (int i = 0; i < 4; ++i) {
         G4double pf = sipmBack + fConfig.gap_sipm_to_plastic_cm[i] * cm;
         plasticWA[i]    = pf + plasticEnvD / 2.0;                       // plastics centre depth
         lsSlabFrontA[i] = sipmBack + fConfig.ls_front_from_sipm_back_cm[i] * cm;
-        stackDepth = std::max(stackDepth, lsSlabFrontA[i] + 2*lsTo + hCap);
+        stackDepth = std::max({stackDepth, lsSlabFrontA[i] + 2*lsTo + hCap, pf + plasticEnvD});
     }
 
     G4double lsVExtent   = lsVo + lsFunL + lsNkL + pmtOut;  // vessel+PMT reach along v
     G4double worldHalfXZ = distMax + stackDepth + 5.0*cm;
     G4double worldHalfY  = std::max({sipmBar_hv, lsVExtent, bscTape_hv}) + 5.0*cm;
+    if (fConfig.cellTarget) {
+        // The cell and (ILL beam) the gun plane upstream of it must fit along Y.
+        G4double yLo = fConfig.cellYw_mm*mm - fConfig.cellRingThick_mm*mm
+                     - fConfig.cellScraperT_mm*mm
+                     - (fConfig.illBeam ? fConfig.illGunDist_mm*mm : 0.0);
+        G4double yHi = (fConfig.cellYw_mm + fConfig.cellLength_mm)*mm + 30.0*mm;
+        worldHalfY = std::max({worldHalfY, std::abs(yLo) + 5.0*cm, std::abs(yHi) + 5.0*cm});
+    }
+    if (fConfig.liTarget) {   // the chamber and its flanges must fit along Y
+        const G4double tF = std::stod(fConfig.liFlange.substr(fConfig.liFlange.find(':') + 1)) * mm;
+        worldHalfY = std::max(worldHalfY, fConfig.liChamberHalfLen_mm*mm + tF + 5.0*cm);
+    }
 
+    if (fConfig.cosmic) {   // the muon plane must sit inside the world
+        const G4double need = std::max(fConfig.cosmicHeight_mm, fConfig.cosmicPlane_mm / 2) * mm
+                              + 10.0*cm;
+        worldHalfXZ = std::max(worldHalfXZ, need);
+        worldHalfY  = std::max(worldHalfY,  need);
+    }
     auto* worldBox = new G4Box("World", worldHalfXZ, worldHalfY, worldHalfXZ);
     auto* worldLV  = new G4LogicalVolume(worldBox, matAir, "World");
+    fWorldLV = worldLV;
     worldLV->SetVisAttributes(G4VisAttributes::GetInvisible());
     auto* worldPV  = new G4PVPlacement(nullptr, G4ThreeVector(), worldLV,
                                         "World", nullptr, false, 0, true);
@@ -351,6 +387,13 @@ G4VPhysicalVolume* DetectorConstruction::Construct() {
     // (gas/Al/CFRP profiles extracted by axial sectioning of the STEP solid;
     //  kept in sync with scripts/plot_geometry.py)
 
+    if (fConfig.cellTarget) {
+        BuildCell(worldLV);
+    } else if (fConfig.liTarget) {
+        BuildLiTarget(worldLV);
+    } else if (!fConfig.slab.empty()) {
+        BuildSlab(worldLV);
+    } else {
     auto* capRot = new G4RotationMatrix();
     capRot->rotateX(+90.*deg);   // nose-first: local +z (valve) → world +y
 
@@ -448,6 +491,7 @@ G4VPhysicalVolume* DetectorConstruction::Construct() {
     G4cout << "  Al vessel    : STEP profile, z=-35 to +51 mm (tip to valve)" << G4endl;
     G4cout << "  Capsule mount: NOSE-FIRST (tip at y=-35 mm faces the beam, "
               "valve at y=+51 mm downstream)" << G4endl;
+    }   // capsule
     G4cout << "  Gas mixture  : " << fConfig.gas
            << "  (rho=" << matGas->GetDensity()/(mg/cm3) << " mg/cm3)" << G4endl;
     G4cout << "  Stack depth  : " << stackDepth/cm << " cm" << G4endl;
@@ -582,6 +626,19 @@ G4VPhysicalVolume* DetectorConstruction::Construct() {
     new G4PVPlacement(nullptr, G4ThreeVector(), bscAlRLV,    "BackScintAlR_in_tape", bscTapeRLV, false, 0, true);
     new G4PVPlacement(nullptr, G4ThreeVector(), fBackScintLLV,"BackScintL_in_al",    bscAlLLV,   false, 0, true);
     new G4PVPlacement(nullptr, G4ThreeVector(), fBackScintRLV,"BackScintR_in_al",    bscAlRLV,   false, 0, true);
+    // Optional neutron shield: the wrapped bar sits inside it
+    G4LogicalVolume* bscOutLLV = bscTapeLLV;
+    G4LogicalVolume* bscOutRLV = bscTapeRLV;
+    if (tBscSh > 0) {
+        G4Material* shM = CellMat(bscShMat);
+        bscOutLLV = MakeLV("BackScintShieldL", bscTape_hu + tBscSh, bscTape_hv + tBscSh,
+                           bscTape_hw + tBscSh, shM, G4Color(0.3,0.6,0.3,0.5));
+        bscOutRLV = MakeLV("BackScintShieldR", bscTape_hu + tBscSh, bscTape_hv + tBscSh,
+                           bscTape_hw + tBscSh, shM, G4Color(0.3,0.6,0.3,0.5));
+        new G4PVPlacement(nullptr, G4ThreeVector(), bscTapeLLV, "BackScintTapeL_in_shield", bscOutLLV, false, 0, true);
+        new G4PVPlacement(nullptr, G4ThreeVector(), bscTapeRLV, "BackScintTapeR_in_shield", bscOutRLV, false, 0, true);
+        G4cout << "  Plastic neutron shield: " << bscShMat << " " << tBscSh/mm << " mm" << G4endl;
+    }
 
     fDriftGasLV->SetUserLimits(new G4UserLimits(100.*um));
     fAmpGasLV  ->SetUserLimits(new G4UserLimits(100.*um));
@@ -671,9 +728,13 @@ G4VPhysicalVolume* DetectorConstruction::Construct() {
 
         // 3) Plastics — two wrapped bars side-by-side, centred on the MM;
         //    per-arm front distance (measured 2026-07-17).
-        G4double uOff = bscTape_hu + bsc_gap / 2.0;
-        place(bscTapeLLV, armFront, -uOff, plasticWA[arm], "BackTapeL");
-        place(bscTapeRLV, armFront, +uOff, plasticWA[arm], "BackTapeR");
+        if (bigPl) {
+            place(bscOutLLV, armFront, 0.0, plasticWA[arm], "BackTapeL");
+        } else {
+            G4double uOff = bscTape_hu + tBscSh + bsc_gap / 2.0;
+            place(bscOutLLV, armFront, -uOff, plasticWA[arm], "BackTapeL");
+            place(bscOutRLV, armFront, +uOff, plasticWA[arm], "BackTapeR");
+        }
 
         // 4) LS vessel — surveyed 2026-07-17/18: flat slab front face at the
         //    measured per-arm depth; slab centre at the surveyed height
@@ -684,6 +745,11 @@ G4VPhysicalVolume* DetectorConstruction::Construct() {
         //    +u (A, D).  Placed with G4Transform3D (the direct/active-
         //    rotation constructor), matching the active use of ad.rot in the
         //    position math above.
+        if (fConfig.noLS) {
+            G4cout << "  Arm " << arm << " front face at " << armFront/cm
+                   << " cm; SiPM bars " << barLo << "-" << barHi << "; no LS" << G4endl;
+            continue;
+        }
         G4RotationMatrix lsRz; lsRz.rotateZ(fConfig.ls_rot_deg[arm] * deg);
         G4RotationMatrix lsArmR = (ad.rot ? *ad.rot : G4RotationMatrix()) * lsRz;
         G4double lsSlabCenW = lsSlabFrontA[arm] + lsTo;
@@ -738,4 +804,425 @@ void DetectorConstruction::ConstructSDandField() {
         G4cout << "DetectorConstruction: nCapture cross-section biased ×"
                << fConfig.biasNCaptureFactor << " in He3Gas" << G4endl;
     }
+    if (fConfig.biasWallFactor > 1.0 && !fCellWallLVs.empty()) {
+        auto* op = new NCaptureBiasingOperator(fConfig.biasWallFactor);
+        for (auto* lv : fCellWallLVs) op->AttachTo(lv);
+        G4cout << "DetectorConstruction: nCapture biased ×" << fConfig.biasWallFactor
+               << " in " << fCellWallLVs.size() << " thin cell wall volumes" << G4endl;
+    }
+    if (fConfig.biasThickFactor > 1.0 && !fCellThickLVs.empty()) {
+        auto* op = new NCaptureBiasingOperator(fConfig.biasThickFactor);
+        for (auto* lv : fCellThickLVs) op->AttachTo(lv);
+        G4cout << "DetectorConstruction: nCapture biased ×" << fConfig.biasThickFactor
+               << " in " << fCellThickLVs.size() << " thick cell volumes" << G4endl;
+    }
+    if (fConfig.biasAirFactor > 1.0 && fWorldLV) {
+        auto* op = new NCaptureBiasingOperator(fConfig.biasAirFactor);
+        op->AttachTo(fWorldLV);
+        G4cout << "DetectorConstruction: nCapture biased ×" << fConfig.biasAirFactor
+               << " in the World air" << G4endl;
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Low-pressure ³He cell for the ILL (HANDOFF_SIM.md §5b, x17_facility_search).
+// Beam = +Y; everything is a G4Tubs on the beam axis, built in the tube frame
+// (local z = world +y via the same rotateX(+90°) frame rotation as the
+// capsule, so local (x, y) = world (x, −z)).  Along the beam, upstream first:
+//
+//   ⁶LiF scraper ring  [rin_s, Rout]        y ∈ [y_w − tRing − tScr, y_w − tRing]
+//   Al end ring        [r_ap,  Rout]        y ∈ [y_w − tRing, y_w]
+//   entrance window    [0,     r_ap]        y ∈ [y_w − tWin, y_w]   (in the ring's aperture)
+//   He3Gas             [0,     R]           y ∈ [y_w, y_w + L]
+//     rods (daughters of the gas): 1 flat 12 × 1.5 mm + (N−1) Ø2 mm CFRP,
+//     outer faces on r = R, the flat one at the top (+vertical axis)
+//   skin               [R,     R + tSkin]   y ∈ [y_w, y_w + L]
+//   end cap layers     [0,     Rout]        y from y_w + L outward; ⁶LiF first
+//
+// Rout = R + tSkin + land.  The skin is modelled as a cylinder; the real mylar
+// wrap is the taut convex hull of the rod cage (vessel_design/mylar_wrap_vessel.py),
+// which differs from it by < 1 mm in radius for these rod counts.
+// Logical-volume names are what thermal_accounting.py classifies on.
+G4Material* DetectorConstruction::CellMat(const std::string& name) {
+    G4NistManager* nist = G4NistManager::Instance();
+    // Be / Al / C / Fe are built from elements named for the G4NDL thermal-
+    // scattering tables (G4ParticleHPThermalScatteringNames keys on the
+    // ELEMENT name: TS_Beryllium_Metal → be_metal, ...), so S(α,β) applies to
+    // them when thermal scattering is on; with it off they are ordinary
+    // natural-isotope materials.  The detector's own G4_Al is left alone.
+    struct TsDef { const char* elem; const char* sym; double Z, A, rho; };
+    static const std::map<std::string, TsDef> kTs = {
+        {"Be", {"TS_Beryllium_Metal", "Be",  4., 9.0122,  1.848}},
+        {"Al", {"TS_Aluminium_Metal", "Al", 13., 26.9815, 2.699}},
+        {"C",  {"TS_C_of_Graphite",   "C",   6., 12.011,  2.21 }},
+        {"Fe", {"TS_Iron_Metal",      "Fe", 26., 55.845,  7.874}},
+    };
+    if (auto t = kTs.find(name); t != kTs.end()) {
+        const std::string key = "TS_" + name;
+        if (auto it = fMats.find(key); it != fMats.end()) return it->second;
+        const auto& d = t->second;
+        auto* el = new G4Element(d.elem, d.sym, d.Z, d.A*g/mole);
+        auto* m  = new G4Material("Cell_" + name, d.rho*g/cm3, 1);
+        m->AddElement(el, 1);
+        fMats[key] = m;
+        return m;
+    }
+    if (name == "Mylar")  return nist->FindOrBuildMaterial("G4_MYLAR");
+    // LNL target region: natural-Li compounds (NIST densities: Li₂O 2.013,
+    // LiF 2.635, Li 0.534 g/cm³), backings and the beam dump.
+    if (name == "Li2O")   return nist->FindOrBuildMaterial("G4_LITHIUM_OXIDE");
+    if (name == "LiF")    return nist->FindOrBuildMaterial("G4_LITHIUM_FLUORIDE");
+    if (name == "Li")     return nist->FindOrBuildMaterial("G4_Li");
+    if (name == "Cu")     return nist->FindOrBuildMaterial("G4_Cu");
+    if (name == "Ta")     return nist->FindOrBuildMaterial("G4_Ta");
+    if (name == "Ti")     return nist->FindOrBuildMaterial("G4_Ti");
+    if (name == "Vac")    return nist->FindOrBuildMaterial("G4_Galactic");
+    if (name == "Kapton") return nist->FindOrBuildMaterial("G4_KAPTON");
+    if (name == "B4C")    return nist->FindOrBuildMaterial("G4_BORON_CARBIDE");
+    if (name == "CFRP")   return GetMat("CFRP");
+    if (name == "LiF6") {
+        auto it = fMats.find("LiF6");
+        if (it != fMats.end()) return it->second;
+        // 95 % ⁶Li-enriched LiF; density scaled from natural LiF (2.635 g/cm³)
+        // by the molar mass, same lattice.
+        auto* li6 = new G4Isotope("Li6_iso", 3, 6, 6.0151223*g/mole);
+        auto* li7 = new G4Isotope("Li7_iso", 3, 7, 7.0160040*g/mole);
+        auto* elLi = new G4Element("Lithium_6enr", "Li6enr", 2);
+        elLi->AddIsotope(li6, 0.95 * 6.0151 / (0.95 * 6.0151 + 0.05 * 7.0160));
+        elLi->AddIsotope(li7, 0.05 * 7.0160 / (0.95 * 6.0151 + 0.05 * 7.0160));
+        auto* m = new G4Material("LiF6", 2.54*g/cm3, 2);
+        m->AddElement(elLi, 1);
+        m->AddElement(nist->FindOrBuildElement("F"), 1);
+        fMats["LiF6"] = m;
+        return m;
+    }
+    throw std::runtime_error("cell: unknown material '" + name + "'");
+}
+
+namespace {
+// "Be:0.5" → {"Be", 0.5};  "Al:8+LiF6:3" → {{"Al",8},{"LiF6",3}}
+std::vector<std::pair<std::string, double>> ParseLayers(const std::string& spec) {
+    std::vector<std::pair<std::string, double>> out;
+    std::stringstream ss(spec);
+    std::string item;
+    while (std::getline(ss, item, '+')) {
+        auto c = item.find(':');
+        if (c == std::string::npos)
+            throw std::runtime_error("cell: expected Material:thickness_mm, got '" + item + "'");
+        out.emplace_back(item.substr(0, c), std::stod(item.substr(c + 1)));
+    }
+    return out;
+}
+}   // namespace
+
+void DetectorConstruction::BuildCell(G4LogicalVolume* worldLV) {
+    const auto& c = fConfig;
+    const G4double R     = c.cellRadius_mm * mm;
+    const G4double L     = c.cellLength_mm * mm;
+    const G4double yw    = c.cellYw_mm * mm;
+    const G4double rAp   = c.cellApertureR_mm * mm;
+    const G4double tRing = c.cellRingThick_mm * mm;
+    const auto skin = ParseLayers(c.cellSkin).at(0);
+    const auto win  = ParseLayers(c.cellWindow).at(0);
+    const G4double tSkin = skin.second * mm;
+    const G4double tWin  = win.second * mm;
+    const G4double rOut  = R + tSkin + c.cellRingLand_mm * mm;
+    if (rAp >= R) throw std::runtime_error("cell: aperture radius must be < cell radius");
+
+    // ³He at the fill pressure, ideal gas at 293.15 K
+    const G4double T = 293.15*kelvin;
+    const G4double P = c.cellPressure_bar * bar;
+    const G4double M = 3.0160293*g/mole;
+    const G4double rho = P * M / (k_Boltzmann * Avogadro * T);
+    auto* isoHe3 = new G4Isotope("He3_iso_cell", 2, 3, M);
+    auto* elHe3  = new G4Element("Helium3_cell", "3He", 1);
+    elHe3->AddIsotope(isoHe3, 1.0);
+    auto* he3 = new G4Material("He3Gas_cell", rho, 1, kStateGas, T, P);
+    he3->AddElement(elHe3, 1);
+
+    auto* rot = new G4RotationMatrix();
+    rot->rotateX(+90.*deg);                       // local +z → world +y
+    auto atY = [](G4double y) { return G4ThreeVector(0, y, 0); };
+    auto vis = [](G4LogicalVolume* lv, G4double r, G4double g, G4double b, G4double a) {
+        lv->SetVisAttributes(new G4VisAttributes(G4Color(r, g, b, a)));
+    };
+
+    // gas
+    auto* gasLV = new G4LogicalVolume(new G4Tubs("He3Gas", 0, R, L/2, 0, twopi), he3, "He3Gas");
+    gasLV->SetUserLimits(new G4UserLimits(1.0*mm));
+    vis(gasLV, 0.6, 0.9, 1.0, 0.3);
+    fHe3GasLV = gasLV;
+    new G4PVPlacement(rot, atY(yw + L/2), gasLV, "He3Gas", worldLV, false, 0, true);
+
+    // skin
+    auto* skinLV = new G4LogicalVolume(new G4Tubs("He3Cell_Skin", R, R + tSkin, L/2, 0, twopi),
+                                       CellMat(skin.first), "He3Cell_Skin");
+    vis(skinLV, 0.9, 0.7, 0.2, 0.5);
+    fCellWallLVs.push_back(skinLV);
+    new G4PVPlacement(rot, atY(yw + L/2), skinLV, "He3Cell_Skin", worldLV, false, 0, true);
+
+    // rods: daughters of the gas, in the tube frame.  World "up" (the
+    // vertical axis) in tube-local (x, y): world +x → (1, 0); world +z → (0, −1).
+    if (c.cellRods > 0) {
+        const G4double up = (c.illVerticalAxis == 'x') ? 0.0 : -halfpi;   // local azimuth of "up"
+        const G4double hL = L/2 - 0.001*mm;
+        auto* flatLV  = new G4LogicalVolume(
+            new G4Box("He3Cell_Rod", c.cellRodFlatW_mm*mm/2, c.cellRodFlatT_mm*mm/2, hL),
+            CellMat("CFRP"), "He3Cell_Rod");
+        auto* roundLV = new G4LogicalVolume(
+            new G4Tubs("He3Cell_Rod", 0, c.cellRodRound_mm*mm/2, hL, 0, twopi),
+            CellMat("CFRP"), "He3Cell_Rod");
+        vis(flatLV, 0.15, 0.15, 0.15, 0.9);
+        vis(roundLV, 0.15, 0.15, 0.15, 0.9);
+        fCellWallLVs.push_back(flatLV);
+        fCellWallLVs.push_back(roundLV);
+        for (int k = 0; k < c.cellRods; ++k) {
+            const G4double th = up + k * twopi / c.cellRods;
+            const G4ThreeVector rhat(std::cos(th), std::sin(th), 0);
+            if (k == 0) {
+                // box local y = radial; rotate so it points along rhat.  The
+                // outer face sits where its corners touch r = R (the cylinder
+                // stands in for the wrap, which is flat over this rod).
+                const G4double hw = c.cellRodFlatW_mm*mm/2;
+                const G4double rFace = std::sqrt(R*R - hw*hw) - 0.001*mm;
+                G4RotationMatrix rz; rz.rotateZ(th - halfpi);
+                new G4PVPlacement(G4Transform3D(rz, rhat * (rFace - c.cellRodFlatT_mm*mm/2)),
+                                  flatLV, "He3Cell_Rod", gasLV, false, k, true);
+            } else {
+                new G4PVPlacement(nullptr, rhat * (R - c.cellRodRound_mm*mm/2 - 0.001*mm), roundLV,
+                                  "He3Cell_Rod", gasLV, false, k, true);
+            }
+        }
+    }
+
+    // upstream: window in the aperture of the Al end ring, ⁶LiF scraper before it
+    auto* winLV = new G4LogicalVolume(new G4Tubs("He3Cell_Window", 0, rAp, tWin/2, 0, twopi),
+                                      CellMat(win.first), "He3Cell_Window");
+    vis(winLV, 0.8, 0.8, 0.9, 0.6);
+    fCellWallLVs.push_back(winLV);
+    new G4PVPlacement(rot, atY(yw - tWin/2), winLV, "He3Cell_Window", worldLV, false, 0, true);
+
+    auto* ringLV = new G4LogicalVolume(new G4Tubs("He3Cell_EndUp", rAp, rOut, tRing/2, 0, twopi),
+                                       CellMat(c.cellRingMat), "He3Cell_EndUp");
+    vis(ringLV, 0.7, 0.7, 0.7, 0.7);
+    fCellThickLVs.push_back(ringLV);
+    new G4PVPlacement(rot, atY(yw - tRing/2), ringLV, "He3Cell_EndUp", worldLV, false, 0, true);
+
+    if (c.cellScraperRin_mm > 0) {
+        const G4double tS = c.cellScraperT_mm * mm;
+        auto* scrLV = new G4LogicalVolume(
+            new G4Tubs("He3Cell_Scraper", c.cellScraperRin_mm*mm, rOut, tS/2, 0, twopi),
+            CellMat("LiF6"), "He3Cell_Scraper");
+        vis(scrLV, 0.9, 0.9, 0.9, 0.8);
+        fCellThickLVs.push_back(scrLV);
+        new G4PVPlacement(rot, atY(yw - tRing - tS/2), scrLV, "He3Cell_Scraper", worldLV, false, 0, true);
+    }
+
+    // optional beam flight tube from just after the gun plane to the cell's
+    // upstream face (scraper or ring): He or vacuum instead of the 300 mm of
+    // air, with its own wall and an upstream window at the gun end
+    if (!c.flightTubeGas.empty()) {
+        if (!c.illBeam) throw std::runtime_error("--flight-tube needs the ILL beam (--gun-dist)");
+        G4Material* gas = nullptr;
+        if (c.flightTubeGas == "He")       gas = G4NistManager::Instance()->FindOrBuildMaterial("G4_He");
+        else if (c.flightTubeGas == "Vac") gas = G4NistManager::Instance()->FindOrBuildMaterial("G4_Galactic");
+        else throw std::runtime_error("--flight-tube: gas must be He or Vac");
+        const auto wall = ParseLayers(c.flightTubeWall).at(0);
+        const auto twin = ParseLayers(c.flightTubeWin).at(0);
+        const G4double rT = c.flightTubeR_mm * mm, tW = wall.second * mm, tTw = twin.second * mm;
+        const G4double yEnd = yw - tRing - (c.cellScraperRin_mm > 0 ? c.cellScraperT_mm * mm : 0.0);
+        const G4double yBeg = yw - c.illGunDist_mm * mm + 1.0*mm;     // gun plane + 1 mm
+        const G4double yGas = yBeg + tTw;
+        if (yGas >= yEnd) throw std::runtime_error("--flight-tube: no room between gun and cell");
+        const G4double hG = (yEnd - yGas) / 2;
+        auto* tgLV = new G4LogicalVolume(new G4Tubs("FlightTube_Gas", 0, rT, hG, 0, twopi), gas, "FlightTube_Gas");
+        vis(tgLV, 0.9, 0.9, 0.5, 0.15);
+        new G4PVPlacement(rot, atY(yGas + hG), tgLV, "FlightTube_Gas", worldLV, false, 0, true);
+        auto* twLV = new G4LogicalVolume(new G4Tubs("FlightTube_Wall", rT, rT + tW, hG + tTw/2, 0, twopi),
+                                         CellMat(wall.first), "FlightTube_Wall");
+        vis(twLV, 0.6, 0.6, 0.6, 0.5);
+        fCellThickLVs.push_back(twLV);
+        new G4PVPlacement(rot, atY(yBeg + (yEnd - yBeg)/2), twLV, "FlightTube_Wall", worldLV, false, 0, true);
+        auto* tnLV = new G4LogicalVolume(new G4Tubs("FlightTube_Win", 0, rT, tTw/2, 0, twopi),
+                                         CellMat(twin.first), "FlightTube_Win");
+        vis(tnLV, 0.8, 0.8, 0.9, 0.6);
+        fCellWallLVs.push_back(tnLV);
+        new G4PVPlacement(rot, atY(yBeg + tTw/2), tnLV, "FlightTube_Win", worldLV, false, 0, true);
+        G4cout << "  Flight tube  : " << c.flightTubeGas << " r=" << rT/mm << " mm, y=[" << yBeg/mm << ", "
+               << yEnd/mm << "] mm; wall " << wall.first << " " << tW/mm << " mm; window "
+               << twin.first << " " << tTw/mm << " mm" << G4endl;
+    }
+
+    // optional ⁶LiF liner on the ring's gas side: an annulus inside the gas at
+    // its upstream face, r ∈ [r_ap, R − 2.1 mm] (clear of the rods), so neutrons
+    // scattered back toward the ring are absorbed by ⁶Li(n,t)α (no γ)
+    if (c.cellRingLiner_mm > 0) {
+        const G4double tL = c.cellRingLiner_mm * mm;
+        const G4double rLo = (c.cellRods > 0) ? R - 2.1*mm : R - 0.001*mm;
+        auto* linLV = new G4LogicalVolume(new G4Tubs("He3Cell_RingLiner", rAp, rLo, tL/2, 0, twopi),
+                                          CellMat("LiF6"), "He3Cell_RingLiner");
+        vis(linLV, 0.9, 0.9, 0.9, 0.8);
+        fCellThickLVs.push_back(linLV);
+        new G4PVPlacement(nullptr, G4ThreeVector(0, 0, -L/2 + tL/2), linLV, "He3Cell_RingLiner",
+                          gasLV, false, 0, true);
+    }
+
+    // downstream end cap: ⁶LiF liner (if any) on the gas side, then the rest
+    auto layers = ParseLayers(c.cellEndCap);
+    std::stable_partition(layers.begin(), layers.end(),
+                          [](const auto& l) { return l.first == "LiF6"; });
+    G4double y = yw + L;
+    for (const auto& l : layers) {
+        const G4double t = l.second * mm;
+        const std::string nm = (l.first == "LiF6") ? "He3Cell_LiF" : "He3Cell_EndDown";
+        auto* lv = new G4LogicalVolume(new G4Tubs(nm, 0, rOut, t/2, 0, twopi), CellMat(l.first), nm);
+        vis(lv, 0.7, 0.7, 0.7, 0.7);
+        fCellThickLVs.push_back(lv);
+        new G4PVPlacement(rot, atY(y + t/2), lv, nm, worldLV, false, 0, true);
+        y += t;
+    }
+
+    G4cout << "\n=== X17 Full-Experiment Geometry ===" << G4endl;
+    G4cout << "  Beam axis    : +Y" << G4endl;
+    G4cout << "  He-3 target  : CELL " << c.cellPressure_bar << " bar (rho="
+           << rho/(mg/cm3) << " mg/cm3), R=" << R/mm << " mm, gas y=[" << yw/mm << ", "
+           << (yw + L)/mm << "] mm" << G4endl;
+    G4cout << "  Skin         : " << skin.first << " " << tSkin/mm << " mm; rods "
+           << c.cellRods << " (flat at +" << c.illVerticalAxis << ")" << G4endl;
+    G4cout << "  Window       : " << win.first << " " << tWin/mm << " mm, aperture r="
+           << rAp/mm << " mm; " << c.cellRingMat << " ring " << tRing/mm << " mm to r=" << rOut/mm << " mm" << G4endl;
+    G4cout << "  Scraper      : " << (c.cellScraperRin_mm > 0
+                                       ? "6LiF r>" + std::to_string(c.cellScraperRin_mm) + " mm"
+                                       : std::string("none")) << G4endl;
+    G4cout << "  End cap      : " << c.cellEndCap << " (to y=" << y/mm << " mm)" << G4endl;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Bare slab for the V1 thermal-scattering check (HANDOFF_SIM.md §6): a Ø100 mm
+// disk of the given material and thickness centred at the origin, normal to
+// the beam.  Volume name "Slab"; the primary's first interaction (EventTree
+// first_vol / first_proc) gives the uncollided transmission directly.
+void DetectorConstruction::BuildSlab(G4LogicalVolume* worldLV) {
+    const auto sl = ParseLayers(fConfig.slab).at(0);
+    const G4double t = sl.second * mm;
+    auto* rot = new G4RotationMatrix();
+    rot->rotateX(+90.*deg);
+    auto* lv = new G4LogicalVolume(new G4Tubs("Slab", 0, 50.*mm, t/2, 0, twopi),
+                                   CellMat(sl.first), "Slab");
+    new G4PVPlacement(rot, G4ThreeVector(), lv, "Slab", worldLV, false, 0, true);
+    G4cout << "\n=== X17 Full-Experiment Geometry ===" << G4endl;
+    G4cout << "  Target       : SLAB " << sl.first << " " << t/mm << " mm ("
+           << lv->GetMaterial()->GetName() << ") at the origin" << G4endl;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// LNL ⁷Li(p,e⁺e⁻)⁸Be target region (--target li; x17_facility_search/lnl/GEANT_PREP.md §2a).
+// A vacuum bore of radius r along the beam, |y| ≤ H, inside a tube wall of the
+// chamber material, closed by two flanges (the upstream one with a beam hole).
+// Inside the bore, along +Y: the Li film ⊥ beam with its downstream face at
+// y = 0, the backing foil behind it, the holder annulus behind the backing,
+// and the beam dump downstream.  The proton beam is not tracked; the generator
+// puts the pair / γ vertices in the film (X17PrimaryGenerator SampleHe3Vertex).
+// Logical-volume names are what the reductions classify on.
+void DetectorConstruction::BuildLiTarget(G4LogicalVolume* worldLV) {
+    const auto& c = fConfig;
+    auto parse3 = [](const std::string& s) {   // "CFRP:0.4:25" → {CFRP, 0.4, 25}
+        const auto a = s.find(':'), b = s.find(':', a + 1);
+        if (a == std::string::npos || b == std::string::npos)
+            throw std::runtime_error("li: expected Mat:t_mm:r_mm, got '" + s + "'");
+        return std::make_tuple(s.substr(0, a), std::stod(s.substr(a + 1, b - a - 1)),
+                               std::stod(s.substr(b + 1)));
+    };
+    const auto [wallMat, tWall_mm, rBore_mm] = parse3(c.liChamber);
+    const G4double rB = rBore_mm * mm, tW = tWall_mm * mm, H = c.liChamberHalfLen_mm * mm;
+    const auto fl = ParseLayers(c.liFlange).at(0);
+    const G4double tF = fl.second * mm;
+
+    auto* rot = new G4RotationMatrix();
+    rot->rotateX(+90.*deg);                       // local +z → world +y
+    auto atY = [](G4double y) { return G4ThreeVector(0, y, 0); };
+    auto atZ = [](G4double z) { return G4ThreeVector(0, 0, z); };   // in the bore frame, z = world y
+    auto vis = [](G4LogicalVolume* lv, G4double r, G4double g, G4double b, G4double a) {
+        lv->SetVisAttributes(new G4VisAttributes(G4Color(r, g, b, a)));
+    };
+
+    // chamber: wall tube, flanges, vacuum bore
+    auto* wallLV = new G4LogicalVolume(new G4Tubs("LiChamber_Wall", rB, rB + tW, H, 0, twopi),
+                                       CellMat(wallMat), "LiChamber_Wall");
+    vis(wallLV, 0.3, 0.3, 0.3, 0.4);
+    new G4PVPlacement(rot, G4ThreeVector(), wallLV, "LiChamber_Wall", worldLV, false, 0, true);
+    auto* flUpLV = new G4LogicalVolume(new G4Tubs("LiChamber_Flange", c.liFlangeHoleR_mm*mm, rB + tW, tF/2, 0, twopi),
+                                       CellMat(fl.first), "LiChamber_Flange");
+    auto* flDnLV = new G4LogicalVolume(new G4Tubs("LiChamber_Flange", 0, rB + tW, tF/2, 0, twopi),
+                                       CellMat(fl.first), "LiChamber_Flange");
+    vis(flUpLV, 0.7, 0.7, 0.7, 0.6);
+    vis(flDnLV, 0.7, 0.7, 0.7, 0.6);
+    new G4PVPlacement(rot, atY(-H - tF/2), flUpLV, "LiChamber_Flange", worldLV, false, 0, true);
+    new G4PVPlacement(rot, atY(+H + tF/2), flDnLV, "LiChamber_Flange", worldLV, false, 1, true);
+    auto* vacLV = new G4LogicalVolume(new G4Tubs("LiChamber_Vac", 0, rB, H, 0, twopi),
+                                      CellMat("Vac"), "LiChamber_Vac");
+    vacLV->SetVisAttributes(G4VisAttributes::GetInvisible());
+    new G4PVPlacement(rot, G4ThreeVector(), vacLV, "LiChamber_Vac", worldLV, false, 0, true);
+
+    // film: areal density → thickness through the material density
+    const auto film = ParseLayers(c.liFilm).at(0);
+    G4Material* filmMat = CellMat(film.first);
+    const G4double tFilm = film.second * 1e-6 * g/cm2 / filmMat->GetDensity();
+    // film and backing disks span the holder's outer radius (the generator keeps
+    // vertices inside 0.95 of it)
+    const G4double rDisk = c.liHolderRout_mm * mm;
+    if (rDisk > rB - 0.1*mm || c.liHolderRin_mm >= c.liHolderRout_mm)
+        throw std::runtime_error("li: need holder rin < rout <= chamber bore - 0.1 mm");
+    auto* filmLV = new G4LogicalVolume(new G4Tubs("LiTarget_Film", 0, rDisk, tFilm/2, 0, twopi),
+                                       filmMat, "LiTarget_Film");
+    vis(filmLV, 0.9, 0.2, 0.2, 0.9);
+    new G4PVPlacement(nullptr, atZ(-tFilm/2), filmLV, "LiTarget_Film", vacLV, false, 0, true);
+    G4double z = 0;
+    std::string backDesc = "none", holdDesc = "none", dumpDesc = "none";
+    if (c.liBacking != "none") {
+        const auto bk = ParseLayers(c.liBacking).at(0);
+        const G4double t = bk.second * um;
+        auto* lv = new G4LogicalVolume(new G4Tubs("LiTarget_Backing", 0, rDisk, t/2, 0, twopi),
+                                       CellMat(bk.first), "LiTarget_Backing");
+        vis(lv, 0.75, 0.75, 0.8, 0.8);
+        new G4PVPlacement(nullptr, atZ(z + t/2), lv, "LiTarget_Backing", vacLV, false, 0, true);
+        z += t;
+        backDesc = bk.first + " " + std::to_string(bk.second) + " um";
+    }
+    if (c.liHolder != "none") {
+        const auto hd = ParseLayers(c.liHolder).at(0);
+        const G4double t = hd.second * mm;
+        auto* lv = new G4LogicalVolume(new G4Tubs("LiTarget_Holder", c.liHolderRin_mm*mm,
+                                                  c.liHolderRout_mm*mm, t/2, 0, twopi),
+                                       CellMat(hd.first), "LiTarget_Holder");
+        vis(lv, 0.6, 0.6, 0.6, 0.8);
+        new G4PVPlacement(nullptr, atZ(z + t/2), lv, "LiTarget_Holder", vacLV, false, 0, true);
+        holdDesc = hd.first + " " + std::to_string(hd.second) + " mm, r=[" +
+                   std::to_string(c.liHolderRin_mm) + ", " + std::to_string(c.liHolderRout_mm) + "] mm";
+        z += t;
+    }
+    if (c.liDump != "none") {
+        const auto dp = ParseLayers(c.liDump).at(0);
+        const G4double t = dp.second * mm, y0 = c.liDumpDist_mm * mm;
+        if (y0 <= z || y0 + t > H)
+            throw std::runtime_error("li: beam dump must sit between the target and the downstream flange");
+        auto* lv = new G4LogicalVolume(new G4Tubs("BeamDump", 0, rB - 0.1*mm, t/2, 0, twopi),
+                                       CellMat(dp.first), "BeamDump");
+        vis(lv, 0.5, 0.3, 0.1, 0.9);
+        new G4PVPlacement(nullptr, atZ(y0 + t/2), lv, "BeamDump", vacLV, false, 0, true);
+        dumpDesc = dp.first + " " + std::to_string(dp.second) + " mm at y=" + std::to_string(c.liDumpDist_mm) + " mm";
+    }
+
+    G4cout << "\n=== X17 Full-Experiment Geometry ===" << G4endl;
+    G4cout << "  Beam axis    : +Y (protons, not tracked)" << G4endl;
+    G4cout << "  Li target    : " << film.first << " " << film.second << " ug/cm2 = "
+           << tFilm/um << " um (" << filmMat->GetName() << "), r=" << rDisk/mm
+           << " mm, downstream face at y=0" << G4endl;
+    G4cout << "  Backing      : " << backDesc << G4endl;
+    G4cout << "  Holder       : " << holdDesc << G4endl;
+    G4cout << "  Chamber      : " << wallMat << " " << tW/mm << " mm, bore r=" << rB/mm
+           << " mm, |y|<=" << H/mm << " mm; flanges " << c.liFlange
+           << " (upstream hole r=" << c.liFlangeHoleR_mm << " mm)" << G4endl;
+    G4cout << "  Beam dump    : " << dumpDesc << G4endl;
+    G4cout << "  Beam spot    : sigma=" << c.liSpotSigma_mm << " mm (pair / gamma vertices)" << G4endl;
 }

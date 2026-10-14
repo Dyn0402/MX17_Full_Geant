@@ -17,6 +17,7 @@
 #include <iostream>
 #include <string>
 #include <ctime>
+#include <algorithm>
 
 static void PrintUsage() {
     std::cerr << "Usage: mx17_full_sim [options] [macro_file]\n"
@@ -29,8 +30,11 @@ static void PrintUsage() {
               << "  -v               Verbose output\n"
               << "  --single <name> <E_MeV> <theta_deg> <phi_deg>\n"
               << "                   Single-particle mode (e.g. --single e- 8 90 0)\n"
-              << "  --neutron <flux.root> <lambda2d.root>\n"
-              << "                   Neutron-beam mode: EAR2 flux + radial profile\n"
+              << "  --neutron <flux.root> <profile.root>\n"
+              << "                   Neutron-beam mode: EAR2 flux + 2D beam profile table\n"
+              << "                   (data/ear2_profile_*.root; lamda2DvsEn is refused)\n"
+              << "  --beam-offset <x_mm> <z_mm>  Neutron beam axis offset from the origin\n"
+              << "  --gun-y-cm <y>   Neutron gun plane (default -20; = profile table height)\n"
               << "                   (data/fluxEAR2-Ph3_in_different_units.root,\n"
               << "                    data/lamda2DvsEn_EAR2.root)\n"
               << "  --bias-ncapture <factor>\n"
@@ -39,6 +43,9 @@ static void PrintUsage() {
               << "                   biased capture carries weight 1/factor). Neutron mode only.\n"
               << "  --no-al          Replace the He3 capsule Al vessel with vacuum (cross-check:\n"
               << "                   does removing Al kill the capture-gamma background).\n"
+              << "  --bias-wall <f> / --bias-thick <f> / --bias-air <f>\n"
+              << "                   Same nCapture biasing in the cell's thin walls (window, skin,\n"
+              << "                   rods) / thick parts (Al ring + cap, 6LiF) / the World air\n"
               << "  --gamma-cut-um <um>\n"
               << "                   Override the gamma production cut (default 100 um).\n"
               << "  --emin <eV>      Neutron sampling window minimum (default: 1e-3)\n"
@@ -52,11 +59,51 @@ static void PrintUsage() {
               << "  --mass <MeV>     X17 mass (default: 16.8)\n"
               << "  --energy <MeV>   4He* transition energy for both X17 and IPC (default: 20.58)\n"
               << "  --ipc <frac>     IPC fraction 0..1 (0=all X17, 1=all IPC, default: 0.5)\n"
+              << "  --ipc-multipole ansatz|M1|E0|E1\n"
+              << "                   IPC kinematics: legacy 1/M isotropic ansatz (default) or\n"
+              << "                   the exact Born distribution of one multipole (ipc_born.py)\n"
+              << "  --ipc-min-open <deg>\n"
+              << "                   Born IPC only: generate only pairs with lab opening angle >= deg\n"
+              << "                   (rejection; normalise by the Born fraction above the cut)\n"
               << "  --pair-vertex-lib <lib.csv>\n"
               << "                   Sample X17/IPC vertices from a He3Gas capture-position\n"
               << "                   library (make_capture_library.py --gas-lib) instead of\n"
               << "                   uniformly in the gas (thermal self-shielding profile)\n"
+              << "  --pair-vertex-vol <name>  library volume to use (default He3Gas)\n"
               << "  --dist <cm>      Arm distance from target (default: 22.0)\n"
+              << "\n  ILL (HANDOFF_SIM.md in x17_facility_search/ill):\n"
+              << "  --beam ill <spectrum.csv>\n"
+              << "                   Neutron mode with the PF1B/H113 reactor beam (λ from the\n"
+              << "                   CSV, divergence κλ, guide-exit acceptance by back-projection)\n"
+              << "  --beam-radius <mm>   defining aperture radius (default 10)\n"
+              << "  --gun-dist <mm>      aperture → cell entrance window (default 300)\n"
+              << "  --exit-dist <mm>     guide exit → aperture (default 1200)\n"
+              << "  --vertical-axis x|z  sim axis carrying the exit's 200 mm side (default z)\n"
+              << "  --lambda <A>         mono-wavelength instead of the spectrum\n"
+              << "  --kappa <rad/A>      divergence slope (default 0.0017; 0 = pencil)\n"
+              << "  --slab <Mat:mm>      bare Ø100 mm slab at the origin instead of a target\n"
+              << "  --ts | --no-ts       force thermal scattering for solids on/off\n"
+              << "                       (default: on with --beam ill, --target cell, --slab)\n"
+              << "  --cosmic             cosmic muons from a 3 x 3 m plane 1.5 m above the target\n"
+              << "                       (zenith along --vertical-axis; event_type 4)\n"
+              << "  --target capsule|cell|li\n"
+              << "  --cell-pressure <bar> --cell-length <mm> --cell-radius <mm> --cell-yw <mm>\n"
+              << "  --skin <Mat:mm>  --rods <N>  --window <Mat:mm>  --aperture <mm>\n"
+              << "  --end-cap <Mat:mm[+Mat:mm]>  --scraper <rin_mm:t_mm | none>\n"
+              << "  --endcap-ring <t_mm:land_mm>  --ring <Mat>  --ring-liner <mm>\n"
+              << "  --flight-tube <He|Vac>[:r_mm]  --tube-wall <Mat:mm>  --tube-window <Mat:mm>\n"
+              << "\n  LNL (x17_facility_search/lnl/GEANT_PREP.md), with --target li:\n"
+              << "  --film <Li2O|LiF|Li:ug_cm2>   (default Li2O:300)   --backing <Mat:um|none> (Al:10)\n"
+              << "  --holder <Mat:mm|none> (Al:1)  --holder-r <rin_mm:rout_mm> (10:20)\n"
+              << "  --chamber <Mat:t_mm:r_mm> (CFRP:0.4:25)  --chamber-len <half_mm> (300)\n"
+              << "  --flange <Mat:mm> (Al:5)  --dump <Mat:mm|none> (Ta:2)  --dump-dist <mm> (250)\n"
+              << "  --spot-sigma <mm>    Gaussian beam spot for pair / gamma vertices (default 2)\n"
+              << "  --gamma-lines <E:w,E:w,...>\n"
+              << "                   one isotropic γ per event from the pair vertices, line ∝ w\n"
+              << "                   (event_type 3, inv_mass = Eγ)\n"
+              << "  --big-plastic <u_cm> <v_cm> <t_cm>  one plastic slab per arm (trigger study)\n"
+              << "  --no-ls          omit the LS vessels\n"
+              << "  --sipm-readout <N> <shift>  instrumented SiPM bars (default 16 1; all: 20 0)\n"
               << "  -h               Print this help\n";
 }
 
@@ -78,6 +125,17 @@ int main(int argc, char** argv) {
         else if (a == "--energy" && i+1<argc) config.transition_energy_MeV  = std::stod(argv[++i]);
         else if (a == "--ipc"    && i+1<argc) config.ipc_fraction            = std::stod(argv[++i]);
         else if (a == "--pair-vertex-lib" && i+1<argc) config.pairVertexLibFile = argv[++i];
+        else if (a == "--pair-vertex-vol" && i+1<argc) config.pairVertexVol = argv[++i];
+        else if (a == "--ipc-min-open" && i+1<argc) {
+            config.ipcMinOpenDeg = std::stod(argv[++i]);
+        }
+        else if (a == "--ipc-multipole" && i+1<argc) {
+            config.ipcMultipole = argv[++i];
+            if (config.ipcMultipole != "ansatz" && config.ipcMultipole != "M1" &&
+                config.ipcMultipole != "E0" && config.ipcMultipole != "E1") {
+                std::cerr << "--ipc-multipole must be ansatz, M1, E0 or E1\n"; return 1;
+            }
+        }
         else if (a == "--dist"   && i+1<argc) {   // uniform override of both MM front-face distances
             config.mm_distance_x_cm = config.mm_distance_z_cm = std::stod(argv[++i]);
         }
@@ -94,9 +152,17 @@ int main(int argc, char** argv) {
             config.neutronProfileFile = argv[++i];
         }
         else if (a == "--bias-ncapture" && i+1<argc) config.biasNCaptureFactor = std::stod(argv[++i]);
+        else if (a == "--bias-wall" && i+1<argc) config.biasWallFactor = std::stod(argv[++i]);
+        else if (a == "--bias-air"  && i+1<argc) config.biasAirFactor  = std::stod(argv[++i]);
+        else if (a == "--bias-thick" && i+1<argc) config.biasThickFactor = std::stod(argv[++i]);
         else if (a == "--no-al")                     config.disableAlCapsule  = true;
         else if (a == "--gamma-cut-um" && i+1<argc)  config.gammaCut_um       = std::stod(argv[++i]);
         else if (a == "--emin" && i+1<argc) config.neutronEmin_eV = std::stod(argv[++i]);
+        else if (a == "--beam-offset" && i+2<argc) {
+            config.neutronBeamX_mm = std::stod(argv[++i]);
+            config.neutronBeamZ_mm = std::stod(argv[++i]);
+        }
+        else if (a == "--gun-y-cm" && i+1<argc) config.neutronGunY_cm = std::stod(argv[++i]);
         else if (a == "--emax" && i+1<argc) config.neutronEmax_eV = std::stod(argv[++i]);
         else if (a == "--gamma-source" && i+1<argc) {
             config.gammaSourceMode = true;
@@ -107,9 +173,102 @@ int main(int argc, char** argv) {
             if (i+1 < argc && argv[i+1][0] != '-')
                 config.trajDumpMaxEvents = std::stoi(argv[++i]);
         }
+        else if (a == "--beam" && i+2<argc) {
+            std::string kind = argv[++i];
+            if (kind != "ill") { std::cerr << "Unknown beam: " << kind << "\n"; return 1; }
+            config.neutronMode     = true;
+            config.illBeam         = true;
+            config.illSpectrumFile = argv[++i];
+        }
+        else if (a == "--beam-radius" && i+1<argc) config.illBeamRadius_mm = std::stod(argv[++i]);
+        else if (a == "--gun-dist"    && i+1<argc) config.illGunDist_mm    = std::stod(argv[++i]);
+        else if (a == "--exit-dist"   && i+1<argc) config.illExitDist_mm   = std::stod(argv[++i]);
+        else if (a == "--vertical-axis" && i+1<argc) {
+            std::string ax = argv[++i];
+            if (ax != "x" && ax != "z") { std::cerr << "--vertical-axis must be x or z\n"; return 1; }
+            config.illVerticalAxis = ax[0];
+        }
+        else if (a == "--lambda" && i+1<argc) config.illLambdaFixed_A   = std::stod(argv[++i]);
+        else if (a == "--kappa"  && i+1<argc) config.illKappa_rad_per_A = std::stod(argv[++i]);
+        else if (a == "--slab"   && i+1<argc) config.slab               = argv[++i];
+        else if (a == "--big-plastic" && i+3<argc) {   // u v thick [cm], one slab per arm
+            config.bigPlastic_u_cm     = std::stod(argv[++i]);
+            config.bigPlastic_v_cm     = std::stod(argv[++i]);
+            config.bigPlastic_thick_cm = std::stod(argv[++i]);
+        }
+        else if (a == "--no-ls") config.noLS = true;
+        else if (a == "--plastic-shield" && i+1<argc) config.plasticShield = argv[++i];
+        else if (a == "--sipm-readout" && i+2<argc) {  // N instrumented bars, window shift [bars]
+            config.sipm_n_readout          = std::stoi(argv[++i]);
+            config.sipm_readout_shift_bars = std::stoi(argv[++i]);
+        }
+        else if (a == "--cosmic") config.cosmic = true;
+        else if (a == "--ts")    config.thermalScattering = 1;
+        else if (a == "--no-ts") config.thermalScattering = 0;
+        else if (a == "--target" && i+1<argc) {
+            std::string t = argv[++i];
+            if      (t == "cell")    config.cellTarget = true;
+            else if (t == "capsule") config.cellTarget = false;
+            else if (t == "li")      config.liTarget   = true;
+            else { std::cerr << "Unknown target: " << t << "\n"; return 1; }
+        }
+        else if (a == "--cell-pressure" && i+1<argc) config.cellPressure_bar = std::stod(argv[++i]);
+        else if (a == "--cell-length"   && i+1<argc) config.cellLength_mm    = std::stod(argv[++i]);
+        else if (a == "--cell-radius"   && i+1<argc) config.cellRadius_mm    = std::stod(argv[++i]);
+        else if (a == "--cell-yw"       && i+1<argc) config.cellYw_mm        = std::stod(argv[++i]);
+        else if (a == "--skin"          && i+1<argc) config.cellSkin         = argv[++i];
+        else if (a == "--rods"          && i+1<argc) config.cellRods         = std::stoi(argv[++i]);
+        else if (a == "--window"        && i+1<argc) config.cellWindow       = argv[++i];
+        else if (a == "--aperture"      && i+1<argc) config.cellApertureR_mm = std::stod(argv[++i]);
+        else if (a == "--end-cap"       && i+1<argc) config.cellEndCap       = argv[++i];
+        else if (a == "--scraper"       && i+1<argc) {
+            std::string s = argv[++i];
+            if (s == "none") config.cellScraperRin_mm = 0.0;
+            else {
+                auto c = s.find(':');
+                config.cellScraperRin_mm = std::stod(s.substr(0, c));
+                if (c != std::string::npos) config.cellScraperT_mm = std::stod(s.substr(c + 1));
+            }
+        }
+        else if (a == "--ring"          && i+1<argc) config.cellRingMat      = argv[++i];
+        else if (a == "--ring-liner"    && i+1<argc) config.cellRingLiner_mm = std::stod(argv[++i]);
+        else if (a == "--flight-tube"   && i+1<argc) {
+            std::string s = argv[++i];
+            auto c = s.find(':');
+            config.flightTubeGas = s.substr(0, c);
+            if (c != std::string::npos) config.flightTubeR_mm = std::stod(s.substr(c + 1));
+        }
+        else if (a == "--tube-wall"     && i+1<argc) config.flightTubeWall = argv[++i];
+        else if (a == "--tube-window"   && i+1<argc) config.flightTubeWin  = argv[++i];
+        else if (a == "--endcap-ring"   && i+1<argc) {
+            std::string s = argv[++i];
+            auto c = s.find(':');
+            config.cellRingThick_mm = std::stod(s.substr(0, c));
+            if (c != std::string::npos) config.cellRingLand_mm = std::stod(s.substr(c + 1));
+        }
+        else if (a == "--film"        && i+1<argc) config.liFilm    = argv[++i];
+        else if (a == "--backing"     && i+1<argc) config.liBacking = argv[++i];
+        else if (a == "--holder"      && i+1<argc) config.liHolder  = argv[++i];
+        else if (a == "--holder-r"    && i+1<argc) {
+            std::string s = argv[++i];
+            auto c = s.find(':');
+            if (c == std::string::npos) { std::cerr << "--holder-r needs rin:rout\n"; return 1; }
+            config.liHolderRin_mm  = std::stod(s.substr(0, c));
+            config.liHolderRout_mm = std::stod(s.substr(c + 1));
+        }
+        else if (a == "--chamber"     && i+1<argc) config.liChamber = argv[++i];
+        else if (a == "--chamber-len" && i+1<argc) config.liChamberHalfLen_mm = std::stod(argv[++i]);
+        else if (a == "--flange"      && i+1<argc) config.liFlange  = argv[++i];
+        else if (a == "--dump"        && i+1<argc) config.liDump    = argv[++i];
+        else if (a == "--dump-dist"   && i+1<argc) config.liDumpDist_mm  = std::stod(argv[++i]);
+        else if (a == "--spot-sigma"  && i+1<argc) config.liSpotSigma_mm = std::stod(argv[++i]);
+        else if (a == "--gamma-lines" && i+1<argc) config.gammaLines = argv[++i];
         else if (a[0] != '-') macroFile = a;
         else { std::cerr << "Unknown option: " << a << "\n"; PrintUsage(); return 1; }
     }
+
+    if (config.thermalScattering < 0)
+        config.thermalScattering = (config.illBeam || config.cellTarget || !config.slab.empty()) ? 1 : 0;
 
     CLHEP::HepRandom::setTheEngine(new CLHEP::RanecuEngine);
     CLHEP::HepRandom::setTheSeed(config.seed);
@@ -122,12 +281,47 @@ int main(int argc, char** argv) {
               << "  Seed     : " << config.seed << "\n"
               << "  Threads  : " << config.nThreads << "\n"
               << "  Al vessel: " << (config.disableAlCapsule ? "DISABLED (vacuum)" : "enabled") << "\n"
-              << "  Gamma cut: " << config.gammaCut_um << " um\n";
-    if (config.neutronMode)
+              << "  Gamma cut: " << config.gammaCut_um << " um\n"
+              << "  Therm.sc.: " << (config.thermalScattering ? "on" : "off") << "\n";
+    if (config.cellTarget)
+        std::cout << "  Target   : 3He cell " << config.cellPressure_bar << " bar, L="
+                  << config.cellLength_mm << " mm, R=" << config.cellRadius_mm
+                  << " mm, y_w=" << config.cellYw_mm << " mm, skin " << config.cellSkin
+                  << ", rods " << config.cellRods << ", window " << config.cellWindow
+                  << ", end cap " << config.cellEndCap << ", ring " << config.cellRingMat
+                  << (config.cellRingLiner_mm > 0 ? " + 6LiF liner " + std::to_string(config.cellRingLiner_mm) + " mm" : "")
+                  << (config.flightTubeGas.empty() ? std::string() : ", flight tube " + config.flightTubeGas
+                      + " r=" + std::to_string(config.flightTubeR_mm) + " wall " + config.flightTubeWall
+                      + " window " + config.flightTubeWin)
+                  << "\n";
+    if (config.liTarget)
+        std::cout << "  Target   : LNL Li film " << config.liFilm << " ug/cm2 on " << config.liBacking
+                  << ", holder " << config.liHolder << ", chamber " << config.liChamber
+                  << " |y|<=" << config.liChamberHalfLen_mm << " mm, dump " << config.liDump
+                  << ", spot sigma " << config.liSpotSigma_mm << " mm\n";
+    if (config.liTarget && (config.cellTarget || config.neutronMode)) {
+        std::cerr << "--target li is for pairs, --gamma-lines, --single or --cosmic, not neutron beams\n";
+        return 1;
+    }
+    if (config.cosmic) {
+        const double A_cm2 = config.cosmicPlane_mm * config.cosmicPlane_mm / 100.0;
+        std::cout << "  Mode     : cosmic muons, plane " << config.cosmicPlane_mm << " mm at "
+                  << config.cosmicHeight_mm << " mm along +" << config.illVerticalAxis
+                  << "; live time = N x " << 60.0 / A_cm2 << " s\n";
+    }
+    else if (config.illBeam)
+        std::cout << "  Mode     : ILL PF1B beam  spectrum=" << config.illSpectrumFile
+                  << "  aperture r=" << config.illBeamRadius_mm << " mm at "
+                  << config.illGunDist_mm << " mm upstream of the window, exit "
+                  << config.illExitDist_mm << " mm upstream; vertical="
+                  << config.illVerticalAxis << "\n";
+    else if (config.neutronMode)
         std::cout << "  Mode     : neutron beam  E=[" << config.neutronEmin_eV
                   << ", " << config.neutronEmax_eV << "] eV\n"
                   << "  Flux     : " << config.neutronFluxFile << "\n"
                   << "  Profile  : " << config.neutronProfileFile << "\n";
+    else if (!config.gammaLines.empty())
+        std::cout << "  Mode     : gamma lines " << config.gammaLines << "\n";
     else if (config.gammaSourceMode)
         std::cout << "  Mode     : gamma-source (biased wall background)\n"
                   << "  Library  : " << config.captureLibFile << "\n";
@@ -137,7 +331,8 @@ int main(int argc, char** argv) {
     else {
         std::cout << "  Mode     : X17+IPC pairs  m_X17=" << config.x17Mass_MeV
                   << " MeV  E_transition=" << config.transition_energy_MeV
-                  << " MeV  ipc_fraction=" << config.ipc_fraction << "\n";
+                  << " MeV  ipc_fraction=" << config.ipc_fraction
+                  << "  ipc=" << config.ipcMultipole << "\n";
         if (!config.pairVertexLibFile.empty())
             std::cout << "  Vertices : " << config.pairVertexLibFile << "\n";
     }
@@ -152,7 +347,11 @@ int main(int argc, char** argv) {
 
     auto* detCon = new DetectorConstruction(config);
     runManager->SetUserInitialization(detCon);
-    runManager->SetUserInitialization(new PhysicsList(config.biasNCaptureFactor, config.gammaCut_um));
+    runManager->SetUserInitialization(new PhysicsList(
+        std::max({config.biasNCaptureFactor, config.biasWallFactor, config.biasAirFactor,
+                  config.biasThickFactor}),
+        config.gammaCut_um,
+                                                      config.thermalScattering == 1));
     runManager->SetUserInitialization(new ActionInitialization(config, detCon));
     runManager->Initialize();
 
@@ -163,6 +362,10 @@ int main(int argc, char** argv) {
         UI->ApplyCommand("/control/execute " + macroFile);
 
     delete runManager;
+    if (config.cosmic)
+        std::cout << "Cosmic live time: " << config.nEvents * 60.0 /
+                         (config.cosmicPlane_mm * config.cosmicPlane_mm / 100.0)
+                  << " s\n";
     std::cout << "Done. Output: " << config.outFile << "\n";
     return 0;
 }

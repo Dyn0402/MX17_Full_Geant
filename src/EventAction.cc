@@ -30,6 +30,7 @@ void EventAction::EndOfEventAction(const G4Event* event) {
     if (info) {
         fData.event_type   = info->event_type;
         fData.neutron_E_eV = info->neutron_E_eV;
+        fData.n_thrown     = info->n_thrown;
         // Gamma-source mode: record Eγ in inv_mass (no pair kinematics)
         if (info->event_type == 3)
             fData.kin.inv_mass_MeV = info->inv_mass_MeV;
