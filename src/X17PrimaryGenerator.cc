@@ -47,6 +47,8 @@
 #include "TFile.h"
 #include "TH1.h"
 #include "TH2.h"
+#include "TTree.h"
+#include "TString.h"
 #endif
 
 X17PrimaryGenerator::X17PrimaryGenerator(const SimConfig& cfg)
@@ -382,26 +384,39 @@ G4double X17PrimaryGenerator::GenerateIPC(G4Event* event) {
 // of fluxEAR2-Ph3_in_different_units.root, restricted to
 // [neutronEmin_eV, neutronEmax_eV]; log-uniform spread inside each bin.
 //
-// Transverse position: the radial profile row of Lambda2D
-// (lamda2DvsEn_EAR2.root; 240 log E bins × 3000 r bins to 3 cm) nearest to the
-// sampled energy.  Row weights are MC counts per radial bin — they already
-// include the 2πr area factor, so the row CDF is sampled directly in r.
-// Beam axis = +Y, so the transverse plane is world (x, z).
+// Transverse position and direction: the 2D beam profile at the station from
+// nTof_x17/ear2_beam/optical_transport.py (n_TOF's phase-4 FLUKA phase space
+// through the EAR2 collimation, by the method of the n_TOF optical transport
+// code; validated against the PPACMon beam-interception factors at 19.95 m).
+// One TH2D "prof_NNN" (x, z in cm about the beam axis) per log-E band, and a
+// "bands" tree with the band edges, the cone slope (ray angle = slope × r,
+// mrad/cm) and the local angular spread (mrad).  The gun plane must be the
+// table's height (neutronGunY_cm below the capsule origin); the cone slope
+// carries the divergence on from there.
 //
-// The beam data are loaded once (master + worker threads share the static
-// tables, guarded by std::once_flag) and used read-only afterwards.
+// NOTE (2026-10-14): this used to sample a radius from Lambda2D in
+// lamda2DvsEn_EAR2.root.  That histogram is the n_TOF RESOLUTION FUNCTION
+// (lambda = moderation length, cm, transport.cc HIST_LAMBDA), not a radial
+// profile; it made the beam ~5x too narrow (r50 2.5 mm vs 12.5 mm).  Such a
+// file is now refused.
+//
+// Energy: neutrons per bin from either the Phase-3 file
+// (flux_n_pulse_NOisolet_100bpd, n/pulse per bin) or the Phase-4 evaluation
+// (h_flux_ear2, E dN/dE per pulse -> × ln(hi/lo)); log-uniform inside the bin.
 
 #ifdef USE_ROOT
 namespace {
+struct ProfileBand {
+    double eLo = 0, eHi = 0;
+    double slope = 0;                 // rad per mm of position
+    double spread = 0;                // rad (local, per axis)
+    std::vector<double> cdf;          // over nx*nz cells, row-major (ix*nz+iz)
+};
 struct BeamData {
-    // energy CDF (per-bin lo/hi kept separately: window may contain
-    // zero-flux bins, so accepted bins need not be contiguous)
     std::vector<double> eLo, eHi;  // accepted-bin edges [eV]
     std::vector<double> eCdf;      // cumulative flux, normalised to 1
-    // radial profile per energy row
-    std::vector<double> profLogE;  // log10(E/eV) row centres
-    std::vector<std::vector<double>> rCdf;   // per-row CDF over radius
-    std::vector<double> rEdges;    // radial bin edges [cm]
+    std::vector<ProfileBand> bands;
+    std::vector<double> xEdges, zEdges;   // mm
     bool ok = false;
 };
 BeamData      gBeam;
@@ -415,10 +430,12 @@ void LoadBeamData(const SimConfig& cfg) {
                     ("Cannot open flux file: " + cfg.neutronFluxFile).c_str());
         return;
     }
+    bool lethargic = false;
     auto* hFlux = dynamic_cast<TH1*>(ff.Get("flux_n_pulse_NOisolet_100bpd"));
+    if (!hFlux) { hFlux = dynamic_cast<TH1*>(ff.Get("h_flux_ear2")); lethargic = (hFlux != nullptr); }
     if (!hFlux) {
         G4Exception("X17PrimaryGenerator", "BeamData", FatalException,
-                    "Histogram flux_n_pulse_NOisolet_100bpd not found");
+                    "Neither flux_n_pulse_NOisolet_100bpd nor h_flux_ear2 found");
         return;
     }
     double cum = 0.0;
@@ -427,9 +444,13 @@ void LoadBeamData(const SimConfig& cfg) {
         double hi = lo + hFlux->GetBinWidth(i);
         if (hi < cfg.neutronEmin_eV || lo > cfg.neutronEmax_eV) continue;
         double w = hFlux->GetBinContent(i);
+        if (lethargic) w *= std::log(hi / lo);
+        // a bin cut by the window keeps its share (log-uniform inside)
+        const double clo = std::max(lo, cfg.neutronEmin_eV), chi = std::min(hi, cfg.neutronEmax_eV);
+        w *= std::log(chi / clo) / std::log(hi / lo);
         if (w <= 0) continue;
-        gBeam.eLo.push_back(std::max(lo, cfg.neutronEmin_eV));
-        gBeam.eHi.push_back(std::min(hi, cfg.neutronEmax_eV));
+        gBeam.eLo.push_back(clo);
+        gBeam.eHi.push_back(chi);
         cum += w;
         gBeam.eCdf.push_back(cum);
     }
@@ -441,53 +462,68 @@ void LoadBeamData(const SimConfig& cfg) {
     }
     for (auto& c : gBeam.eCdf) c /= cum;
 
-    // ── radial profile ────────────────────────────────────────────────────
+    // ── 2D profile table ─────────────────────────────────────────────────
     TFile fp(cfg.neutronProfileFile.c_str(), "READ");
     if (fp.IsZombie()) {
         G4Exception("X17PrimaryGenerator", "BeamData", FatalException,
                     ("Cannot open profile file: " + cfg.neutronProfileFile).c_str());
         return;
     }
-    auto* h2 = dynamic_cast<TH2*>(fp.Get("Lambda2D"));
-    if (!h2) {
+    if (fp.Get("Lambda2D")) {
         G4Exception("X17PrimaryGenerator", "BeamData", FatalException,
-                    "Histogram Lambda2D not found");
+                    "lamda2DvsEn_EAR2.root is the n_TOF resolution function (lambda), "
+                    "not a beam profile. Use ear2_profile_*.root from nTof_x17/ear2_beam.");
         return;
     }
-    const int nE = h2->GetNbinsX();
-    const int nR = h2->GetNbinsY();
-    const int rebin = 50;                       // 10 µm → 0.5 mm bins
-    const int nRr = nR / rebin;
-    gBeam.rEdges.resize(nRr + 1);
-    for (int j = 0; j <= nRr; ++j)
-        gBeam.rEdges[j] = h2->GetYaxis()->GetBinLowEdge(j * rebin + 1);
-
-    for (int i = 1; i <= nE; ++i) {
-        std::vector<double> cdf(nRr, 0.0);
-        double rcum = 0.0;
-        for (int j = 0; j < nRr; ++j) {
-            double s = 0.0;
-            for (int k = 1; k <= rebin; ++k)
-                s += h2->GetBinContent(i, j * rebin + k);
-            rcum += s;
-            cdf[j] = rcum;
+    auto* tb = dynamic_cast<TTree*>(fp.Get("bands"));
+    if (!tb) {
+        G4Exception("X17PrimaryGenerator", "BeamData", FatalException,
+                    "Profile file has no 'bands' tree");
+        return;
+    }
+    Long64_t band = 0; double eLo = 0, eHi = 0, slope = 0, spread = 0;
+    tb->SetBranchAddress("band", &band);
+    tb->SetBranchAddress("e_lo", &eLo);
+    tb->SetBranchAddress("e_hi", &eHi);
+    tb->SetBranchAddress("slope_x_per_cm_mrad", &slope);
+    tb->SetBranchAddress("local_spread_mrad", &spread);
+    for (Long64_t k = 0; k < tb->GetEntries(); ++k) {
+        tb->GetEntry(k);
+        auto* h = dynamic_cast<TH2*>(fp.Get(Form("prof_%03lld", band)));
+        if (!h) continue;
+        const int nx = h->GetNbinsX(), nz = h->GetNbinsY();
+        if (gBeam.xEdges.empty()) {
+            for (int i = 1; i <= nx + 1; ++i) gBeam.xEdges.push_back(10.0 * h->GetXaxis()->GetBinLowEdge(i));
+            for (int j = 1; j <= nz + 1; ++j) gBeam.zEdges.push_back(10.0 * h->GetYaxis()->GetBinLowEdge(j));
         }
-        if (rcum <= 0) continue;                // empty energy row — skip
-        for (auto& c : cdf) c /= rcum;
-        gBeam.profLogE.push_back(std::log10(h2->GetXaxis()->GetBinCenter(i)));
-        gBeam.rCdf.push_back(std::move(cdf));
+        ProfileBand B;
+        B.eLo = eLo; B.eHi = eHi;
+        B.slope = slope * 1e-3 / 10.0;      // mrad/cm -> rad/mm
+        B.spread = spread * 1e-3;
+        B.cdf.resize(nx * nz);
+        double c = 0;
+        for (int i = 0; i < nx; ++i)
+            for (int j = 0; j < nz; ++j) {
+                c += std::max(0.0, h->GetBinContent(i + 1, j + 1));
+                B.cdf[i * nz + j] = c;
+            }
+        if (c <= 0) continue;
+        for (auto& v : B.cdf) v /= c;
+        gBeam.bands.push_back(std::move(B));
     }
     fp.Close();
-    if (gBeam.rCdf.empty()) {
+    if (gBeam.bands.empty()) {
         G4Exception("X17PrimaryGenerator", "BeamData", FatalException,
-                    "Lambda2D has no populated energy rows");
+                    "Profile file has no populated bands");
         return;
     }
     gBeam.ok = true;
     G4cout << "X17PrimaryGenerator: beam data loaded — "
            << gBeam.eCdf.size() << " flux bins in ["
-           << cfg.neutronEmin_eV << ", " << cfg.neutronEmax_eV << "] eV, "
-           << gBeam.rCdf.size() << " profile rows" << G4endl;
+           << cfg.neutronEmin_eV << ", " << cfg.neutronEmax_eV << "] eV"
+           << (lethargic ? " (phase-4 lethargy flux)" : "") << ", "
+           << gBeam.bands.size() << " 2D profile bands; beam centre ("
+           << cfg.neutronBeamX_mm << ", " << cfg.neutronBeamZ_mm << ") mm" << G4endl;
 }
 }   // namespace
 #endif  // USE_ROOT
@@ -508,29 +544,37 @@ G4double X17PrimaryGenerator::GenerateNeutron(G4Event* event) {
     const double lo = gBeam.eLo[idx], hi = gBeam.eHi[idx];
     const double E_eV = lo * std::pow(hi / lo, G4UniformRand());
 
-    // ── radius: nearest profile row in log10(E) ──────────────────────────
-    const double le = std::log10(E_eV);
-    const auto rit = std::lower_bound(gBeam.profLogE.begin(),
-                                      gBeam.profLogE.end(), le);
-    size_t row = static_cast<size_t>(rit - gBeam.profLogE.begin());
-    if (row > 0 && (row == gBeam.profLogE.size() ||
-                    le - gBeam.profLogE[row - 1] < gBeam.profLogE[row] - le))
-        --row;
-    const auto& cdf = gBeam.rCdf[row];
-    const double ur = G4UniformRand();
-    const auto jit = std::lower_bound(cdf.begin(), cdf.end(), ur);
-    const auto j = static_cast<size_t>(jit - cdf.begin());
-    const double r_cm = gBeam.rEdges[j] +
-        G4UniformRand() * (gBeam.rEdges[j + 1] - gBeam.rEdges[j]);
+    // ── band: the one containing E, else the nearest in log E ───────────
+    size_t kb = 0;
+    double best = 1e99;
+    for (size_t k = 0; k < gBeam.bands.size(); ++k) {
+        const auto& B = gBeam.bands[k];
+        if (E_eV >= B.eLo && E_eV < B.eHi) { kb = k; break; }
+        const double d = std::fabs(std::log(E_eV / std::sqrt(B.eLo * B.eHi)));
+        if (d < best) { best = d; kb = k; }
+    }
+    const auto& B = gBeam.bands[kb];
 
-    const double phi = CLHEP::twopi * G4UniformRand();
-    const G4ThreeVector pos(r_cm * std::cos(phi) * cm,
+    // ── position: a cell from the 2D CDF, uniform inside it ─────────────
+    const size_t nz = gBeam.zEdges.size() - 1;
+    const auto cit = std::lower_bound(B.cdf.begin(), B.cdf.end(), G4UniformRand());
+    size_t cell = static_cast<size_t>(cit - B.cdf.begin());
+    if (cell >= B.cdf.size()) cell = B.cdf.size() - 1;
+    const size_t ix = cell / nz, iz = cell % nz;
+    const double x_mm = gBeam.xEdges[ix] + G4UniformRand() * (gBeam.xEdges[ix + 1] - gBeam.xEdges[ix]);
+    const double z_mm = gBeam.zEdges[iz] + G4UniformRand() * (gBeam.zEdges[iz + 1] - gBeam.zEdges[iz]);
+
+    // ── direction: the collimated cone plus the local spread ────────────
+    const double ax = B.slope * x_mm + B.spread * G4RandGauss::shoot();
+    const double az = B.slope * z_mm + B.spread * G4RandGauss::shoot();
+
+    const G4ThreeVector pos((x_mm + fConfig.neutronBeamX_mm) * mm,
                             fConfig.neutronGunY_cm * cm,
-                            r_cm * std::sin(phi) * cm);
+                            (z_mm + fConfig.neutronBeamZ_mm) * mm);
 
     fGun->SetParticleDefinition(fNeutron);
     fGun->SetParticlePosition(pos);
-    fGun->SetParticleMomentumDirection(G4ThreeVector(0, 1, 0));
+    fGun->SetParticleMomentumDirection(G4ThreeVector(ax, 1.0, az).unit());
     fGun->SetParticleEnergy(E_eV * eV);
     fGun->GeneratePrimaryVertex(event);
     return E_eV;

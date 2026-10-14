@@ -55,11 +55,13 @@ struct SimConfig {
 
     // ── Neutron-beam mode (event_type = 2) ──────────────────
     // Fires neutrons along +Y from y = neutronGunY_cm with energy sampled
-    // from the EAR2 evaluated flux and transverse position from the
-    // energy-dependent radial profile (both ROOT files in data/).
+    // from the EAR2 evaluated flux and transverse position + direction from
+    // the energy-binned 2D beam profile at the station (data/ear2_profile_*).
     bool        neutronMode    = false;
-    std::string neutronFluxFile;     // fluxEAR2-Ph3_in_different_units.root
-    std::string neutronProfileFile;  // lamda2DvsEn_EAR2.root
+    std::string neutronFluxFile;     // Final_evaluated_flux_Phase4_EAR2.root (or the Ph3 file)
+    std::string neutronProfileFile;  // ear2_profile_*.root (nTof_x17/ear2_beam); NOT lamda2DvsEn
+    double      neutronBeamX_mm = 0.0;    // beam-axis offset from the world origin (--beam-offset)
+    double      neutronBeamZ_mm = 0.0;
     double      neutronEmin_eV = 1e-3;    // sampling window
     double      neutronEmax_eV = 1000.0;  // default: < 1 keV (X17 ROI)
     double      neutronGunY_cm = -20.0;   // start position upstream of vessel tip
