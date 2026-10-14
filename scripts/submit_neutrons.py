@@ -6,7 +6,8 @@ HTCondor on lxplus.
 
 Run B (default):    mx17_full_sim --neutron <flux> <profile> --emin --emax
     100 jobs × 10M neutrons = 1e9 neutrons through the realistic EAR2 beam
-    (energy from the Ph3 evaluated flux, radius from Lambda2D).
+    (energy from the Phase-4 evaluated flux, position/direction from the
+    2D EAR2 profile table; see data/README.md).
     Output: capture budget + singles + unbiased wall-conversion background.
 
 Run C (--gamma-source <lib.csv>):  biased wall-background gammas
@@ -39,8 +40,12 @@ GAS_DEFAULT     = "ArIso"
 JOB_FLAVOUR     = "workday"
 
 DATA_DIR     = Path(__file__).resolve().parent.parent / "data"
-FLUX_FILE    = DATA_DIR / "fluxEAR2-Ph3_in_different_units.root"
-PROFILE_FILE = DATA_DIR / "lamda2DvsEn_EAR2.root"
+# Phase-4 (post-2021 target) evaluated flux, and the 2D beam profile table at the
+# gun plane (20 cm below the capsule) for a capsule at 19.5 m, from
+# nTof_x17/ear2_beam/optical_transport.py.  lamda2DvsEn_EAR2.root is the
+# resolution function, not a profile: the generator refuses it.
+FLUX_FILE    = DATA_DIR / "Final_evaluated_flux_Phase4_EAR2.root"
+PROFILE_FILE = DATA_DIR / "ear2_profile_july2021_L19.3.root"
 
 
 def parse_args():
@@ -67,6 +72,11 @@ def parse_args():
                    help="Override the gamma production cut (default 100 um "
                         "in PhysicsList)")
     p.add_argument("--gas",      default=GAS_DEFAULT)
+    p.add_argument("--flux",     default=str(FLUX_FILE), help="neutron flux ROOT file")
+    p.add_argument("--profile",  default=str(PROFILE_FILE),
+                   help="2D beam profile table (ear2_profile_*.root) at the gun plane")
+    p.add_argument("--beam-offset", type=float, nargs=2, default=None, metavar=("X_MM", "Z_MM"),
+                   help="beam axis offset from the world origin")
     p.add_argument("--gamma-source", default=None, metavar="LIB_CSV",
                    help="Submit gamma-source (run C) instead of neutrons, "
                         "using this capture library")
@@ -90,20 +100,23 @@ def find_exe():
 
 def write_wrapper(job_dir: Path, exe: str, setup_script: str,
                   gamma_lib, bias_ncapture: float = 1.0,
-                  no_al: bool = False, gamma_cut_um: float = None) -> Path:
+                  no_al: bool = False, gamma_cut_um: float = None,
+                  flux=FLUX_FILE, profile=PROFILE_FILE, beam_offset=None) -> Path:
     """One wrapper for both modes; mode-specific args baked in."""
     extra_args = ''
     if no_al:
         extra_args += ' --no-al'
     if gamma_cut_um is not None:
         extra_args += f' --gamma-cut-um {gamma_cut_um:g}'
+    if beam_offset is not None:
+        extra_args += f' --beam-offset {beam_offset[0]:g} {beam_offset[1]:g}'
     if gamma_lib:
         mode_args = f'--gamma-source "{gamma_lib}"{extra_args}'
         name = "run_gamma_job.sh"
     else:
         bias_arg = (f' --bias-ncapture {bias_ncapture:g}'
                     if bias_ncapture > 1.0 else '')
-        mode_args = (f'--neutron "{FLUX_FILE}" "{PROFILE_FILE}" '
+        mode_args = (f'--neutron "{flux}" "{profile}" '
                      f'--emin "$EMIN" --emax "$EMAX"{bias_arg}{extra_args}')
         name = "run_neutron_job.sh"
     wrapper = job_dir / name
@@ -186,7 +199,7 @@ def main():
             print(f"ERROR: capture library not found: {lib}")
             sys.exit(1)
     else:
-        for f in (FLUX_FILE, PROFILE_FILE):
+        for f in (Path(args.flux), Path(args.profile)):
             if not f.is_file():
                 print(f"ERROR: beam data file not found: {f}")
                 print("  (data/ directory must be present in the repo clone)")
@@ -222,8 +235,10 @@ def main():
         if args.bias_ncapture > 1.0:
             print(f"nCapture bias  : ×{args.bias_ncapture:g}  (³He(n,γ) in gas; "
                   f"weight 1/factor)")
-        print(f"Flux file      : {FLUX_FILE}")
-        print(f"Profile file   : {PROFILE_FILE}")
+        print(f"Flux file      : {args.flux}")
+        print(f"Profile file   : {args.profile}")
+        if args.beam_offset:
+            print(f"Beam offset    : {args.beam_offset} mm")
     else:
         print(f"Capture library: {args.gamma_source}")
     print(f"Output dir     : {outdir}")
@@ -236,7 +251,9 @@ def main():
         return
 
     wrapper  = write_wrapper(job_dir, exe, setup_script, args.gamma_source,
-                             args.bias_ncapture, args.no_al, args.gamma_cut_um)
+                             args.bias_ncapture, args.no_al, args.gamma_cut_um,
+                             flux=Path(args.flux).resolve(), profile=Path(args.profile).resolve(),
+                             beam_offset=args.beam_offset)
     sub_file = write_submit(job_dir, wrapper, jobs, args.flavour)
     print(f"\nSubmit file : {sub_file}")
     ret = os.system(f"condor_submit {sub_file}")

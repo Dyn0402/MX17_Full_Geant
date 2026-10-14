@@ -30,8 +30,11 @@ static void PrintUsage() {
               << "  -v               Verbose output\n"
               << "  --single <name> <E_MeV> <theta_deg> <phi_deg>\n"
               << "                   Single-particle mode (e.g. --single e- 8 90 0)\n"
-              << "  --neutron <flux.root> <lambda2d.root>\n"
-              << "                   Neutron-beam mode: EAR2 flux + radial profile\n"
+              << "  --neutron <flux.root> <profile.root>\n"
+              << "                   Neutron-beam mode: EAR2 flux + 2D beam profile table\n"
+              << "                   (data/ear2_profile_*.root; lamda2DvsEn is refused)\n"
+              << "  --beam-offset <x_mm> <z_mm>  Neutron beam axis offset from the origin\n"
+              << "  --gun-y-cm <y>   Neutron gun plane (default -20; = profile table height)\n"
               << "                   (data/fluxEAR2-Ph3_in_different_units.root,\n"
               << "                    data/lamda2DvsEn_EAR2.root)\n"
               << "  --bias-ncapture <factor>\n"
@@ -155,6 +158,11 @@ int main(int argc, char** argv) {
         else if (a == "--no-al")                     config.disableAlCapsule  = true;
         else if (a == "--gamma-cut-um" && i+1<argc)  config.gammaCut_um       = std::stod(argv[++i]);
         else if (a == "--emin" && i+1<argc) config.neutronEmin_eV = std::stod(argv[++i]);
+        else if (a == "--beam-offset" && i+2<argc) {
+            config.neutronBeamX_mm = std::stod(argv[++i]);
+            config.neutronBeamZ_mm = std::stod(argv[++i]);
+        }
+        else if (a == "--gun-y-cm" && i+1<argc) config.neutronGunY_cm = std::stod(argv[++i]);
         else if (a == "--emax" && i+1<argc) config.neutronEmax_eV = std::stod(argv[++i]);
         else if (a == "--gamma-source" && i+1<argc) {
             config.gammaSourceMode = true;
