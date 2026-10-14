@@ -1,5 +1,29 @@
 # Handoff
 
+## Branch merges and build check — updated 2026-10-14 (dylan-MS-7C84)
+
+**Resume:** Merged ear2-beam, ill, ill_ring, lnl and trigger_plastics into main (pushed, tip dbe53d0). The build is NOT verified: Geant4 is not installed on dylan-MS-7C84.
+
+**Goal:** all of this repo's feature branches on main, and the code still building.
+
+**Done:**
+- Merges into main, one at a time, no conflicts. `ill`, `ill_ring` and `trigger_plastics` were already contained in `ear2-beam` and `lnl`.
+- Local copies of those branches deleted.
+
+**In progress / where it stopped:**
+- `build/` is stale: its CMakeCache points at a different directory (`build2`), so `cmake --build build` fails with "Makefile: No such file".
+- A fresh configure in a temp directory fails at `find_package(Geant4)`: Geant4 is not installed here.
+
+**Next steps:**
+1. On a machine with Geant4: `cmake -S . -B build-new && cmake --build build-new -j8`, then run the macros.
+2. Once that builds, decide whether to delete the stale `build/` (not done here).
+
+**Gotchas / decisions:**
+- The merged branches all forked from 15bd0c2; `lnl` was the checked-out branch at the time.
+
+**Key files & commands:**
+- `CMakeLists.txt` — needs Geant4 on the CMake path
+
 ## Scattering-budget upgrade note — updated 2026-10-06 (dylan-MS-7C84)
 
 **Resume:** Note is published (dylan-neff.web.cern.ch/notes/scattering-upgrade.html); next: replace the Highland-ratio scaling with a full Geant4 run of the 2 bar mylar cell.
