@@ -17,6 +17,7 @@ public:
     explicit PhysicsList(double biasNCaptureFactor = 1.0, double gammaCut_um = 100.0,
                          bool thermalScattering = false);
     ~PhysicsList() override = default;
+    void ConstructProcess() override;   // + PAI in the gas region
     void SetCuts() override;
 
 private:

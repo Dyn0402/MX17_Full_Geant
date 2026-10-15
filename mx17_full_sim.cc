@@ -46,6 +46,9 @@ static void PrintUsage() {
               << "  --bias-wall <f> / --bias-thick <f> / --bias-air <f>\n"
               << "                   Same nCapture biasing in the cell's thin walls (window, skin,\n"
               << "                   rods) / thick parts (Al ring + cap, 6LiF) / the World air\n"
+              << "  --bias-capsule <f>\n"
+              << "                   nCapture biasing in the n_TOF ³He capsule Al vessel only\n"
+              << "                   (Al-capture track libraries; ~20; weight 1/f in EventTree)\n"
               << "  --gamma-cut-um <um>\n"
               << "                   Override the gamma production cut (default 100 um).\n"
               << "  --emin <eV>      Neutron sampling window minimum (default: 1e-3)\n"
@@ -153,6 +156,7 @@ int main(int argc, char** argv) {
         }
         else if (a == "--bias-ncapture" && i+1<argc) config.biasNCaptureFactor = std::stod(argv[++i]);
         else if (a == "--bias-wall" && i+1<argc) config.biasWallFactor = std::stod(argv[++i]);
+        else if (a == "--bias-capsule" && i+1<argc) config.biasCapsuleFactor = std::stod(argv[++i]);
         else if (a == "--bias-air"  && i+1<argc) config.biasAirFactor  = std::stod(argv[++i]);
         else if (a == "--bias-thick" && i+1<argc) config.biasThickFactor = std::stod(argv[++i]);
         else if (a == "--no-al")                     config.disableAlCapsule  = true;
@@ -349,7 +353,7 @@ int main(int argc, char** argv) {
     runManager->SetUserInitialization(detCon);
     runManager->SetUserInitialization(new PhysicsList(
         std::max({config.biasNCaptureFactor, config.biasWallFactor, config.biasAirFactor,
-                  config.biasThickFactor}),
+                  config.biasThickFactor, config.biasCapsuleFactor}),
         config.gammaCut_um,
                                                       config.thermalScattering == 1));
     runManager->SetUserInitialization(new ActionInitialization(config, detCon));

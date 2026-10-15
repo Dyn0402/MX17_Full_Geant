@@ -24,6 +24,8 @@
 #include "SensitiveDetector.hh"
 #include "NCaptureBiasingOperator.hh"
 #include "MX17ModuleGeometry.hh"
+#include "GasProperties.hh"
+#include "G4Region.hh"
 
 #include "G4NistManager.hh"
 #include "G4Material.hh"
@@ -67,64 +69,34 @@ void DetectorConstruction::DefineMaterials() {
     G4Element* elO  = nist->FindOrBuildElement("O");
     G4Element* elSi = nist->FindOrBuildElement("Si");
     G4Element* elCl = nist->FindOrBuildElement("Cl");
-    G4Element* elAr = nist->FindOrBuildElement("Ar");
-    G4Element* elNe = nist->FindOrBuildElement("Ne");
-    G4Element* elHe = nist->FindOrBuildElement("He");
-    G4Element* elF  = nist->FindOrBuildElement("F");
 
-    // ── Gas component materials ──────────────────────────────
-    auto* isobutane = new G4Material("Isobutane", 2.67e-3*g/cm3, 2, kStateGas, 293.15*kelvin, 1*atmosphere);
-    isobutane->AddElement(elC, 4); isobutane->AddElement(elH, 10);
-
-    auto* ethane = new G4Material("Ethane", 1.356e-3*g/cm3, 2, kStateGas, 293.15*kelvin, 1*atmosphere);
-    ethane->AddElement(elC, 2); ethane->AddElement(elH, 6);
-
-    auto* CO2 = new G4Material("CO2_gas", 1.977e-3*g/cm3, 2, kStateGas, 293.15*kelvin, 1*atmosphere);
-    CO2->AddElement(elC, 1); CO2->AddElement(elO, 2);
-
-    auto* CF4 = new G4Material("CF4_gas", 3.72e-3*g/cm3, 2, kStateGas, 293.15*kelvin, 1*atmosphere);
-    CF4->AddElement(elC, 1); CF4->AddElement(elF, 4);
-
-    auto* purAr = new G4Material("PureArgon", 1.782e-3*g/cm3, 1, kStateGas, 293.15*kelvin, 1*atmosphere);
-    purAr->AddElement(elAr, 1);
-
-    auto* pureHe = new G4Material("PureHe", 0.1786e-3*g/cm3, 1, kStateGas, 293.15*kelvin, 1*atmosphere);
-    pureHe->AddElement(elHe, 1);
-
-    auto* pureNe = new G4Material("PureNe", 0.8999e-3*g/cm3, 1, kStateGas, 293.15*kelvin, 1*atmosphere);
-    pureNe->AddElement(elNe, 1);
-
-    auto makeMix2 = [&](const char* name, G4double rho,
-                        G4Material* m1, G4double f1,
-                        G4Material* m2, G4double f2) -> G4Material* {
-        auto* m = new G4Material(name, rho*g/cm3, 2, kStateGas, 293.15*kelvin, 1*atmosphere);
-        m->AddMaterial(m1, f1); m->AddMaterial(m2, f2); return m;
-    };
-    auto makeMix3 = [&](const char* name, G4double rho,
-                        G4Material* m1, G4double f1,
-                        G4Material* m2, G4double f2,
-                        G4Material* m3, G4double f3) -> G4Material* {
-        auto* m = new G4Material(name, rho*g/cm3, 3, kStateGas, 293.15*kelvin, 1*atmosphere);
-        m->AddMaterial(m1, f1); m->AddMaterial(m2, f2); m->AddMaterial(m3, f3); return m;
-    };
-
-    fMats["ArCF4"]    = makeMix2("ArCF4",    0.90*1.782e-3+0.10*3.72e-3, purAr,0.90,CF4,0.10);
-    fMats["HeEth"]    = makeMix2("HeEth",    0.965*0.1786e-3+0.035*1.356e-3, pureHe,0.965,ethane,0.035);
-    fMats["ArCO2"]    = makeMix2("ArCO2",    0.70*1.782e-3+0.30*1.977e-3, purAr,0.70,CO2,0.30);
-    fMats["ArIso"]    = makeMix2("ArIso",    0.95*1.782e-3+0.05*2.67e-3, purAr,0.95,isobutane,0.05);
-    fMats["NeIso"]    = makeMix2("NeIso",    0.95*0.8999e-3+0.05*2.67e-3, pureNe,0.95,isobutane,0.05);
-    fMats["NeCF4"]    = makeMix2("NeCF4",    0.90*0.8999e-3+0.10*3.72e-3, pureNe,0.90,CF4,0.10);
-    fMats["ArCF4Iso"] = makeMix3("ArCF4Iso", 0.88*1.782e-3+0.10*3.72e-3+0.02*2.67e-3, purAr,0.88,CF4,0.10,isobutane,0.02);
-    fMats["ArCF4CO2"] = makeMix3("ArCF4CO2", 0.45*1.782e-3+0.40*3.72e-3+0.15*1.977e-3, purAr,0.45,CF4,0.40,CO2,0.15);
-    auto* purCF4 = new G4Material("PureCF4", 3.72e-3*g/cm3, 2, kStateGas, 293.15*kelvin, 1*atmosphere);
-    purCF4->AddElement(elC,1); purCF4->AddElement(elF,4);
-    fMats["PureCF4"]   = purCF4;
-    fMats["PureAr"]    = purAr;
-    fMats["PureHe"]    = pureHe;
-    fMats["PureNe"]    = pureNe;
-    fMats["PureEthane"]= ethane;
-    fMats["PureIso"]   = isobutane;
-    fMats["PureCO2"]   = CO2;
+    // ── Counting gases, all from GasProperties (ideal gas at 20 C, 1 atm) ──
+    // Fixed 2026-10-15 (ported from MX17_Geant e17c72c): densities used to be
+    // 0 C STP values on materials declared at 293.15 K (every gas 7.3 % too
+    // dense), and the volume fractions were passed to AddMaterial, which takes
+    // mass fractions.  See GasProperties.hh.
+    {
+        std::map<std::string, G4Material*> component;
+        for (const auto& c : gas::Components()) {
+            auto* m = new G4Material(c.material, gas::ComponentDensity(c.name)*g/cm3,
+                                     static_cast<G4int>(c.atoms.size()), kStateGas,
+                                     gas::kTemperatureK*kelvin, gas::kPressurePa*pascal);
+            for (const auto& [el, n] : c.atoms) m->AddElement(nist->FindOrBuildElement(el), n);
+            component[c.name] = m;
+        }
+        for (const auto& mix : gas::Mixtures()) {
+            if (mix.parts.size() == 1) {            // PureAr, PureIso, ...
+                fMats[mix.name] = component.at(mix.parts[0].first);
+                continue;
+            }
+            auto* m = new G4Material(mix.name, gas::MixtureDensity(mix)*g/cm3,
+                                     static_cast<G4int>(mix.parts.size()), kStateGas,
+                                     gas::kTemperatureK*kelvin, gas::kPressurePa*pascal);
+            for (std::size_t i = 0; i < mix.parts.size(); ++i)
+                m->AddMaterial(component.at(mix.parts[i].first), gas::MassFraction(mix, i));
+            fMats[mix.name] = m;
+        }
+    }
 
     // ── He-3 gas at 500 bar ──────────────────────────────────
     {
@@ -460,6 +432,7 @@ G4VPhysicalVolume* DetectorConstruction::Construct() {
                                 : matAl;
     auto* alSolid = new G4Polycone("He3Cap_Al", 0, 360.*deg, nAl, zVessel, riAl, roAl);
     auto* alLV    = new G4LogicalVolume(alSolid, matVessel, "He3Cap_Al");
+    fCapsuleAlLV  = alLV;   // --bias-capsule host
     alLV->SetVisAttributes(new G4VisAttributes(G4Color(0.7, 0.7, 0.7, 0.8)));
 
     // ── CFRP wrap polycone (Al outer + 0.9 mm) ───────────────
@@ -774,6 +747,17 @@ G4VPhysicalVolume* DetectorConstruction::Construct() {
     }
 
     G4cout << "=====================================" << G4endl;
+
+    // Counting gas as its own region, so PhysicsList can put the PAI
+    // ionisation model there (ported from MX17_Geant e17c72c): option4's
+    // Urban fluctuations put the thin-gas-layer peak ~10 % high in primaries;
+    // PAI matches Heed to <1 %.  Its own production cuts are set in
+    // PhysicsList::SetCuts (required, see the note there).
+    if (fDriftGasLV || fAmpGasLV) {
+        auto* region = new G4Region(kGasRegionName);
+        if (fDriftGasLV) region->AddRootLogicalVolume(fDriftGasLV);
+        if (fAmpGasLV)   region->AddRootLogicalVolume(fAmpGasLV);
+    }
     return worldPV;
 }
 
@@ -803,6 +787,12 @@ void DetectorConstruction::ConstructSDandField() {
         biasOperator->AttachTo(fHe3GasLV);
         G4cout << "DetectorConstruction: nCapture cross-section biased ×"
                << fConfig.biasNCaptureFactor << " in He3Gas" << G4endl;
+    }
+    if (fConfig.biasCapsuleFactor > 1.0 && fCapsuleAlLV) {
+        auto* op = new NCaptureBiasingOperator(fConfig.biasCapsuleFactor);
+        op->AttachTo(fCapsuleAlLV);
+        G4cout << "DetectorConstruction: nCapture biased ×" << fConfig.biasCapsuleFactor
+               << " in the ³He capsule Al (He3Cap_Al)" << G4endl;
     }
     if (fConfig.biasWallFactor > 1.0 && !fCellWallLVs.empty()) {
         auto* op = new NCaptureBiasingOperator(fConfig.biasWallFactor);
