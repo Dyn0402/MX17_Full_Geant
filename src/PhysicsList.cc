@@ -21,6 +21,15 @@
 #include "G4GenericBiasingPhysics.hh"
 #include "G4ThermalNeutrons.hh"
 #include "G4SystemOfUnits.hh"
+#include "G4EmParameters.hh"
+#include "G4LossTableManager.hh"
+#include "G4EmConfigurator.hh"
+#include "G4PAIModel.hh"
+#include "G4ParticleTable.hh"
+#include "G4RegionStore.hh"
+#include "G4ProductionCuts.hh"
+
+#include "DetectorConstruction.hh"   // kGasRegionName
 
 PhysicsList::PhysicsList(double biasNCaptureFactor, double gammaCut_um,
                          bool thermalScattering)
@@ -72,6 +81,43 @@ PhysicsList::PhysicsList(double biasNCaptureFactor, double gammaCut_um,
     // silently removing nearly all sub-eV beam transport — fatal for the
     // thermal-capture physics this experiment depends on.  HP physics is
     // designed to track neutrons to thermalisation; let it.
+
+    // Atomic de-excitation (ported from MX17_Geant e17c72c).  Set AFTER the
+    // EM constructor, whose ctor writes the same G4EmParameters singleton.
+    // IgnoreCut matters most: the 0.1 mm gamma range cut is ~5-10 keV in
+    // copper, so without it the Cu-K line (8.05 keV) can sit under threshold.
+    auto* emp = G4EmParameters::Instance();
+    emp->SetFluo(true);
+    emp->SetAuger(true);
+    emp->SetDeexcitationIgnoreCut(true);
+}
+
+void PhysicsList::ConstructProcess() {
+    G4VModularPhysicsList::ConstructProcess();
+
+    // PAI ionisation in the counting gas (DetectorConstruction's GasRegion),
+    // ported from MX17_Geant e17c72c.  option4's default energy-loss
+    // fluctuations (Urban) are built for thick absorbers; in a few-mm gas
+    // layer they put the primary-electron peak ~10 % high.  PAI, built from
+    // the gas photoabsorption cross section like Heed, matches Heed to <1 %.
+    //
+    // Added through G4EmConfigurator on purpose: in Geant4 11.3
+    // G4EmParameters::AddPAIModel is a silent no-op with this list (the
+    // activator tests IsIonisationProcess() before PreparePhysicsTable has
+    // set it).  Lower limits follow G4EmModelActivator::ActivatePAI.
+    if (!G4RegionStore::GetInstance()->GetRegion(kGasRegionName, false)) return;
+    auto* conf = G4LossTableManager::Instance()->EmConfigurator();
+    auto* table = G4ParticleTable::GetParticleTable();
+    const struct { const char* particle; const char* process; G4double emin; } pai[] = {
+        {"e-", "eIoni", 0.11*keV},  {"e+", "eIoni", 0.11*keV},
+        {"mu-", "muIoni", 5*keV},   {"mu+", "muIoni", 5*keV},
+        {"proton", "hIoni", 50*keV}, {"pi+", "hIoni", 50*keV}, {"pi-", "hIoni", 50*keV},
+    };
+    for (const auto& p : pai) {
+        auto* model = new G4PAIModel(table->FindParticle(p.particle), "PAI");
+        conf->SetExtraEmModel(p.particle, p.process, model, kGasRegionName,
+                              p.emin, 100*TeV, model);
+    }
 }
 
 void PhysicsList::SetCuts() {
@@ -83,4 +129,18 @@ void PhysicsList::SetCuts() {
     SetCutValue(10.0 * um, "e-");       // short cut for electrons -- capture delta rays
     SetCutValue(10.0 * um, "e+");
     SetCutValue(fGammaCut_um * um, "gamma");  // default 100 um photon production threshold
+
+    // The gas region (PAI, see ConstructProcess) needs its OWN cuts object,
+    // even with the same values.  G4EmModelManager assigns a material-cuts
+    // couple to a region by comparing G4ProductionCuts POINTERS, so a region
+    // left on the default cuts hands its PAI-only model set to every couple in
+    // the world; sub-keV electrons in solids then stall (~10x slower runs).
+    if (auto* reg = G4RegionStore::GetInstance()->GetRegion(kGasRegionName, false)) {
+        auto* cuts = new G4ProductionCuts();
+        cuts->SetProductionCut(10.0 * um, "e-");
+        cuts->SetProductionCut(10.0 * um, "e+");
+        cuts->SetProductionCut(fGammaCut_um * um, "gamma");
+        cuts->SetProductionCut(1.0  * mm, "proton");
+        reg->SetProductionCuts(cuts);
+    }
 }

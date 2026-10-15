@@ -15,6 +15,9 @@
 
 class G4Material;
 
+// Region holding the drift and amplification gas (PAI ionisation, PhysicsList).
+inline constexpr const char* kGasRegionName = "GasRegion";
+
 // Per-arm axis info for local-coordinate computation in SteppingAction
 struct ArmAxes {
     G4ThreeVector frontFace; // world position of arm front face centre
@@ -57,6 +60,7 @@ private:
     G4LogicalVolume* fBackScintRLV  = nullptr;
 
     G4LogicalVolume* fHe3GasLV      = nullptr;   // target gas: nCapture-bias host
+    G4LogicalVolume* fCapsuleAlLV   = nullptr;   // --bias-capsule host
     std::vector<G4LogicalVolume*> fCellWallLVs;  // --bias-wall hosts (thin)
     std::vector<G4LogicalVolume*> fCellThickLVs; // --bias-thick hosts
     G4LogicalVolume* fWorldLV       = nullptr;   // --bias-air host

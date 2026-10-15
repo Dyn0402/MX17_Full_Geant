@@ -1,5 +1,22 @@
 # Handoff
 
+## Gas primary-ionization fix + capsule-Al capture bias — 2026-10-15 (dylan-MS-7C84)
+
+**Resume:** ported and validated locally; build on lxplus in a new clone (the ear2 clone is in use by running jobs), then submit.
+
+- Port of MX17_Geant e17c72c: `GasProperties` (ideal gas at 20 C, volume -> mass fractions, Garfield W/Fano), PAI in a
+  `GasRegion` (DriftGas + AmpGas) via `G4EmConfigurator` with the region's own `G4ProductionCuts`, fluo/Auger/ignore-cut.
+  Validated (Geant4 11.3.2, 20k cosmics, same seed vs 19a6a71): ArIso 1.698 mg/cm3 (ideal 1.699; was 1.826); gas Edep per
+  (event, arm) with a gap-crossing muon, median per-event ratio new/old 0.906 (MX17_Geant: 0.908); muon step median
+  47 -> 26 eV (PAI active, not a no-op); scintillators unchanged (0.98-1.02); CPU unchanged.
+- `--bias-capsule <f>`: nCapture occurrence bias on `He3Cap_Al` only (weight 1/f in EventTree.weight). Validated at f = 20,
+  200k EAR2 neutrons: Al captures 9861 raw / 575 weighted vs 579 analog; 3He weighted 89301 vs 89464; Al-capture events
+  with an A/C gap track 444/384 vs 22/26 (x17); CPU +12 %; files x2. Capture positions shift slightly toward the nose
+  (r < 8 mm: 0.55 vs 0.50), as expected from front-loading; weights restore rates.
+- nTof_x17 side: `g4_digi` converts gas Edep with W = 26.0 eV and normalises ADC/e to 247 e- per track measured on the
+  OLD sims (`run_digi.py:145`); both need updating for libraries from this build.
+
+
 ## Branch merges and build check — updated 2026-10-14 (dylan-MS-7C84)
 
 **Resume:** Merged ear2-beam, ill, ill_ring, lnl and trigger_plastics into main (pushed, tip dbe53d0). The build is NOT verified: Geant4 is not installed on dylan-MS-7C84.

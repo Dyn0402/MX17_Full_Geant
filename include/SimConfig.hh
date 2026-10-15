@@ -197,6 +197,13 @@ struct SimConfig {
     // B·Σ_c·t ≲ 1 — a large factor on 8 mm Al saturates, and the neutrons
     // that cross it unabsorbed then carry survival weights ~e^(B Σ t).
     double      biasWallFactor     = 1.0;
+    // nCapture occurrence biasing in the n_TOF ³He capsule's Al vessel
+    // (He3Cap_Al only; not the CFRP, not the gas).  For Al-capture track
+    // libraries (nTof_x17 capsule_pose): ~0.3 % of beam neutrons capture in
+    // the capsule Al, so the analog run wastes almost every event.  Keep
+    // B·Σ_c·t ≲ 1 on the 5.5 mm nose (Σ_c ~0.03-0.07 /cm at 1-25 meV):
+    // B ~ 20.  Captures carry weight 1/B (EventTree.weight).
+    double      biasCapsuleFactor  = 1.0;
     double      biasThickFactor    = 1.0;
     double      biasAirFactor      = 1.0;
 
