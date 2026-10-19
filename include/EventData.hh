@@ -3,6 +3,8 @@
 
 #include "HitData.hh"
 #include "G4VUserEventInformation.hh"
+
+class G4LogicalVolume;
 #include <string>
 #include <vector>
 
@@ -14,6 +16,17 @@ struct EventTypeInfo : public G4VUserEventInformation {
     double neutron_E_eV  = 0.0;  // primary neutron energy (mode 2)
     long   n_thrown      = 1;    // generator attempts for this event (ILL beam:
                                  // rays thrown at the aperture per accepted ray)
+    // --force-beam / --roulette (SimConfig::nfsForce): per-event state shared
+    // by the generator, BeamForceOperator and StackingAction (MT-safe: each
+    // worker only touches its own current event).
+    double ev_weight     = 1.0;  // Σ P_i × 1/p_roulette; 0 if killed
+    const G4LogicalVolume* force_lv = nullptr;  // volume of the forced collision
+    bool   force_active  = false;   // primary not yet collided in force_lv
+    bool   force_done    = false;   // the forced collision happened
+    double force_tau     = 0.0;     // τ of force_lv along the line (generator)
+    double force_w       = 0.0;     // primary weight after it (= 1 − e^(−τ) if consistent)
+    int    n_arms_pred   = -1;      // roulette: arms predicted (−1: not run)
+    bool   killed        = false;   // roulette killed the history
     void Print() const override {}
 };
 
@@ -67,6 +80,11 @@ struct EventData {
     double      weight = 1.0;                       // track weight at terminal
                                                     // interaction (1/factor if
                                                     // biased; 1.0 analog)
+    // --force-beam / --roulette (see EventTypeInfo)
+    double      ev_weight = 1.0;
+    std::string force_vol;
+    double      force_tau = 0.0, force_w = 0.0;
+    int         force_done = 0, n_arms_pred = -1, killed = 0;
 
     void Reset() {
         eventID    = -1;
@@ -83,5 +101,9 @@ struct EventData {
         capture_proc.clear();
         cap_x = cap_y = cap_z = 0.0;
         weight = 1.0;
+        ev_weight = 1.0;
+        force_vol.clear();
+        force_tau = force_w = 0.0;
+        force_done = 0; n_arms_pred = -1; killed = 0;
     }
 };

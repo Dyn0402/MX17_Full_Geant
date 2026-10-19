@@ -53,6 +53,9 @@ struct RunAction::Impl {
     Char_t   e_capture_proc[32];            // "nCapture" | "neutronInelastic" | ...
     Double_t e_cap_x, e_cap_y, e_cap_z;     // interaction position [mm]
     Double_t e_weight;                       // track weight at interaction (bias)
+    Double_t e_ev_weight, e_force_tau, e_force_w;   // --force-beam / --roulette
+    Char_t   e_force_vol[32];
+    Int_t    e_force_done, e_n_arms_pred, e_killed;
     Long64_t e_n_thrown;                     // generator attempts (ILL beam acceptance)
     Char_t   e_first_vol[32];                // primary's first interaction: volume
     Char_t   e_first_proc[32];               // ... and process
@@ -155,6 +158,15 @@ void RunAction::BeginOfRunAction(const G4Run*) {
     fImpl->evtTree->Branch("cap_y",        &fImpl->e_cap_y);
     fImpl->evtTree->Branch("cap_z",        &fImpl->e_cap_z);
     fImpl->evtTree->Branch("weight",       &fImpl->e_weight);    // bias weight
+    if (fConfig.nfsForce || fConfig.rouletteP1 < 1.0 || fConfig.rouletteP0 < 1.0) {
+        fImpl->evtTree->Branch("ev_weight",   &fImpl->e_ev_weight);   // event weight
+        fImpl->evtTree->Branch("force_vol",   fImpl->e_force_vol, "force_vol[32]/C");
+        fImpl->evtTree->Branch("force_tau",   &fImpl->e_force_tau);
+        fImpl->evtTree->Branch("force_w",     &fImpl->e_force_w);
+        fImpl->evtTree->Branch("force_done",  &fImpl->e_force_done);
+        fImpl->evtTree->Branch("n_arms_pred", &fImpl->e_n_arms_pred);
+        fImpl->evtTree->Branch("killed",      &fImpl->e_killed);
+    }
     fImpl->evtTree->Branch("n_thrown",     &fImpl->e_n_thrown);  // ILL: rays thrown per event
     fImpl->evtTree->Branch("first_vol",    fImpl->e_first_vol,  "first_vol[32]/C");
     fImpl->evtTree->Branch("first_proc",   fImpl->e_first_proc, "first_proc[32]/C");
@@ -266,6 +278,14 @@ void RunAction::RecordEvent(const EventData& data) {
     fImpl->e_cap_y = data.cap_y;
     fImpl->e_cap_z = data.cap_z;
     fImpl->e_weight = data.weight;
+    fImpl->e_ev_weight = data.ev_weight;
+    std::strncpy(fImpl->e_force_vol, data.force_vol.c_str(), 31);
+    fImpl->e_force_vol[31] = '\0';
+    fImpl->e_force_tau = data.force_tau;
+    fImpl->e_force_w = data.force_w;
+    fImpl->e_force_done = data.force_done;
+    fImpl->e_n_arms_pred = data.n_arms_pred;
+    fImpl->e_killed = data.killed;
     fImpl->e_n_thrown = data.n_thrown;
     std::strncpy(fImpl->e_first_vol, data.first_vol.c_str(), 31);
     fImpl->e_first_vol[31] = '\0';

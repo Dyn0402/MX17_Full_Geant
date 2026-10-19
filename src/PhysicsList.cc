@@ -23,7 +23,7 @@
 #include "G4SystemOfUnits.hh"
 
 PhysicsList::PhysicsList(double biasNCaptureFactor, double gammaCut_um,
-                         bool thermalScattering)
+                         bool thermalScattering, bool biasAllNeutron)
     : G4VModularPhysicsList(), fGammaCut_um(gammaCut_um) {
     SetVerboseLevel(0);
 
@@ -64,6 +64,12 @@ PhysicsList::PhysicsList(double biasNCaptureFactor, double gammaCut_um,
     if (biasNCaptureFactor > 1.0) {
         auto* biasing = new G4GenericBiasingPhysics();
         biasing->PhysicsBias("neutron", {"nCapture"});
+        RegisterPhysics(biasing);
+    } else if (biasAllNeutron) {
+        // --force-beam: the forced first collision samples among all neutron
+        // processes (BeamForceOperator), so every one of them is wrapped.
+        auto* biasing = new G4GenericBiasingPhysics();
+        biasing->PhysicsBias("neutron");
         RegisterPhysics(biasing);
     }
 

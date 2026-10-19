@@ -5,6 +5,7 @@
 #include "EventData.hh"
 
 #include "G4Event.hh"
+#include "G4LogicalVolume.hh"
 #include "G4PrimaryVertex.hh"
 #include "G4PrimaryParticle.hh"
 #include "G4SystemOfUnits.hh"
@@ -31,6 +32,16 @@ void EventAction::EndOfEventAction(const G4Event* event) {
         fData.event_type   = info->event_type;
         fData.neutron_E_eV = info->neutron_E_eV;
         fData.n_thrown     = info->n_thrown;
+        fData.ev_weight    = info->ev_weight;
+        fData.force_vol    = info->force_lv ? info->force_lv->GetName() : "";
+        fData.force_tau    = info->force_tau;
+        fData.force_done   = info->force_done;
+        fData.n_arms_pred  = info->n_arms_pred;
+        fData.killed       = info->killed;
+        if (info->killed) {          // roulette: nothing of this history is kept
+            fData.hits.clear();
+            fData.convPairs.clear();
+        }
         // Gamma-source mode: record Eγ in inv_mass (no pair kinematics)
         if (info->event_type == 3)
             fData.kin.inv_mass_MeV = info->inv_mass_MeV;

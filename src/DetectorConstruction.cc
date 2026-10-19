@@ -23,6 +23,8 @@
 #include "DetectorConstruction.hh"
 #include "SensitiveDetector.hh"
 #include "NCaptureBiasingOperator.hh"
+#include "BeamForceOperator.hh"
+#include "G4LogicalVolumeStore.hh"
 #include "MX17ModuleGeometry.hh"
 
 #include "G4NistManager.hh"
@@ -815,6 +817,17 @@ void DetectorConstruction::ConstructSDandField() {
         for (auto* lv : fCellThickLVs) op->AttachTo(lv);
         G4cout << "DetectorConstruction: nCapture biased ×" << fConfig.biasThickFactor
                << " in " << fCellThickLVs.size() << " thick cell volumes" << G4endl;
+    }
+    // --force-beam: the operator acts only on the primary neutron, only in the
+    // volume the generator picked for the event, so it is attached everywhere
+    // but the World (air is never a forced-collision host).
+    if (fConfig.nfsForce) {
+        auto* op = new BeamForceOperator();
+        int n = 0;
+        for (auto* lv : *G4LogicalVolumeStore::GetInstance())
+            if (lv != fWorldLV) { op->AttachTo(lv); ++n; }
+        G4cout << "DetectorConstruction: forced first collision operator on " << n
+               << " volumes" << G4endl;
     }
     if (fConfig.biasAirFactor > 1.0 && fWorldLV) {
         auto* op = new NCaptureBiasingOperator(fConfig.biasAirFactor);

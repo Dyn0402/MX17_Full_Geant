@@ -21,6 +21,13 @@
 // where E_parent ≈ transition_energy (nuclear recoil is negligible for 4He).
 
 #include "X17PrimaryGenerator.hh"
+#include "G4AffineTransform.hh"
+#include "G4HadronicProcessStore.hh"
+#include "G4LogicalVolume.hh"
+#include "G4Material.hh"
+#include "G4Navigator.hh"
+#include "G4TransportationManager.hh"
+#include "G4VSolid.hh"
 #include "EventData.hh"
 
 #include "G4Event.hh"
@@ -64,11 +71,14 @@ X17PrimaryGenerator::X17PrimaryGenerator(const SimConfig& cfg)
     fMuMinus  = pt->FindParticle("mu-");
 }
 
+X17PrimaryGenerator::~X17PrimaryGenerator() = default;
+
 // ─────────────────────────────────────────────────────────────────────────────
 void X17PrimaryGenerator::GeneratePrimaries(G4Event* event) {
     // EventTypeInfo is carried on the G4Event so EndOfEventAction can read it
     // without depending on a cross-action pointer (fragile in Geant4 MT).
     auto* info = new EventTypeInfo();
+    fInfo = info;
 
     if (fConfig.cosmic) {
         info->event_type   = 4;
@@ -695,6 +705,71 @@ void LoadNfsSpectrum(const SimConfig& cfg) {
 }
 }   // namespace
 
+// --force-beam.  Walk the straight line from the gun through the geometry
+// with a private navigator; per leaf segment the optical depth
+// τ = Σ_tot(E, material)·length from the same hadronic cross sections the
+// tracking uses.  A segment can host the forced collision when the truncated
+// law's range (the solid's DistanceToOut, daughters ignored) equals the
+// segment, i.e. no daughter is in the way; World (air) segments only
+// attenuate.  P_i = e^(−Σ_{j<i} τ_j)(1 − e^(−τ_i)); i is drawn ∝ P_i and the
+// event weight is Σ P_i over the hosts.  The neutron starts 0.1 µm inside.
+void X17PrimaryGenerator::ForceFirstCollision(G4ThreeVector& pos, const G4ThreeVector& dir,
+                                              double E) {
+    auto* tm = G4TransportationManager::GetTransportationManager();
+    G4VPhysicalVolume* world = tm->GetNavigatorForTracking()->GetWorldVolume();
+    if (!fNav) {
+        fNav = std::make_unique<G4Navigator>();
+        fNav->SetWorldVolume(world);
+    }
+    auto* store = G4HadronicProcessStore::Instance();
+    struct Seg { const G4LogicalVolume* lv; G4ThreeVector start; double tau; bool host; };
+    std::vector<Seg> segs;
+    G4ThreeVector p = pos;
+    G4VPhysicalVolume* pv = fNav->LocateGlobalPointAndSetup(p, &dir, false, false);
+    for (int it = 0; pv && it < 10000; ++it) {
+        G4double safety = 0.0;
+        const G4double step = fNav->ComputeStep(p, dir, kInfinity, safety);
+        if (step >= kInfinity) break;
+        const G4LogicalVolume* lv = pv->GetLogicalVolume();
+        const G4Material* mat = lv->GetMaterial();
+        const double sig = store->GetElasticCrossSectionPerVolume(fNeutron, E, mat) +
+                           store->GetInelasticCrossSectionPerVolume(fNeutron, E, mat) +
+                           store->GetCaptureCrossSectionPerVolume(fNeutron, E, mat) +
+                           store->GetFissionCrossSectionPerVolume(fNeutron, E, mat);
+        bool host = false;
+        if (pv != world && step > 0 && sig > 0) {
+            const G4AffineTransform g2l = fNav->GetGlobalToLocalTransform();
+            const double dOut = lv->GetSolid()->DistanceToOut(g2l.TransformPoint(p),
+                                                              g2l.TransformAxis(dir));
+            host = std::abs(dOut - step) < 1e-6 * mm + 1e-9 * step;
+        }
+        segs.push_back({lv, p, sig * step, host});
+        p += step * dir;
+        fNav->SetGeometricallyLimitedStep();
+        pv = fNav->LocateGlobalPointAndSetup(p, &dir, true);
+    }
+    std::vector<double> P(segs.size(), 0.0);
+    double att = 0.0, W = 0.0;
+    for (size_t i = 0; i < segs.size(); ++i) {
+        if (segs[i].host) P[i] = std::exp(-att) * -std::expm1(-segs[i].tau);
+        W += P[i];
+        att += segs[i].tau;
+    }
+    fInfo->ev_weight = W;
+    if (W <= 0) return;             // nothing to collide in: analog start, weight 0
+    double u = G4UniformRand() * W;
+    size_t k = 0;
+    for (; k + 1 < segs.size(); ++k) {
+        if (P[k] > 0 && u < P[k]) break;
+        u -= P[k];
+    }
+    while (P[k] <= 0 && k > 0) --k;   // rounding at the top end
+    fInfo->force_lv     = segs[k].lv;
+    fInfo->force_tau    = segs[k].tau;
+    fInfo->force_active = true;
+    pos = segs[k].start + 1e-4 * mm * dir;
+}
+
 G4double X17PrimaryGenerator::GenerateIllNeutron(G4Event* event, long& nThrown) {
     if (fConfig.nfsBeam) {
         std::call_once(gNfsOnce, LoadNfsSpectrum, std::cref(fConfig));
@@ -710,10 +785,20 @@ G4double X17PrimaryGenerator::GenerateIllNeutron(G4Event* event, long& nThrown) 
         const double x = r * std::cos(phi) + c.nfsEdgeSigma_mm * G4RandGauss::shoot();
         const double z = r * std::sin(phi) + c.nfsEdgeSigma_mm * G4RandGauss::shoot();
         nThrown = 1;
+        G4ThreeVector pos(x * mm, yGun * mm, z * mm);
+        const G4ThreeVector dir(0, 1, 0);
+        double t0 = 0.0;
+        if (c.nfsForce) {
+            const G4ThreeVector gun = pos;
+            ForceFirstCollision(pos, dir, E_MeV * MeV);
+            const double g = 1.0 + E_MeV * MeV / fNeutron->GetPDGMass();
+            t0 = (pos - gun).mag() / (CLHEP::c_light * std::sqrt(1.0 - 1.0 / (g * g)));
+        }
         fGun->SetParticleDefinition(fNeutron);
-        fGun->SetParticlePosition(G4ThreeVector(x * mm, yGun * mm, z * mm));
-        fGun->SetParticleMomentumDirection(G4ThreeVector(0, 1, 0));
+        fGun->SetParticlePosition(pos);
+        fGun->SetParticleMomentumDirection(dir);
         fGun->SetParticleEnergy(E_MeV * MeV);
+        fGun->SetParticleTime(t0);
         fGun->GeneratePrimaryVertex(event);
         return E_MeV * 1e6;
     }

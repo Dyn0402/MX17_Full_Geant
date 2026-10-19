@@ -16,6 +16,8 @@
 #include "G4ParticleDefinition.hh"
 #include "G4VProcess.hh"
 #include "G4Threading.hh"
+#include "G4Event.hh"
+#include "G4EventManager.hh"
 
 #include <cstring>
 #include <sstream>
@@ -73,6 +75,13 @@ void SteppingAction::UserSteppingAction(const G4Step* step) {
         // first scatters in a target.
         if (trk->GetTrackID() == 1) {
             EventData& ed = fEventAction->GetEventData();
+            // --force-beam: the primary's weight just after the forced
+            // collision, 1 − e^(−τ) if the generator's τ matches the tracking
+            if (fConfig.nfsForce && ed.force_w == 0.0) {
+                const G4Event* ev = G4EventManager::GetEventManager()->GetConstCurrentEvent();
+                const auto* info = ev ? static_cast<const EventTypeInfo*>(ev->GetUserInformation()) : nullptr;
+                if (info && info->force_done) ed.force_w = trk->GetWeight();
+            }
             const G4VProcess* p = step->GetPostStepPoint()->GetProcessDefinedStep();
             if (ed.first_proc.empty() && p &&
                 p->GetProcessName().find("Transportation") == std::string::npos &&

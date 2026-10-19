@@ -78,6 +78,10 @@ static void PrintUsage() {
               << "  --beam nfs <spectrum.csv>\n"
               << "                   GANIL/NFS fast neutrons: E from the CSV (E_MeV,dN/dE), flat disc of\n"
               << "                   radius --beam-radius with a Gaussian edge, along +Y (ILL plumbing)\n"
+              << "  --force-beam     NFS: force each neutron's first collision in a leaf volume on\n"
+              << "                   its straight line (weight = total interaction probability)\n"
+              << "  --roulette <p1> <p0>  NFS: keep histories predicted to reach 1 / 0 arms with\n"
+              << "                   probability p1 / p0 (weight 1/p); >= 2 arms always kept\n"
               << "  --nfs-edge <mm>      Gaussian edge sigma of the NFS disc (default 2)\n"
               << "  --nfs-erange <lo> <hi>  NFS sampling window, MeV\n"
               << "  --cm-beta <beta>     boost X17/IPC pairs along +Y (4He* motion after fast capture)\n"
@@ -187,6 +191,11 @@ int main(int argc, char** argv) {
             config.illBeam         = true;
             config.nfsBeam         = (kind == "nfs");
             config.illSpectrumFile = argv[++i];
+        }
+        else if (a == "--force-beam") config.nfsForce = true;
+        else if (a == "--roulette" && i+2<argc) {
+            config.rouletteP1 = std::stod(argv[++i]);
+            config.rouletteP0 = std::stod(argv[++i]);
         }
         else if (a == "--nfs-edge" && i+1<argc) config.nfsEdgeSigma_mm = std::stod(argv[++i]);
         else if (a == "--nfs-erange" && i+2<argc) {
@@ -370,11 +379,23 @@ int main(int argc, char** argv) {
 
     auto* detCon = new DetectorConstruction(config);
     runManager->SetUserInitialization(detCon);
+    if (config.nfsForce && (!config.nfsBeam ||
+            std::max({config.biasNCaptureFactor, config.biasWallFactor, config.biasAirFactor,
+                      config.biasThickFactor}) > 1.0)) {
+        std::cerr << "--force-beam needs --beam nfs and no --bias-* option\n";
+        return 1;
+    }
+    if ((config.rouletteP1 < 1.0 || config.rouletteP0 < 1.0) &&
+        (!config.nfsBeam || config.rouletteP1 <= 0 || config.rouletteP0 <= 0)) {
+        std::cerr << "--roulette needs --beam nfs and 0 < p <= 1\n";
+        return 1;
+    }
     runManager->SetUserInitialization(new PhysicsList(
         std::max({config.biasNCaptureFactor, config.biasWallFactor, config.biasAirFactor,
                   config.biasThickFactor}),
         config.gammaCut_um,
-                                                      config.thermalScattering == 1));
+                                                      config.thermalScattering == 1,
+                                                      config.nfsForce));
     runManager->SetUserInitialization(new ActionInitialization(config, detCon));
     runManager->Initialize();
 

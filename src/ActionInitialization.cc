@@ -6,6 +6,7 @@
 #include "RunAction.hh"
 #include "EventAction.hh"
 #include "SteppingAction.hh"
+#include "StackingAction.hh"
 
 ActionInitialization::ActionInitialization(const SimConfig& cfg,
                                             const DetectorConstruction* detCon)
@@ -24,4 +25,6 @@ void ActionInitialization::Build() const {
     SetUserAction(eventAction);
     SetUserAction(new SteppingAction(fConfig, eventAction,
                                      fDetCon->GetArmAxes()));
+    if (fConfig.rouletteP1 < 1.0 || fConfig.rouletteP0 < 1.0)
+        SetUserAction(new StackingAction(fConfig, fDetCon->GetArmAxes()));
 }

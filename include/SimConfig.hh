@@ -100,6 +100,22 @@ struct SimConfig {
     double      nfsEdgeSigma_mm    = 2.0;
     double      nfsEminMeV         = 0.0;   // sampling window on the CSV (0 = all)
     double      nfsEmaxMeV         = 1e9;
+    // Beam-background variance reduction (--force-beam, --roulette; NFS only).
+    // --force-beam: the generator traces the neutron's straight line, computes
+    // each leaf volume's optical depth τ_i from Geant4's own cross sections,
+    // picks volume i with probability ∝ P_i = e^(−Σ_{j<i} τ_j)(1 − e^(−τ_i)),
+    // starts the neutron inside it and BeamForceOperator forces its first
+    // collision there (truncated exponential).  One history per event (no
+    // clones), so coincidences stay physical; event weight = Σ_i P_i.  First
+    // interactions in the World (air) and in vacuum are not sampled.
+    // --roulette p1 p0: once the primary neutron is finished (StackingAction
+    // stage 0 → 1), predict the arms its secondaries can reach (straight
+    // lines into a generous box per arm); keep ≥ 2-arm histories, keep 1-arm
+    // ones with probability p1 and 0-arm ones with p0 (weight × 1/p).
+    // Killed histories are written with ev_weight 0 and no hits.
+    bool        nfsForce           = false;
+    double      rouletteP1         = 1.0;
+    double      rouletteP0         = 1.0;
 
     // ── Compound-nucleus motion (--cm-beta; fast-neutron capture) ────────────
     // n + ³He at E_n moves the ⁴He* along the beam (+Y) with β = p_n/(E_n+m_n+m_3He).

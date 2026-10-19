@@ -14,8 +14,9 @@ public:
     // DetectorConstruction::ConstructSDandField).
     // gammaCut_um overrides the gamma production-cut set in SetCuts (default 100 um).
     // thermalScattering registers G4ThermalNeutrons (S(α,β) for solids).
+    // biasAllNeutron wraps every neutron physics process (--force-beam).
     explicit PhysicsList(double biasNCaptureFactor = 1.0, double gammaCut_um = 100.0,
-                         bool thermalScattering = false);
+                         bool thermalScattering = false, bool biasAllNeutron = false);
     ~PhysicsList() override = default;
     void SetCuts() override;
 

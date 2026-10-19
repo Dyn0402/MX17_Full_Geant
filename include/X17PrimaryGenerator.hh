@@ -9,17 +9,19 @@
 
 #include "G4VUserPrimaryGeneratorAction.hh"
 #include "G4ParticleGun.hh"
+#include "G4ThreeVector.hh"
 #include "SimConfig.hh"
 #include "EventData.hh"
 #include <memory>
 
 class G4Event;
+class G4Navigator;
 class G4ParticleDefinition;
 
 class X17PrimaryGenerator : public G4VUserPrimaryGeneratorAction {
 public:
     explicit X17PrimaryGenerator(const SimConfig& cfg);
-    ~X17PrimaryGenerator() override = default;
+    ~X17PrimaryGenerator() override;   // out of line: fNav's type is incomplete here
 
     void GeneratePrimaries(G4Event* event) override;
 
@@ -32,6 +34,9 @@ private:
     G4double GenerateGammaSource(G4Event* event); // capture γ, returns Eγ [MeV]
     G4double GenerateCosmic(G4Event* event);      // cosmic μ±, returns p [GeV/c]
     G4double GenerateGammaLines(G4Event* event);  // --gamma-lines γ, returns Eγ [MeV]
+    // --force-beam: pick the volume of the first collision on the neutron's
+    // straight line, move the gun inside it; sets fInfo's weight and target.
+    void     ForceFirstCollision(G4ThreeVector& pos, const G4ThreeVector& dir, double E);
 
     const SimConfig&          fConfig;
     std::unique_ptr<G4ParticleGun> fGun;
@@ -42,4 +47,7 @@ private:
     G4ParticleDefinition* fGamma    = nullptr;
     G4ParticleDefinition* fMuPlus   = nullptr;
     G4ParticleDefinition* fMuMinus  = nullptr;
+
+    EventTypeInfo*               fInfo = nullptr;   // the event being generated
+    std::unique_ptr<G4Navigator> fNav;              // --force-beam line tracing
 };
