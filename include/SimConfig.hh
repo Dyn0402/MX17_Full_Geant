@@ -148,6 +148,8 @@ struct SimConfig {
     // proton beam itself is not tracked: pairs (--energy/--mass/--ipc) and
     // --gamma-lines start in the film from a Gaussian beam spot.
     //   film     Mat:ug_cm2   Mat ∈ {Li2O, LiF, Li}  (natural Li, Li₂O 2.01, LiF 2.635, Li 0.534 g/cm³)
+    //            or TiT (Ti tritide TiT₁.₅, 4.0 g/cm³; the Demokritos ³H(p,e⁺e⁻)⁴He target,
+    //            x17_facility_search/demokritos/GEANT_PREP.md)
     //   backing  Mat:um       (Al, C, Cu, ...; "none" = self-supporting film)
     //   holder   Mat:mm       annulus [liHolderRin_mm, liHolderRout_mm] ("none" = no frame)
     //   chamber  Mat:t_mm:r_mm  tube wall around a vacuum bore of radius r, |y| ≤ liChamberHalfLen_mm,
@@ -168,6 +170,10 @@ struct SimConfig {
     std::string liDump             = "Ta:2";
     double      liDumpDist_mm      = 250.0;
     double      liSpotSigma_mm     = 2.0;    // Gaussian beam spot (x, z), as MEG II
+    // the whole target stack (film, backing, holder) moved along the beam by this
+    // much (--target-y; Demokritos: a thick backing blocks the downstream half, so
+    // the target sits downstream of the arm centre).  Vertices move with it.
+    double      liTargetY_mm       = 0.0;
 
     // ── γ-line source (--gamma-lines E:w,E:w,...; event_type 3) ─────────────
     // One isotropic mono-energetic γ per event from the pair-vertex

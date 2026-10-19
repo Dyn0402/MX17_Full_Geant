@@ -98,6 +98,7 @@ static void PrintUsage() {
               << "  --chamber <Mat:t_mm:r_mm> (CFRP:0.4:25)  --chamber-len <half_mm> (300)\n"
               << "  --flange <Mat:mm> (Al:5)  --dump <Mat:mm|none> (Ta:2)  --dump-dist <mm> (250)\n"
               << "  --spot-sigma <mm>    Gaussian beam spot for pair / gamma vertices (default 2)\n"
+              << "  --target-y <mm>      move film + backing + holder (and the vertices) along the beam (0)\n"
               << "  --gamma-lines <E:w,E:w,...>\n"
               << "                   one isotropic γ per event from the pair vertices, line ∝ w\n"
               << "                   (event_type 3, inv_mass = Eγ)\n"
@@ -262,6 +263,7 @@ int main(int argc, char** argv) {
         else if (a == "--dump"        && i+1<argc) config.liDump    = argv[++i];
         else if (a == "--dump-dist"   && i+1<argc) config.liDumpDist_mm  = std::stod(argv[++i]);
         else if (a == "--spot-sigma"  && i+1<argc) config.liSpotSigma_mm = std::stod(argv[++i]);
+        else if (a == "--target-y"    && i+1<argc) config.liTargetY_mm   = std::stod(argv[++i]);
         else if (a == "--gamma-lines" && i+1<argc) config.gammaLines = argv[++i];
         else if (a[0] != '-') macroFile = a;
         else { std::cerr << "Unknown option: " << a << "\n"; PrintUsage(); return 1; }
@@ -298,7 +300,9 @@ int main(int argc, char** argv) {
         std::cout << "  Target   : LNL Li film " << config.liFilm << " ug/cm2 on " << config.liBacking
                   << ", holder " << config.liHolder << ", chamber " << config.liChamber
                   << " |y|<=" << config.liChamberHalfLen_mm << " mm, dump " << config.liDump
-                  << ", spot sigma " << config.liSpotSigma_mm << " mm\n";
+                  << ", spot sigma " << config.liSpotSigma_mm << " mm"
+                  << (config.liTargetY_mm != 0 ? ", target at y=" + std::to_string(config.liTargetY_mm) + " mm" : "")
+                  << "\n";
     if (config.liTarget && (config.cellTarget || config.neutronMode)) {
         std::cerr << "--target li is for pairs, --gamma-lines, --single or --cosmic, not neutron beams\n";
         return 1;

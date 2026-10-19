@@ -876,6 +876,21 @@ G4Material* DetectorConstruction::CellMat(const std::string& name) {
     if (name == "Cu")     return nist->FindOrBuildMaterial("G4_Cu");
     if (name == "Ta")     return nist->FindOrBuildMaterial("G4_Ta");
     if (name == "Ti")     return nist->FindOrBuildMaterial("G4_Ti");
+    if (name == "Mo")     return nist->FindOrBuildMaterial("G4_Mo");
+    if (name == "TiT") {
+        // Demokritos ³H(p,e⁺e⁻)⁴He: titanium tritide TiT₁.₅.  Built by atom count with a
+        // ³H isotope so the electron density is right; 4.0 g/cm³ = TiH₁.₅ (~3.8) scaled
+        // by the molar mass.  The material name is what X17PrimaryGenerator looks up.
+        if (auto it = fMats.find("TiT"); it != fMats.end()) return it->second;
+        auto* h3 = new G4Isotope("H3_iso", 1, 3, 3.01604928*g/mole);
+        auto* elT = new G4Element("Tritium", "T", 1);
+        elT->AddIsotope(h3, 1.0);
+        auto* m = new G4Material("TiT", 4.0*g/cm3, 2);
+        m->AddElement(nist->FindOrBuildElement("Ti"), 2);
+        m->AddElement(elT, 3);
+        fMats["TiT"] = m;
+        return m;
+    }
     if (name == "Vac")    return nist->FindOrBuildMaterial("G4_Galactic");
     if (name == "Kapton") return nist->FindOrBuildMaterial("G4_KAPTON");
     if (name == "B4C")    return nist->FindOrBuildMaterial("G4_BORON_CARBIDE");
@@ -1173,11 +1188,14 @@ void DetectorConstruction::BuildLiTarget(G4LogicalVolume* worldLV) {
     const G4double rDisk = c.liHolderRout_mm * mm;
     if (rDisk > rB - 0.1*mm || c.liHolderRin_mm >= c.liHolderRout_mm)
         throw std::runtime_error("li: need holder rin < rout <= chamber bore - 0.1 mm");
+    if (std::abs(c.liTargetY_mm) + 20.0 > c.liChamberHalfLen_mm)
+        throw std::runtime_error("li: --target-y puts the target outside the chamber (use --chamber-len)");
     auto* filmLV = new G4LogicalVolume(new G4Tubs("LiTarget_Film", 0, rDisk, tFilm/2, 0, twopi),
                                        filmMat, "LiTarget_Film");
     vis(filmLV, 0.9, 0.2, 0.2, 0.9);
-    new G4PVPlacement(nullptr, atZ(-tFilm/2), filmLV, "LiTarget_Film", vacLV, false, 0, true);
-    G4double z = 0;
+    const G4double yT = c.liTargetY_mm * mm;     // --target-y: the stack moves, the chamber does not
+    new G4PVPlacement(nullptr, atZ(yT - tFilm/2), filmLV, "LiTarget_Film", vacLV, false, 0, true);
+    G4double z = yT;
     std::string backDesc = "none", holdDesc = "none", dumpDesc = "none";
     if (c.liBacking != "none") {
         const auto bk = ParseLayers(c.liBacking).at(0);
@@ -1217,7 +1235,7 @@ void DetectorConstruction::BuildLiTarget(G4LogicalVolume* worldLV) {
     G4cout << "  Beam axis    : +Y (protons, not tracked)" << G4endl;
     G4cout << "  Li target    : " << film.first << " " << film.second << " ug/cm2 = "
            << tFilm/um << " um (" << filmMat->GetName() << "), r=" << rDisk/mm
-           << " mm, downstream face at y=0" << G4endl;
+           << " mm, downstream face at y=" << yT/mm << " mm" << G4endl;
     G4cout << "  Backing      : " << backDesc << G4endl;
     G4cout << "  Holder       : " << holdDesc << G4endl;
     G4cout << "  Chamber      : " << wallMat << " " << tW/mm << " mm, bore r=" << rB/mm

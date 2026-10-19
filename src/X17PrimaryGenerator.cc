@@ -152,7 +152,7 @@ static G4ThreeVector SampleHe3Vertex(const SimConfig& cfg) {
             const auto c = cfg.liFilm.find(':');
             const std::string m = cfg.liFilm.substr(0, c);
             const std::string nist = m == "Li2O" ? "G4_LITHIUM_OXIDE" : m == "LiF" ? "G4_LITHIUM_FLUORIDE"
-                                   : m == "Li" ? "G4_Li" : "";
+                                   : m == "Li" ? "G4_Li" : m == "TiT" ? "TiT" : "";
             const G4Material* mat = nist.empty() ? nullptr : G4Material::GetMaterial(nist, false);
             if (!mat)
                 G4Exception("X17PrimaryGenerator", "LiFilm", FatalException,
@@ -165,7 +165,7 @@ static G4ThreeVector SampleHe3Vertex(const SimConfig& cfg) {
             x = G4RandGauss::shoot(0.0, cfg.liSpotSigma_mm);
             z = G4RandGauss::shoot(0.0, cfg.liSpotSigma_mm);
         } while (x * x + z * z > rMax * rMax);
-        return G4ThreeVector(x * mm, -tFilm_mm * G4UniformRand() * mm, z * mm);
+        return G4ThreeVector(x * mm, (cfg.liTargetY_mm - tFilm_mm * G4UniformRand()) * mm, z * mm);
     }
     if (cfg.cellTarget) {   // uniform in the cell's gas column
         G4double r   = cfg.cellRadius_mm * mm * std::sqrt(G4UniformRand());
