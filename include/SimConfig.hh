@@ -89,6 +89,25 @@ struct SimConfig {
     char        illVerticalAxis    = 'z';
     double      illLambdaFixed_A   = 0.0;   // >0: mono-λ instead of the spectrum (V1 slabs)
 
+    // ── GANIL/NFS fast-neutron beam (--beam nfs; x17_facility_search/ganil_nfs) ──
+    // Rides on the ILL beam plumbing (illBeam = true: gun plane illGunDist_mm
+    // upstream of the cell window, world sizing, flight tube).  E_n from a CSV
+    // (E_MeV,dN/dE; trapezoid bins, uniform inside); position a flat disc of
+    // radius illBeamRadius_mm blurred by a Gaussian nfsEdgeSigma_mm (the
+    // measured flat top with a 4.9 mm 10–90 % edge); direction +Y (the 3 mrad
+    // divergence is ignored).  The collimator itself is not modelled.
+    bool        nfsBeam            = false;
+    double      nfsEdgeSigma_mm    = 2.0;
+    double      nfsEminMeV         = 0.0;   // sampling window on the CSV (0 = all)
+    double      nfsEmaxMeV         = 1e9;
+
+    // ── Compound-nucleus motion (--cm-beta; fast-neutron capture) ────────────
+    // n + ³He at E_n moves the ⁴He* along the beam (+Y) with β = p_n/(E_n+m_n+m_3He).
+    // Every X17 / IPC lepton pair is boosted by it after generation (0 = at rest).
+    double      cmBeta             = 0.0;
+    // Pair vertices in a cell: uniform out to this radius (the beam spot; 0 = the cell radius)
+    double      pairVertexR_mm     = 0.0;
+
     // ── Cosmic muons (--cosmic; event_type = 4; HANDOFF_SIM.md §5e) ──────────
     // μ± (charge ratio 1.27) from a cosmicPlane_mm square plane cosmicHeight_mm
     // above the target, perpendicular to the vertical axis (illVerticalAxis —

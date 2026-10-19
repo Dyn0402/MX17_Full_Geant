@@ -168,7 +168,9 @@ static G4ThreeVector SampleHe3Vertex(const SimConfig& cfg) {
         return G4ThreeVector(x * mm, -tFilm_mm * G4UniformRand() * mm, z * mm);
     }
     if (cfg.cellTarget) {   // uniform in the cell's gas column
-        G4double r   = cfg.cellRadius_mm * mm * std::sqrt(G4UniformRand());
+        const G4double rMax = (cfg.pairVertexR_mm > 0 ? std::min(cfg.pairVertexR_mm, cfg.cellRadius_mm)
+                                                      : cfg.cellRadius_mm) * mm;   // --pair-r: beam spot
+        G4double r   = rMax * std::sqrt(G4UniformRand());
         G4double phi = CLHEP::twopi * G4UniformRand();
         G4double y   = (cfg.cellYw_mm + cfg.cellLength_mm * G4UniformRand()) * mm;
         return G4ThreeVector(r * std::cos(phi), y, r * std::sin(phi));
@@ -205,7 +207,8 @@ static void GeneratePairFromParent(G4double m_parent, G4double E_parent,
                                    G4ParticleDefinition* electron,
                                    G4ParticleDefinition* positron,
                                    G4ParticleGun* gun,
-                                   G4Event* event)
+                                   G4Event* event,
+                                   G4double cmBeta = 0.0)
 {
     const G4double me = electron->GetPDGMass();
 
@@ -224,6 +227,10 @@ static void GeneratePairFromParent(G4double m_parent, G4double E_parent,
     // ── Boost to lab ──────────────────────────────────────────────────────
     p4em.boost(boostVec);
     p4ep.boost(boostVec);
+    if (cmBeta != 0.0) {            // ⁴He* moving along the beam (--cm-beta)
+        p4em.boost(0, cmBeta, 0);
+        p4ep.boost(0, cmBeta, 0);
+    }
 
     G4ThreeVector momDir_em = p4em.vect().unit();
     G4ThreeVector momDir_ep = p4ep.vect().unit();
@@ -250,7 +257,7 @@ void X17PrimaryGenerator::GeneratePair(G4Event* event) {
     G4double E_parent = fConfig.transition_energy_MeV * MeV;
     G4ThreeVector vertex = SampleHe3Vertex(fConfig);
     GeneratePairFromParent(m_x17, E_parent, vertex,
-                           fElectron, fPositron, fGun.get(), event);
+                           fElectron, fPositron, fGun.get(), event, fConfig.cmBeta);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -351,6 +358,10 @@ G4double X17PrimaryGenerator::GenerateIPC(G4Event* event) {
         const G4ThreeVector beta = (k / W) * kdir;
         p4em.boost(beta);
         p4ep.boost(beta);
+        if (fConfig.cmBeta != 0.0) {     // ⁴He* moving along the beam (--cm-beta)
+            p4em.boost(0, fConfig.cmBeta, 0);
+            p4ep.boost(0, fConfig.cmBeta, 0);
+        }
         if (fConfig.ipcMinOpenDeg <= 0 ||
             p4em.vect().unit().dot(p4ep.vect().unit()) <= cosMax) break;
         }
@@ -373,7 +384,7 @@ G4double X17PrimaryGenerator::GenerateIPC(G4Event* event) {
 
     G4ThreeVector vertex = SampleHe3Vertex(fConfig);
     GeneratePairFromParent(Mee, E_transition, vertex,
-                           fElectron, fPositron, fGun.get(), event);
+                           fElectron, fPositron, fGun.get(), event, fConfig.cmBeta);
     return Mee / MeV;
 }
 
@@ -641,7 +652,71 @@ void LoadIllSpectrum(const SimConfig& cfg) {
 }
 }   // namespace
 
+// --beam nfs: E_MeV,dN/dE CSV, trapezoid bins restricted to [nfsEminMeV, nfsEmaxMeV]
+namespace {
+IllSpectrum    gNfs;            // same container: lo/hi are E_n [MeV]
+std::once_flag gNfsOnce;
+
+void LoadNfsSpectrum(const SimConfig& cfg) {
+    std::ifstream in(cfg.illSpectrumFile);
+    if (!in) {
+        G4Exception("X17PrimaryGenerator", "NfsBeam", FatalException,
+                    ("Cannot open NFS spectrum: " + cfg.illSpectrumFile).c_str());
+        return;
+    }
+    std::vector<double> e, f;
+    std::string line;
+    while (std::getline(in, line)) {
+        if (line.empty() || line[0] == '#' || !std::isdigit(static_cast<unsigned char>(line[0])))
+            continue;
+        std::istringstream ss(line);
+        std::string a, b;
+        if (!std::getline(ss, a, ',') || !std::getline(ss, b, ',')) continue;
+        e.push_back(std::stod(a));
+        f.push_back(std::stod(b));
+    }
+    double cum = 0.0;
+    for (size_t i = 0; i + 1 < e.size(); ++i) {
+        const double lo = std::max(e[i], cfg.nfsEminMeV), hi = std::min(e[i + 1], cfg.nfsEmaxMeV);
+        if (hi <= lo) continue;
+        const double w = 0.5 * (f[i] + f[i + 1]) * (hi - lo);
+        if (w <= 0) continue;
+        cum += w;
+        gNfs.lo.push_back(lo);
+        gNfs.hi.push_back(hi);
+        gNfs.cdf.push_back(cum);
+    }
+    if (gNfs.cdf.empty())
+        G4Exception("X17PrimaryGenerator", "NfsBeam", FatalException,
+                    "NFS spectrum has no positive bins in the window");
+    for (auto& v : gNfs.cdf) v /= cum;
+    G4cout << "X17PrimaryGenerator: NFS spectrum — " << gNfs.cdf.size()
+           << " bins, " << gNfs.lo.front() << "–" << gNfs.hi.back() << " MeV" << G4endl;
+}
+}   // namespace
+
 G4double X17PrimaryGenerator::GenerateIllNeutron(G4Event* event, long& nThrown) {
+    if (fConfig.nfsBeam) {
+        std::call_once(gNfsOnce, LoadNfsSpectrum, std::cref(fConfig));
+        const auto& c = fConfig;
+        const double yRef = c.cellTarget ? c.cellYw_mm : -35.0;
+        const double yGun = yRef - c.illGunDist_mm;
+        const double u = G4UniformRand();
+        auto it = std::lower_bound(gNfs.cdf.begin(), gNfs.cdf.end(), u);
+        size_t i = std::min(static_cast<size_t>(it - gNfs.cdf.begin()), gNfs.cdf.size() - 1);
+        const double E_MeV = gNfs.lo[i] + G4UniformRand() * (gNfs.hi[i] - gNfs.lo[i]);
+        const double r = c.illBeamRadius_mm * std::sqrt(G4UniformRand());
+        const double phi = CLHEP::twopi * G4UniformRand();
+        const double x = r * std::cos(phi) + c.nfsEdgeSigma_mm * G4RandGauss::shoot();
+        const double z = r * std::sin(phi) + c.nfsEdgeSigma_mm * G4RandGauss::shoot();
+        nThrown = 1;
+        fGun->SetParticleDefinition(fNeutron);
+        fGun->SetParticlePosition(G4ThreeVector(x * mm, yGun * mm, z * mm));
+        fGun->SetParticleMomentumDirection(G4ThreeVector(0, 1, 0));
+        fGun->SetParticleEnergy(E_MeV * MeV);
+        fGun->GeneratePrimaryVertex(event);
+        return E_MeV * 1e6;
+    }
     std::call_once(gIllOnce, LoadIllSpectrum, std::cref(fConfig));
     const auto& c = fConfig;
     const double a     = c.illBeamRadius_mm;

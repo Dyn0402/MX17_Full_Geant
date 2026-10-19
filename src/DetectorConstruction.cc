@@ -922,9 +922,10 @@ void DetectorConstruction::BuildCell(G4LogicalVolume* worldLV) {
     const G4double yw    = c.cellYw_mm * mm;
     const G4double rAp   = c.cellApertureR_mm * mm;
     const G4double tRing = c.cellRingThick_mm * mm;
-    const auto skin = ParseLayers(c.cellSkin).at(0);
+    const auto skins = ParseLayers(c.cellSkin);   // inner → outer ("Be:0.1+CFRP:0.3")
     const auto win  = ParseLayers(c.cellWindow).at(0);
-    const G4double tSkin = skin.second * mm;
+    G4double tSkin = 0;
+    for (const auto& l : skins) tSkin += l.second * mm;
     const G4double tWin  = win.second * mm;
     const G4double rOut  = R + tSkin + c.cellRingLand_mm * mm;
     if (rAp >= R) throw std::runtime_error("cell: aperture radius must be < cell radius");
@@ -954,12 +955,17 @@ void DetectorConstruction::BuildCell(G4LogicalVolume* worldLV) {
     fHe3GasLV = gasLV;
     new G4PVPlacement(rot, atY(yw + L/2), gasLV, "He3Gas", worldLV, false, 0, true);
 
-    // skin
-    auto* skinLV = new G4LogicalVolume(new G4Tubs("He3Cell_Skin", R, R + tSkin, L/2, 0, twopi),
-                                       CellMat(skin.first), "He3Cell_Skin");
-    vis(skinLV, 0.9, 0.7, 0.2, 0.5);
-    fCellWallLVs.push_back(skinLV);
-    new G4PVPlacement(rot, atY(yw + L/2), skinLV, "He3Cell_Skin", worldLV, false, 0, true);
+    // skin, one tube per layer (all named He3Cell_Skin)
+    G4double rS = R;
+    for (size_t k = 0; k < skins.size(); ++k) {
+        const G4double t = skins[k].second * mm;
+        auto* skinLV = new G4LogicalVolume(new G4Tubs("He3Cell_Skin", rS, rS + t, L/2, 0, twopi),
+                                           CellMat(skins[k].first), "He3Cell_Skin");
+        vis(skinLV, 0.9, 0.7, 0.2, 0.5);
+        fCellWallLVs.push_back(skinLV);
+        new G4PVPlacement(rot, atY(yw + L/2), skinLV, "He3Cell_Skin", worldLV, false, (G4int)k, true);
+        rS += t;
+    }
 
     // rods: daughters of the gas, in the tube frame.  World "up" (the
     // vertical axis) in tube-local (x, y): world +x → (1, 0); world +z → (0, −1).
@@ -1087,7 +1093,7 @@ void DetectorConstruction::BuildCell(G4LogicalVolume* worldLV) {
     G4cout << "  He-3 target  : CELL " << c.cellPressure_bar << " bar (rho="
            << rho/(mg/cm3) << " mg/cm3), R=" << R/mm << " mm, gas y=[" << yw/mm << ", "
            << (yw + L)/mm << "] mm" << G4endl;
-    G4cout << "  Skin         : " << skin.first << " " << tSkin/mm << " mm; rods "
+    G4cout << "  Skin         : " << c.cellSkin << " (" << tSkin/mm << " mm); rods "
            << c.cellRods << " (flat at +" << c.illVerticalAxis << ")" << G4endl;
     G4cout << "  Window       : " << win.first << " " << tWin/mm << " mm, aperture r="
            << rAp/mm << " mm; " << c.cellRingMat << " ring " << tRing/mm << " mm to r=" << rOut/mm << " mm" << G4endl;

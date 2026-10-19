@@ -75,6 +75,13 @@ static void PrintUsage() {
               << "  --beam ill <spectrum.csv>\n"
               << "                   Neutron mode with the PF1B/H113 reactor beam (λ from the\n"
               << "                   CSV, divergence κλ, guide-exit acceptance by back-projection)\n"
+              << "  --beam nfs <spectrum.csv>\n"
+              << "                   GANIL/NFS fast neutrons: E from the CSV (E_MeV,dN/dE), flat disc of\n"
+              << "                   radius --beam-radius with a Gaussian edge, along +Y (ILL plumbing)\n"
+              << "  --nfs-edge <mm>      Gaussian edge sigma of the NFS disc (default 2)\n"
+              << "  --nfs-erange <lo> <hi>  NFS sampling window, MeV\n"
+              << "  --cm-beta <beta>     boost X17/IPC pairs along +Y (4He* motion after fast capture)\n"
+              << "  --pair-r <mm>        cell pair vertices uniform out to this radius (beam spot)\n"
               << "  --beam-radius <mm>   defining aperture radius (default 10)\n"
               << "  --gun-dist <mm>      aperture → cell entrance window (default 300)\n"
               << "  --exit-dist <mm>     guide exit → aperture (default 1200)\n"
@@ -175,11 +182,19 @@ int main(int argc, char** argv) {
         }
         else if (a == "--beam" && i+2<argc) {
             std::string kind = argv[++i];
-            if (kind != "ill") { std::cerr << "Unknown beam: " << kind << "\n"; return 1; }
+            if (kind != "ill" && kind != "nfs") { std::cerr << "Unknown beam: " << kind << "\n"; return 1; }
             config.neutronMode     = true;
             config.illBeam         = true;
+            config.nfsBeam         = (kind == "nfs");
             config.illSpectrumFile = argv[++i];
         }
+        else if (a == "--nfs-edge" && i+1<argc) config.nfsEdgeSigma_mm = std::stod(argv[++i]);
+        else if (a == "--nfs-erange" && i+2<argc) {
+            config.nfsEminMeV = std::stod(argv[++i]);
+            config.nfsEmaxMeV = std::stod(argv[++i]);
+        }
+        else if (a == "--cm-beta" && i+1<argc) config.cmBeta = std::stod(argv[++i]);
+        else if (a == "--pair-r" && i+1<argc) config.pairVertexR_mm = std::stod(argv[++i]);
         else if (a == "--beam-radius" && i+1<argc) config.illBeamRadius_mm = std::stod(argv[++i]);
         else if (a == "--gun-dist"    && i+1<argc) config.illGunDist_mm    = std::stod(argv[++i]);
         else if (a == "--exit-dist"   && i+1<argc) config.illExitDist_mm   = std::stod(argv[++i]);
@@ -303,12 +318,20 @@ int main(int argc, char** argv) {
         std::cerr << "--target li is for pairs, --gamma-lines, --single or --cosmic, not neutron beams\n";
         return 1;
     }
+    if (config.cmBeta != 0.0)
+        std::cout << "  CM boost : beta = " << config.cmBeta << " along +Y (pairs)\n";
     if (config.cosmic) {
         const double A_cm2 = config.cosmicPlane_mm * config.cosmicPlane_mm / 100.0;
         std::cout << "  Mode     : cosmic muons, plane " << config.cosmicPlane_mm << " mm at "
                   << config.cosmicHeight_mm << " mm along +" << config.illVerticalAxis
                   << "; live time = N x " << 60.0 / A_cm2 << " s\n";
     }
+    else if (config.nfsBeam)
+        std::cout << "  Mode     : NFS beam  spectrum=" << config.illSpectrumFile
+                  << "  disc r=" << config.illBeamRadius_mm << " mm (edge sigma "
+                  << config.nfsEdgeSigma_mm << " mm) at " << config.illGunDist_mm
+                  << " mm upstream of the window, E in [" << config.nfsEminMeV << ", "
+                  << config.nfsEmaxMeV << "] MeV\n";
     else if (config.illBeam)
         std::cout << "  Mode     : ILL PF1B beam  spectrum=" << config.illSpectrumFile
                   << "  aperture r=" << config.illBeamRadius_mm << " mm at "
