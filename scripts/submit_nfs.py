@@ -32,6 +32,8 @@ import zlib
 from pathlib import Path
 
 EOS_BASE = "/eos/experiment/ntof/data/x17/nfs"
+ANALYSIS = "/afs/cern.ch/work/d/dneff/git/x17_nfs/analysis"     # nfs_reduce.py, lnl_time.py, seg_reduce.py
+LCG = "/cvmfs/sft.cern.ch/lcg/views/LCG_106/x86_64-el9-gcc13-opt/setup.sh"
 JOB_BASE = "/afs/cern.ch/user/d/dneff/condor/nfs"
 REPO = Path(__file__).resolve().parent.parent
 
@@ -83,6 +85,12 @@ def main():
     ap.add_argument("--exe", default=None,
                     help="binary to run (default build/mx17_full_sim); use a frozen copy in "
                          "bin/ so a rebuild cannot touch running jobs")
+    ap.add_argument("--reduce-in-job", action="store_true",
+                    help="simulate into the condor scratch dir, run nfs_reduce.py + lnl_time.py there "
+                         "(parts to <outdir>/parts_nfs, parts_time) and delete the ROOT file: "
+                         "for the large --force-beam samples (~1.6 kB/event)")
+    ap.add_argument("--keep-root", type=int, default=5,
+                    help="with --reduce-in-job: the first N jobs also copy their ROOT file to EOS")
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("extra", nargs=argparse.REMAINDER, help="-- extra simulation args")
     a = ap.parse_args()
@@ -112,18 +120,33 @@ def main():
     (jobdir / "logs").mkdir(parents=True, exist_ok=True)
     wrapper = jobdir / "run.sh"
     simargs = " ".join(f'"{x}"' for x in sim)
-    wrapper.write_text(textwrap.dedent(f"""\
+    if a.reduce_in_job:
+        run = textwrap.dedent(f"""\
+            D=$(dirname "$OUT"); S=$(basename "$OUT")
+            W="${{_CONDOR_SCRATCH_DIR:-/tmp/$USER}}/$S"
+            "{exe}" -t 1 -n {a.nevents} -o "$W" -s "$SEED" {simargs} > "$OUT.log" 2>&1
+            tail -4 "$OUT.log"
+            mkdir -p "$D/parts_nfs" "$D/parts_time"
+            ( set +u; source {LCG} > /dev/null
+              python3 {ANALYSIS}/nfs_reduce.py "${{W}}_t0.root" -o "$D/parts_nfs/${{S}}_t0.npz"
+              python3 {ANALYSIS}/lnl_time.py "${{W}}_t0.root" -o "$D/parts_time/${{S}}_t0.npz" )
+            if [ "$KEEP" = 1 ]; then cp "${{W}}_t0.root" "$D/"; fi
+            rm -f "$W"*
+        """)
+    else:
+        run = textwrap.dedent(f"""\
+            "{exe}" -t 1 -n {a.nevents} -o "$OUT" -s "$SEED" {simargs} > "$OUT.log" 2>&1
+            tail -4 "$OUT.log"
+        """)
+    wrapper.write_text(textwrap.dedent("""\
         #!/usr/bin/env bash
         set -eo pipefail
         set +u
-        source "{REPO}/scripts/setup_lxplus.sh" > /dev/null
+        source "{repo}/scripts/setup_lxplus.sh" > /dev/null
         set -u
-        OUT="$1"; SEED="$2"
+        OUT="$1"; SEED="$2"; KEEP="${{3:-0}}"
         echo "node $(hostname)  out $OUT  seed $SEED  $(date)"
-        "{exe}" -t 1 -n {a.nevents} -o "$OUT" -s "$SEED" {simargs} > "$OUT.log" 2>&1
-        tail -4 "$OUT.log"
-        echo "done $(date)"
-    """))
+        """).format(repo=REPO) + run + 'echo "done $(date)"\n')
     wrapper.chmod(wrapper.stat().st_mode | stat.S_IEXEC)
     sub = jobdir / "jobs.sub"
     lines = [
@@ -136,11 +159,14 @@ def main():
         f"request_memory = {a.memory}",
         'requirements = (OpSysAndVer =?= "AlmaLinux9")',
         "should_transfer_files = NO",
-        "arguments = $(outfile) $(seed)",
-        "queue outfile,seed,tag from (",
-    ] + [f"  {o}, {s}, {t}" for o, s, t in jobs] + [")"]
+        "arguments = $(outfile) $(seed) $(keep)",
+        "queue outfile,seed,tag,keep from (",
+    ] + [f"  {o}, {s}, {t}, {int(a.reduce_in_job and i < a.keep_root)}"
+         for i, (o, s, t) in enumerate(jobs)] + [")"]
     sub.write_text("\n".join(lines) + "\n")
-    info = f"{a.run}/{name}\n{a.njobs} x {a.nevents} {prefix}\nmaster seed {seed0}\nexe {exe}\nargs: {' '.join(sim)}\n"
+    info = (f"{a.run}/{name}\n{a.njobs} x {a.nevents} {prefix}\nmaster seed {seed0}\nexe {exe}\nargs: {' '.join(sim)}\n"
+            + ("reduced in the job (parts_nfs/, parts_time/); ROOT kept for the first "
+               f"{a.keep_root} jobs\n" if a.reduce_in_job else ""))
     (jobdir / "README").write_text(info)
     (outdir / "RUN_INFO.txt").write_text(info)
     if os.system(f"condor_submit {sub}") != 0:
