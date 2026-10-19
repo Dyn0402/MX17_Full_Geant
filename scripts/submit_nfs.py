@@ -120,17 +120,26 @@ def main():
     (jobdir / "logs").mkdir(parents=True, exist_ok=True)
     wrapper = jobdir / "run.sh"
     simargs = " ".join(f'"{x}"' for x in sim)
+    if prefix == "neutrons":       # beam: per-arm time clusters (nfs_beam_reduce.py)
+        reduce = textwrap.dedent(f"""\
+            mkdir -p "$D/parts_beam"
+            ( set +u; source {LCG} > /dev/null
+              python3 {ANALYSIS}/nfs_beam_reduce.py "${{W}}_t0.root" -o "$D/parts_beam/${{S}}_t0.npz" )
+        """)
+    else:
+        reduce = textwrap.dedent(f"""\
+            mkdir -p "$D/parts_nfs" "$D/parts_time"
+            ( set +u; source {LCG} > /dev/null
+              python3 {ANALYSIS}/nfs_reduce.py "${{W}}_t0.root" -o "$D/parts_nfs/${{S}}_t0.npz"
+              python3 {ANALYSIS}/lnl_time.py "${{W}}_t0.root" -o "$D/parts_time/${{S}}_t0.npz" )
+        """)
     if a.reduce_in_job:
         run = textwrap.dedent(f"""\
             D=$(dirname "$OUT"); S=$(basename "$OUT")
             W="${{_CONDOR_SCRATCH_DIR:-/tmp/$USER}}/$S"
             "{exe}" -t 1 -n {a.nevents} -o "$W" -s "$SEED" {simargs} > "$OUT.log" 2>&1
             tail -4 "$OUT.log"
-            mkdir -p "$D/parts_nfs" "$D/parts_time"
-            ( set +u; source {LCG} > /dev/null
-              python3 {ANALYSIS}/nfs_reduce.py "${{W}}_t0.root" -o "$D/parts_nfs/${{S}}_t0.npz"
-              python3 {ANALYSIS}/lnl_time.py "${{W}}_t0.root" -o "$D/parts_time/${{S}}_t0.npz" )
-            if [ "$KEEP" = 1 ]; then cp "${{W}}_t0.root" "$D/"; fi
+{reduce}            if [ "$KEEP" = 1 ]; then cp "${{W}}_t0.root" "$D/"; fi
             rm -f "$W"*
         """)
     else:
