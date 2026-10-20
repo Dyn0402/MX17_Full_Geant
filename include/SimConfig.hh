@@ -100,6 +100,10 @@ struct SimConfig {
     double      nfsEdgeSigma_mm    = 2.0;
     double      nfsEminMeV         = 0.0;   // sampling window on the CSV (0 = all)
     double      nfsEmaxMeV         = 1e9;
+    // --beam-particle gamma: the same gun shoots photons (E from the CSV) instead
+    // of neutrons -- the source's own γ field (FRM II MEDAPP, Birmingham ⁷Li(p,γ));
+    // no --force-beam (the forced collision uses neutron cross sections).
+    bool        nfsGamma           = false;
     // Beam-background variance reduction (--force-beam, --roulette; NFS only).
     // --force-beam: the generator traces the neutron's straight line, computes
     // each leaf volume's optical depth τ_i from Geant4's own cross sections,

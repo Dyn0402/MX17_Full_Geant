@@ -84,6 +84,7 @@ static void PrintUsage() {
               << "                   probability p1 / p0 (weight 1/p); >= 2 arms always kept\n"
               << "  --nfs-edge <mm>      Gaussian edge sigma of the NFS disc (default 2)\n"
               << "  --nfs-erange <lo> <hi>  NFS sampling window, MeV\n"
+              << "  --beam-particle <neutron|gamma>  NFS gun particle (default neutron)\n"
               << "  --cm-beta <beta>     boost X17/IPC pairs along +Y (4He* motion after fast capture)\n"
               << "  --pair-r <mm>        cell pair vertices uniform out to this radius (beam spot)\n"
               << "  --beam-radius <mm>   defining aperture radius (default 10)\n"
@@ -198,6 +199,11 @@ int main(int argc, char** argv) {
             config.rouletteP0 = std::stod(argv[++i]);
         }
         else if (a == "--nfs-edge" && i+1<argc) config.nfsEdgeSigma_mm = std::stod(argv[++i]);
+        else if (a == "--beam-particle" && i+1<argc) {
+            std::string p = argv[++i];
+            if (p != "neutron" && p != "gamma") { std::cerr << "Unknown beam particle: " << p << "\n"; return 1; }
+            config.nfsGamma = (p == "gamma");
+        }
         else if (a == "--nfs-erange" && i+2<argc) {
             config.nfsEminMeV = std::stod(argv[++i]);
             config.nfsEmaxMeV = std::stod(argv[++i]);
@@ -379,10 +385,10 @@ int main(int argc, char** argv) {
 
     auto* detCon = new DetectorConstruction(config);
     runManager->SetUserInitialization(detCon);
-    if (config.nfsForce && (!config.nfsBeam ||
+    if (config.nfsForce && (!config.nfsBeam || config.nfsGamma ||
             std::max({config.biasNCaptureFactor, config.biasWallFactor, config.biasAirFactor,
                       config.biasThickFactor}) > 1.0)) {
-        std::cerr << "--force-beam needs --beam nfs and no --bias-* option\n";
+        std::cerr << "--force-beam needs --beam nfs (neutrons) and no --bias-* option\n";
         return 1;
     }
     if ((config.rouletteP1 < 1.0 || config.rouletteP0 < 1.0) &&

@@ -794,7 +794,7 @@ G4double X17PrimaryGenerator::GenerateIllNeutron(G4Event* event, long& nThrown) 
             const double g = 1.0 + E_MeV * MeV / fNeutron->GetPDGMass();
             t0 = (pos - gun).mag() / (CLHEP::c_light * std::sqrt(1.0 - 1.0 / (g * g)));
         }
-        fGun->SetParticleDefinition(fNeutron);
+        fGun->SetParticleDefinition(c.nfsGamma ? fGamma : fNeutron);
         fGun->SetParticlePosition(pos);
         fGun->SetParticleMomentumDirection(dir);
         fGun->SetParticleEnergy(E_MeV * MeV);

@@ -12,6 +12,10 @@ beam spot) unless overridden after `--`.  Samples:
     <E1|M1>_En<E>    Born IPC of that multipole at the same W, opening angle ≥ 40°   (N2)
     beam             NFS d(40)+Be neutrons, 0.1–45 MeV, r = 40 mm disc, vacuum tube  (N3)
     cosmic           cosmic μ                                                          (N4)
+    beam_gamma       photons from the --spectrum CSV through the same tube (--beam-particle gamma)
+
+  --spectrum <csv> replaces the NFS gun spectrum of beam / beam_gamma (data/beam/soft_logflat_n.csv,
+  soft_logflat_g.csv: the soft-source runs N5/G5, re-weighted per source by E).
 
     python3 scripts/submit_nfs.py --run N1 --sample X17_En2 --njobs 5 --nevents 100000 --exe bin/...
     python3 scripts/submit_nfs.py --run N2 --sample E1_En2 --tag bigP -- --big-plastic 75 75 5 --no-ls --sipm-readout 20 0
@@ -56,7 +60,7 @@ def w_beta(e_n):
     return w, p / (e_n + M_N + M_HE3)
 
 
-def sample_args(sample):
+def sample_args(sample, spectrum=None):
     if m := re.fullmatch(r"X17_En([\d.]+)(?:_m([\d.]+))?", sample):
         w, b = w_beta(float(m.group(1)))
         return ["--energy", f"{w:.4f}", "--mass", m.group(2) or "16.8", "--ipc", "0",
@@ -65,8 +69,13 @@ def sample_args(sample):
         w, b = w_beta(float(m.group(2)))
         return ["--energy", f"{w:.4f}", "--ipc", "1", "--ipc-multipole", m.group(1),
                 "--ipc-min-open", "40", "--cm-beta", f"{b:.5f}"], "pairs"
-    if sample == "beam":
-        return BEAM, "neutrons"
+    if sample in ("beam", "beam_gamma"):
+        b = list(BEAM)
+        if spectrum:
+            b[2] = str(Path(spectrum).resolve())
+        if sample == "beam_gamma":
+            return b + ["--beam-particle", "gamma"], "neutrons"     # same reduction as the neutron beam
+        return b, "neutrons"
     if sample == "cosmic":
         return ["--cosmic"], "cosmics"
     sys.exit(f"unknown sample '{sample}'")
@@ -91,6 +100,7 @@ def main():
                          "for the large --force-beam samples (~1.6 kB/event)")
     ap.add_argument("--keep-root", type=int, default=5,
                     help="with --reduce-in-job: the first N jobs also copy their ROOT file to EOS")
+    ap.add_argument("--spectrum", default=None, help="beam / beam_gamma: gun spectrum CSV (E_MeV,dNdE)")
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("extra", nargs=argparse.REMAINDER, help="-- extra simulation args")
     a = ap.parse_args()
@@ -103,7 +113,7 @@ def main():
     if not exe.is_file():
         sys.exit(f"ERROR: build first ({exe})")
 
-    gen, prefix = sample_args(a.sample)
+    gen, prefix = sample_args(a.sample, a.spectrum)
     sim = (CELL if prefix == "neutrons" else BASELINE) + gen + extra
 
     seed0 = a.seed if a.seed is not None else zlib.crc32(f"{a.run}/{name}".encode())
