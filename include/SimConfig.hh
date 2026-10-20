@@ -178,9 +178,11 @@ struct SimConfig {
     std::string gammaLines;
 
     // Bare slab (--slab Mat:mm; V1 thermal-scattering check): a disk of radius
-    // 50 mm and the given thickness centred at the origin, normal to the beam,
-    // in place of any target.  Materials as for the cell.
+    // slabRadius_mm (default 50 mm) and the given thickness centred at the
+    // origin, normal to the beam, in place of any target.  Materials as for the
+    // cell.  Also the July 2026 B4C target (--slab B4C:2.5).
     std::string slab;
+    double      slabRadius_mm = 50.0;
 
     // Cross-section biasing (variance reduction for the rare ³He(n,γ) channel).
     // >1 scales the nCapture cross-section *in the He3Gas only* (region-scoped
@@ -204,6 +206,11 @@ struct SimConfig {
     // B·Σ_c·t ≲ 1 on the 5.5 mm nose (Σ_c ~0.03-0.07 /cm at 1-25 meV):
     // B ~ 20.  Captures carry weight 1/B (EventTree.weight).
     double      biasCapsuleFactor  = 1.0;
+    // nCapture occurrence biasing in the --slab disk.  For B4C, nCapture is the
+    // rare ¹⁰B(n,γ) branch (0.29 b against 3840 b of (n,α), which Geant4 runs as
+    // neutronInelastic and is not biased), so B ~ 10³ makes the γ branch a few
+    // per cent of absorptions.  Captures carry weight 1/B (EventTree.weight).
+    double      biasSlabFactor     = 1.0;
     double      biasThickFactor    = 1.0;
     double      biasAirFactor      = 1.0;
 

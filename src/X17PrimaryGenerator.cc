@@ -861,8 +861,12 @@ G4double X17PrimaryGenerator::GenerateGammaSource(G4Event* event) {
 // ─────────────────────────────────────────────────────────────────────────────
 // γ-line source (--gamma-lines E:w,E:w,...; event_type 3).  One isotropic γ per
 // event from the pair-vertex distribution, line drawn ∝ w; returns E_γ [MeV].
+// An entry may be a cascade, E1+E2+...:w (e.g. ¹⁰B(n,γ) 7.007+4.444:54.2):
+// every γ of the drawn cascade is emitted isotropically and independently from
+// the same vertex, and the first (primary) energy is returned.
 namespace {
 std::vector<CascadeLine> gGammaLines;
+std::vector<std::vector<double>> gGammaCascades;   // energies of entry i [MeV]
 std::once_flag gGammaLinesOnce;
 
 void ParseGammaLines(const SimConfig& cfg) {
@@ -870,17 +874,26 @@ void ParseGammaLines(const SimConfig& cfg) {
     std::string item;
     while (std::getline(ss, item, ',')) {
         const auto c = item.find(':');
-        const double e = std::stod(item.substr(0, c));
         const double w = (c == std::string::npos) ? 1.0 : std::stod(item.substr(c + 1));
-        if (e <= 0 || w < 0)
+        std::vector<double> es;
+        std::stringstream es_ss(item.substr(0, c));
+        std::string tok;
+        while (std::getline(es_ss, tok, '+')) es.push_back(std::stod(tok));
+        if (es.empty() || w < 0 || *std::min_element(es.begin(), es.end()) <= 0)
             G4Exception("X17PrimaryGenerator", "GammaLines", FatalException,
                         ("Bad --gamma-lines entry: " + item).c_str());
-        gGammaLines.push_back({e, w});
+        gGammaLines.push_back({es.front(), w});
+        gGammaCascades.push_back(es);
     }
     if (gGammaLines.empty())
         G4Exception("X17PrimaryGenerator", "GammaLines", FatalException, "Empty --gamma-lines");
     G4cout << "X17PrimaryGenerator: gamma lines —";
-    for (const auto& l : gGammaLines) G4cout << " " << l.e_MeV << " MeV (w " << l.intensity << ")";
+    for (size_t i = 0; i < gGammaLines.size(); ++i) {
+        G4cout << " ";
+        for (size_t k = 0; k < gGammaCascades[i].size(); ++k)
+            G4cout << (k ? "+" : "") << gGammaCascades[i][k];
+        G4cout << " MeV (w " << gGammaLines[i].intensity << ")";
+    }
     G4cout << G4endl;
 }
 }   // namespace
@@ -888,11 +901,15 @@ void ParseGammaLines(const SimConfig& cfg) {
 G4double X17PrimaryGenerator::GenerateGammaLines(G4Event* event) {
     std::call_once(gGammaLinesOnce, ParseGammaLines, std::cref(fConfig));
     const auto& line = SampleLine(gGammaLines);
+    const auto& cascade = gGammaCascades[static_cast<size_t>(&line - gGammaLines.data())];
+    const G4ThreeVector vertex = SampleHe3Vertex(fConfig);
     fGun->SetParticleDefinition(fGamma);
-    fGun->SetParticlePosition(SampleHe3Vertex(fConfig));
-    fGun->SetParticleMomentumDirection(IsotropicDirection());
-    fGun->SetParticleEnergy(line.e_MeV * MeV);
-    fGun->GeneratePrimaryVertex(event);
+    fGun->SetParticlePosition(vertex);
+    for (const double e : cascade) {
+        fGun->SetParticleMomentumDirection(IsotropicDirection());
+        fGun->SetParticleEnergy(e * MeV);
+        fGun->GeneratePrimaryVertex(event);
+    }
     return line.e_MeV;
 }
 

@@ -61,6 +61,7 @@ private:
 
     G4LogicalVolume* fHe3GasLV      = nullptr;   // target gas: nCapture-bias host
     G4LogicalVolume* fCapsuleAlLV   = nullptr;   // --bias-capsule host
+    G4LogicalVolume* fSlabLV        = nullptr;   // --bias-slab host
     std::vector<G4LogicalVolume*> fCellWallLVs;  // --bias-wall hosts (thin)
     std::vector<G4LogicalVolume*> fCellThickLVs; // --bias-thick hosts
     G4LogicalVolume* fWorldLV       = nullptr;   // --bias-air host

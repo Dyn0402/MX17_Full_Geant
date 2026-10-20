@@ -794,6 +794,12 @@ void DetectorConstruction::ConstructSDandField() {
         G4cout << "DetectorConstruction: nCapture biased ×" << fConfig.biasCapsuleFactor
                << " in the ³He capsule Al (He3Cap_Al)" << G4endl;
     }
+    if (fConfig.biasSlabFactor > 1.0 && fSlabLV) {
+        auto* op = new NCaptureBiasingOperator(fConfig.biasSlabFactor);
+        op->AttachTo(fSlabLV);
+        G4cout << "DetectorConstruction: nCapture biased ×" << fConfig.biasSlabFactor
+               << " in the slab" << G4endl;
+    }
     if (fConfig.biasWallFactor > 1.0 && !fCellWallLVs.empty()) {
         auto* op = new NCaptureBiasingOperator(fConfig.biasWallFactor);
         for (auto* lv : fCellWallLVs) op->AttachTo(lv);
@@ -1088,21 +1094,23 @@ void DetectorConstruction::BuildCell(G4LogicalVolume* worldLV) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Bare slab for the V1 thermal-scattering check (HANDOFF_SIM.md §6): a Ø100 mm
-// disk of the given material and thickness centred at the origin, normal to
-// the beam.  Volume name "Slab"; the primary's first interaction (EventTree
+// Bare slab for the V1 thermal-scattering check (HANDOFF_SIM.md §6): a disk
+// (Ø100 mm unless --slab-radius) of the given material and thickness centred at
+// the origin, normal to the beam.  Volume name "Slab"; the primary's first interaction (EventTree
 // first_vol / first_proc) gives the uncollided transmission directly.
 void DetectorConstruction::BuildSlab(G4LogicalVolume* worldLV) {
     const auto sl = ParseLayers(fConfig.slab).at(0);
     const G4double t = sl.second * mm;
     auto* rot = new G4RotationMatrix();
     rot->rotateX(+90.*deg);
-    auto* lv = new G4LogicalVolume(new G4Tubs("Slab", 0, 50.*mm, t/2, 0, twopi),
+    const G4double r = fConfig.slabRadius_mm * mm;
+    auto* lv = new G4LogicalVolume(new G4Tubs("Slab", 0, r, t/2, 0, twopi),
                                    CellMat(sl.first), "Slab");
     new G4PVPlacement(rot, G4ThreeVector(), lv, "Slab", worldLV, false, 0, true);
+    fSlabLV = lv;
     G4cout << "\n=== X17 Full-Experiment Geometry ===" << G4endl;
-    G4cout << "  Target       : SLAB " << sl.first << " " << t/mm << " mm ("
-           << lv->GetMaterial()->GetName() << ") at the origin" << G4endl;
+    G4cout << "  Target       : SLAB " << sl.first << " " << t/mm << " mm, Ø"
+           << 2*r/mm << " mm (" << lv->GetMaterial()->GetName() << ") at the origin" << G4endl;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

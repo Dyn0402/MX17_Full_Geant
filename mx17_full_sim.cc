@@ -46,6 +46,9 @@ static void PrintUsage() {
               << "  --bias-wall <f> / --bias-thick <f> / --bias-air <f>\n"
               << "                   Same nCapture biasing in the cell's thin walls (window, skin,\n"
               << "                   rods) / thick parts (Al ring + cap, 6LiF) / the World air\n"
+              << "  --bias-slab <f>\n"
+              << "                   nCapture biasing in the --slab disk (B4C: the ¹⁰B(n,γ) branch;\n"
+              << "                   ~1e3; weight 1/f in EventTree)\n"
               << "  --bias-capsule <f>\n"
               << "                   nCapture biasing in the n_TOF ³He capsule Al vessel only\n"
               << "                   (Al-capture track libraries; ~20; weight 1/f in EventTree)\n"
@@ -85,6 +88,7 @@ static void PrintUsage() {
               << "  --lambda <A>         mono-wavelength instead of the spectrum\n"
               << "  --kappa <rad/A>      divergence slope (default 0.0017; 0 = pencil)\n"
               << "  --slab <Mat:mm>      bare Ø100 mm slab at the origin instead of a target\n"
+              << "  --slab-radius <mm>   slab radius (default 50)\n"
               << "  --ts | --no-ts       force thermal scattering for solids on/off\n"
               << "                       (default: on with --beam ill, --target cell, --slab)\n"
               << "  --cosmic             cosmic muons from a 3 x 3 m plane 1.5 m above the target\n"
@@ -103,7 +107,8 @@ static void PrintUsage() {
               << "  --spot-sigma <mm>    Gaussian beam spot for pair / gamma vertices (default 2)\n"
               << "  --gamma-lines <E:w,E:w,...>\n"
               << "                   one isotropic γ per event from the pair vertices, line ∝ w\n"
-              << "                   (event_type 3, inv_mass = Eγ)\n"
+              << "                   (event_type 3, inv_mass = Eγ).  An entry E1+E2+...:w is a\n"
+              << "                   cascade: all its γs, isotropic, from one vertex\n"
               << "  --big-plastic <u_cm> <v_cm> <t_cm>  one plastic slab per arm (trigger study)\n"
               << "  --no-ls          omit the LS vessels\n"
               << "  --sipm-readout <N> <shift>  instrumented SiPM bars (default 16 1; all: 20 0)\n"
@@ -157,6 +162,8 @@ int main(int argc, char** argv) {
         else if (a == "--bias-ncapture" && i+1<argc) config.biasNCaptureFactor = std::stod(argv[++i]);
         else if (a == "--bias-wall" && i+1<argc) config.biasWallFactor = std::stod(argv[++i]);
         else if (a == "--bias-capsule" && i+1<argc) config.biasCapsuleFactor = std::stod(argv[++i]);
+        else if (a == "--bias-slab" && i+1<argc) config.biasSlabFactor = std::stod(argv[++i]);
+        else if (a == "--slab-radius" && i+1<argc) config.slabRadius_mm = std::stod(argv[++i]);
         else if (a == "--bias-air"  && i+1<argc) config.biasAirFactor  = std::stod(argv[++i]);
         else if (a == "--bias-thick" && i+1<argc) config.biasThickFactor = std::stod(argv[++i]);
         else if (a == "--no-al")                     config.disableAlCapsule  = true;
@@ -353,7 +360,7 @@ int main(int argc, char** argv) {
     runManager->SetUserInitialization(detCon);
     runManager->SetUserInitialization(new PhysicsList(
         std::max({config.biasNCaptureFactor, config.biasWallFactor, config.biasAirFactor,
-                  config.biasThickFactor, config.biasCapsuleFactor}),
+                  config.biasThickFactor, config.biasCapsuleFactor, config.biasSlabFactor}),
         config.gammaCut_um,
                                                       config.thermalScattering == 1));
     runManager->SetUserInitialization(new ActionInitialization(config, detCon));
