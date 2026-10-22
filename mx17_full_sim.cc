@@ -93,7 +93,7 @@ static void PrintUsage() {
               << "  --endcap-ring <t_mm:land_mm>  --ring <Mat>  --ring-liner <mm>\n"
               << "  --flight-tube <He|Vac>[:r_mm]  --tube-wall <Mat:mm>  --tube-window <Mat:mm>\n"
               << "\n  LNL (x17_facility_search/lnl/GEANT_PREP.md), with --target li:\n"
-              << "  --film <Li2O|LiF|Li:ug_cm2>   (default Li2O:300)   --backing <Mat:um|none> (Al:10)\n"
+              << "  --film <Li2O|LiF|Li:ug_cm2>   (default Li2O:300)   --backing <Mat:um[+Mat:um..]|none> (Al:10)\n"
               << "  --holder <Mat:mm|none> (Al:1)  --holder-r <rin_mm:rout_mm> (10:20)\n"
               << "  --chamber <Mat:t_mm:r_mm> (CFRP:0.4:25)  --chamber-len <half_mm> (300)\n"
               << "  --flange <Mat:mm> (Al:5)  --dump <Mat:mm|none> (Ta:2)  --dump-dist <mm> (250)\n"

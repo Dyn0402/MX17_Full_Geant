@@ -150,7 +150,8 @@ struct SimConfig {
     //   film     Mat:ug_cm2   Mat ∈ {Li2O, LiF, Li}  (natural Li, Li₂O 2.01, LiF 2.635, Li 0.534 g/cm³)
     //            or TiT (Ti tritide TiT₁.₅, 4.0 g/cm³; the Demokritos ³H(p,e⁺e⁻)⁴He target,
     //            x17_facility_search/demokritos/GEANT_PREP.md)
-    //   backing  Mat:um       (Al, C, Cu, ...; "none" = self-supporting film)
+    //   backing  Mat:um[+Mat:um...]  layers from the film outward (Al, C, Cu, Ta, Diamond,
+    //            Water, ...; "none" = self-supporting film)
     //   holder   Mat:mm       annulus [liHolderRin_mm, liHolderRout_mm] ("none" = no frame)
     //   chamber  Mat:t_mm:r_mm  tube wall around a vacuum bore of radius r, |y| ≤ liChamberHalfLen_mm,
     //            closed by flanges of liFlange (upstream one with a liFlangeHoleR_mm beam hole)

@@ -877,6 +877,24 @@ G4Material* DetectorConstruction::CellMat(const std::string& name) {
     if (name == "Ta")     return nist->FindOrBuildMaterial("G4_Ta");
     if (name == "Ti")     return nist->FindOrBuildMaterial("G4_Ti");
     if (name == "Mo")     return nist->FindOrBuildMaterial("G4_Mo");
+    // LNL target options (x17_facility_search/lnl/target/TARGET_OPTIONS.md): backings,
+    // interlayers and coolant
+    if (name == "W")      return nist->FindOrBuildMaterial("G4_W");
+    if (name == "Pd")     return nist->FindOrBuildMaterial("G4_Pd");
+    if (name == "Ni")     return nist->FindOrBuildMaterial("G4_Ni");
+    if (name == "Ag")     return nist->FindOrBuildMaterial("G4_Ag");
+    if (name == "Au")     return nist->FindOrBuildMaterial("G4_Au");
+    if (name == "Si")     return nist->FindOrBuildMaterial("G4_Si");
+    if (name == "Water")  return nist->FindOrBuildMaterial("G4_WATER");
+    if (name == "SS")     return nist->FindOrBuildMaterial("G4_STAINLESS-STEEL");
+    if (name == "Diamond") {
+        // CVD diamond, 3.515 g/cm³ (G4_C is graphite-density 2.0)
+        if (auto it = fMats.find("Diamond"); it != fMats.end()) return it->second;
+        auto* m = new G4Material("Diamond", 3.515*g/cm3, 1);
+        m->AddElement(nist->FindOrBuildElement("C"), 1);
+        fMats["Diamond"] = m;
+        return m;
+    }
     if (name == "TiT") {
         // Demokritos ³H(p,e⁺e⁻)⁴He: titanium tritide TiT₁.₅.  Built by atom count with a
         // ³H isotope so the electron density is right; 4.0 g/cm³ = TiH₁.₅ (~3.8) scaled
@@ -1198,14 +1216,20 @@ void DetectorConstruction::BuildLiTarget(G4LogicalVolume* worldLV) {
     G4double z = yT;
     std::string backDesc = "none", holdDesc = "none", dumpDesc = "none";
     if (c.liBacking != "none") {
-        const auto bk = ParseLayers(c.liBacking).at(0);
-        const G4double t = bk.second * um;
-        auto* lv = new G4LogicalVolume(new G4Tubs("LiTarget_Backing", 0, rDisk, t/2, 0, twopi),
-                                       CellMat(bk.first), "LiTarget_Backing");
-        vis(lv, 0.75, 0.75, 0.8, 0.8);
-        new G4PVPlacement(nullptr, atZ(z + t/2), lv, "LiTarget_Backing", vacLV, false, 0, true);
-        z += t;
-        backDesc = bk.first + " " + std::to_string(bk.second) + " um";
+        // one or more layers from the film outward, "Ta:10+Diamond:300+Water:300+Diamond:400"
+        // (µm): an interlayer, or a micro-channel plate as diamond / water / diamond slabs.
+        // Every layer is a LiTarget_Backing volume (copy number = layer index).
+        backDesc = "";
+        int iL = 0;
+        for (const auto& bk : ParseLayers(c.liBacking)) {
+            const G4double t = bk.second * um;
+            auto* lv = new G4LogicalVolume(new G4Tubs("LiTarget_Backing", 0, rDisk, t/2, 0, twopi),
+                                           CellMat(bk.first), "LiTarget_Backing");
+            vis(lv, 0.75, 0.75, 0.8, 0.8);
+            new G4PVPlacement(nullptr, atZ(z + t/2), lv, "LiTarget_Backing", vacLV, false, iL++, true);
+            z += t;
+            backDesc += (backDesc.empty() ? "" : " + ") + bk.first + " " + std::to_string(bk.second) + " um";
+        }
     }
     if (c.liHolder != "none") {
         const auto hd = ParseLayers(c.liHolder).at(0);
