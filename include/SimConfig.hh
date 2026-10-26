@@ -182,7 +182,7 @@ struct SimConfig {
     //           the film lines its inside (an inner shell, thickness from --film) and the
     //           vertices sit in it where the beam spot hits.  --dome-rim w:h adds a ring of
     //           the cup material r ∈ [R, R+w] below the equator, y ∈ [−R−h, −R].
-    //   window  R_mm:tilt_deg  a plane stack closing a tube end of aperture R: the film on
+    //   window  --win-plane R_mm:tilt_deg: a plane stack closing a tube end of aperture R: the film on
     //           the vacuum side (n·x ∈ [−t_film, 0], n = (0, cos, sin)), then the --backing
     //           layers, clamped between two rings (--win-ring Mat:t_mm:w_mm, glue line
     //           --win-glue mm under the upstream one), on an end piece of tube
