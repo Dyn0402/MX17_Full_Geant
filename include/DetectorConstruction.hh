@@ -41,6 +41,7 @@ private:
     void BuildCell(G4LogicalVolume* worldLV);
     void BuildSlab(G4LogicalVolume* worldLV);   // --slab (V1 check)
     void BuildLiTarget(G4LogicalVolume* worldLV);  // --target li (LNL)
+    void BuildLiShape(G4LogicalVolume* worldLV);   // --target li --shape dome|window
     G4Material* CellMat(const std::string& name);
 
     const SimConfig& fConfig;

@@ -175,6 +175,31 @@ struct SimConfig {
     // much (--target-y; Demokritos: a thick backing blocks the downstream half, so
     // the target sits downstream of the arm centre).  Vertices move with it.
     double      liTargetY_mm       = 0.0;
+    // Target shapes with no chamber (x17_facility_search lnl/target/SHAPES_GEANT.md): the
+    // target is the vacuum end of the beam pipe, air outside.  --shape flat keeps the
+    // chamber geometry above.
+    //   dome    Mat:R_mm:t_um  hemispherical cup, concave to the beam, inner apex at y = 0;
+    //           the film lines its inside (an inner shell, thickness from --film) and the
+    //           vertices sit in it where the beam spot hits.  --dome-rim w:h adds a ring of
+    //           the cup material r ∈ [R, R+w] below the equator, y ∈ [−R−h, −R].
+    //   window  R_mm:tilt_deg  a plane stack closing a tube end of aperture R: the film on
+    //           the vacuum side (n·x ∈ [−t_film, 0], n = (0, cos, sin)), then the --backing
+    //           layers, clamped between two rings (--win-ring Mat:t_mm:w_mm, glue line
+    //           --win-glue mm under the upstream one), on an end piece of tube
+    //           (--win-endpiece Mat:t_mm:len_mm, cut on the window plane).  --film is the
+    //           areal density along the normal.
+    //   line    coaxial tubes along the beam, "Mat:rin:rout:y0:y1[,...]" (mm), placed in the
+    //           world as given: the flanges, adapters and pipe upstream of the target.
+    // Volume names: LiTarget_Film, LiTarget_Backing, LiTarget_Dome, LiTarget_Rim,
+    // LiTarget_Ring, LiTarget_Glue, LiTarget_EndPiece, BeamLine_Tube.
+    std::string liShape            = "flat";    // flat | dome | window
+    std::string liDome             = "Cu:11:200";
+    std::string liDomeRim          = "";        // "w_mm:h_mm", empty = none
+    std::string liWindow           = "10:45";
+    std::string liWinRing          = "Ti:0.5:5";
+    double      liWinGlue_mm       = 0.1;
+    std::string liWinEndPiece      = "Al:0.5:55";   // "none" = no end piece
+    std::string liLine             = "";
 
     // ── γ-line source (--gamma-lines E:w,E:w,...; event_type 3) ─────────────
     // One isotropic mono-energetic γ per event from the pair-vertex

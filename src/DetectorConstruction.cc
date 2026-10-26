@@ -35,6 +35,8 @@
 #include "G4Ellipsoid.hh"
 #include "G4Polycone.hh"
 #include "G4UnionSolid.hh"
+#include "G4IntersectionSolid.hh"
+#include "G4Sphere.hh"
 #include "G4Transform3D.hh"
 #include "G4LogicalVolume.hh"
 #include "G4PVPlacement.hh"
@@ -351,6 +353,15 @@ G4VPhysicalVolume* DetectorConstruction::Construct() {
     if (fConfig.liTarget) {   // the chamber and its flanges must fit along Y
         const G4double tF = std::stod(fConfig.liFlange.substr(fConfig.liFlange.find(':') + 1)) * mm;
         worldHalfY = std::max(worldHalfY, fConfig.liChamberHalfLen_mm*mm + tF + 5.0*cm);
+        std::stringstream ls(fConfig.liLine);   // --line tubes: Mat:rin:rout:y0:y1
+        std::string seg;
+        while (std::getline(ls, seg, ',')) {
+            std::vector<double> v;
+            std::stringstream ss(seg.substr(seg.find(':') + 1));
+            for (std::string x; std::getline(ss, x, ':');) v.push_back(std::stod(x));
+            if (v.size() == 4)
+                worldHalfY = std::max({worldHalfY, std::abs(v[2])*mm + 5.0*cm, std::abs(v[3])*mm + 5.0*cm});
+        }
     }
 
     if (fConfig.cosmic) {   // the muon plane must sit inside the world
@@ -887,6 +898,21 @@ G4Material* DetectorConstruction::CellMat(const std::string& name) {
     if (name == "Si")     return nist->FindOrBuildMaterial("G4_Si");
     if (name == "Water")  return nist->FindOrBuildMaterial("G4_WATER");
     if (name == "SS")     return nist->FindOrBuildMaterial("G4_STAINLESS-STEEL");
+    if (name == "PVC")    return nist->FindOrBuildMaterial("G4_POLYVINYL_CHLORIDE");
+    if (name == "Air")    return nist->FindOrBuildMaterial("G4_AIR");
+    if (name == "Be")     return nist->FindOrBuildMaterial("G4_Be");
+    if (name == "Al")     return nist->FindOrBuildMaterial("G4_Al");
+    if (name == "Epoxy" || name == "PEEK") {
+        // Epoxy: bisphenol-A resin C₁₈H₂₀O₃ (Araldite-like), 1.20 g/cm³.  PEEK: C₁₉H₁₂O₃, 1.32 g/cm³.
+        if (auto it = fMats.find(name); it != fMats.end()) return it->second;
+        const bool ep = name == "Epoxy";
+        auto* m = new G4Material(name, (ep ? 1.20 : 1.32)*g/cm3, 3);
+        m->AddElement(nist->FindOrBuildElement("C"), ep ? 18 : 19);
+        m->AddElement(nist->FindOrBuildElement("H"), ep ? 20 : 12);
+        m->AddElement(nist->FindOrBuildElement("O"), 3);
+        fMats[name] = m;
+        return m;
+    }
     if (name == "Diamond") {
         // CVD diamond, 3.515 g/cm³ (G4_C is graphite-density 2.0)
         if (auto it = fMats.find("Diamond"); it != fMats.end()) return it->second;
@@ -1159,6 +1185,7 @@ void DetectorConstruction::BuildSlab(G4LogicalVolume* worldLV) {
 // Logical-volume names are what the reductions classify on.
 void DetectorConstruction::BuildLiTarget(G4LogicalVolume* worldLV) {
     const auto& c = fConfig;
+    if (c.liShape != "flat") { BuildLiShape(worldLV); return; }
     auto parse3 = [](const std::string& s) {   // "CFRP:0.4:25" → {CFRP, 0.4, 25}
         const auto a = s.find(':'), b = s.find(':', a + 1);
         if (a == std::string::npos || b == std::string::npos)
@@ -1266,5 +1293,142 @@ void DetectorConstruction::BuildLiTarget(G4LogicalVolume* worldLV) {
            << " mm, |y|<=" << H/mm << " mm; flanges " << c.liFlange
            << " (upstream hole r=" << c.liFlangeHoleR_mm << " mm)" << G4endl;
     G4cout << "  Beam dump    : " << dumpDesc << G4endl;
+    G4cout << "  Beam spot    : sigma=" << c.liSpotSigma_mm << " mm (pair / gamma vertices)" << G4endl;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// LNL target shapes with no chamber (--shape dome|window; x17_facility_search
+// lnl/target/SHAPES_GEANT.md).  The target closes the beam pipe: vacuum on the
+// beam side, air outside (the world).  Solids are built in a frame whose z is
+// the beam axis and placed with an active rotX(−90°): local z → world +y,
+// local y → world −z.  The beam-line tubes (--line) are placed the same way.
+// The bores are left as air (≲ 0.1 % X₀ over the ~0.6 m of pipe modelled).
+void DetectorConstruction::BuildLiShape(G4LogicalVolume* worldLV) {
+    const auto& c = fConfig;
+    auto split = [](const std::string& s) {
+        std::vector<std::string> v;
+        std::stringstream ss(s);
+        for (std::string x; std::getline(ss, x, ':');) v.push_back(x);
+        return v;
+    };
+    G4RotationMatrix toWorld;
+    toWorld.rotateX(-90.*deg);
+    auto place = [&](G4LogicalVolume* lv, G4double yW, int copy = 0) {   // local origin at world (0, yW, 0)
+        new G4PVPlacement(G4Transform3D(toWorld, G4ThreeVector(0, yW, 0)), lv, lv->GetName(), worldLV,
+                          false, copy, true);
+    };
+    auto vis = [](G4LogicalVolume* lv, G4double r, G4double g, G4double b, G4double a) {
+        lv->SetVisAttributes(new G4VisAttributes(G4Color(r, g, b, a)));
+    };
+    const auto film = ParseLayers(c.liFilm).at(0);
+    G4Material* filmMat = CellMat(film.first);
+    const G4double tFilm = film.second * 1e-6 * g/cm2 / filmMat->GetDensity();
+    std::string desc;
+
+    if (c.liShape == "dome") {
+        // cup: inner radius R, centre at y = −R (inner apex at y = 0), concave to the beam
+        const auto d = split(c.liDome);
+        if (d.size() != 3) throw std::runtime_error("li: --dome expects Mat:R_mm:t_um");
+        const G4double R = std::stod(d[1]) * mm, t = std::stod(d[2]) * um;
+        auto* cupLV = new G4LogicalVolume(new G4Sphere("LiTarget_Dome", R, R + t, 0, twopi, 0, 90*deg),
+                                          CellMat(d[0]), "LiTarget_Dome");
+        vis(cupLV, 0.85, 0.5, 0.2, 0.8);
+        place(cupLV, -R);
+        auto* fLV = new G4LogicalVolume(new G4Sphere("LiTarget_Film", R - tFilm, R, 0, twopi, 0, 90*deg),
+                                        filmMat, "LiTarget_Film");
+        vis(fLV, 0.9, 0.2, 0.2, 0.9);
+        place(fLV, -R);
+        desc = d[0] + " hemisphere R=" + d[1] + " mm, " + d[2] + " um";
+        if (!c.liDomeRim.empty()) {
+            const auto r = split(c.liDomeRim);
+            const G4double w = std::stod(r.at(0)) * mm, h = std::stod(r.at(1)) * mm;
+            auto* rimLV = new G4LogicalVolume(new G4Tubs("LiTarget_Rim", R, R + w, h / 2, 0, twopi),
+                                              CellMat(d[0]), "LiTarget_Rim");
+            vis(rimLV, 0.85, 0.5, 0.2, 0.8);
+            place(rimLV, -R - h / 2);
+            desc += ", rim r " + d[1] + "+" + r[0] + " mm x " + r[1] + " mm";
+        }
+    } else if (c.liShape == "window") {
+        const auto wv = split(c.liWindow);
+        const G4double R = std::stod(wv.at(0)) * mm, th = std::stod(wv.at(1)) * deg;
+        const auto rg = split(c.liWinRing);
+        const G4double tR = std::stod(rg.at(1)) * mm, wR = std::stod(rg.at(2)) * mm;
+        const G4double tG = c.liWinGlue_mm * mm;
+        // plane normal in the local frame (world n = (0, cos th, sin th); world z = −local y)
+        const G4ThreeVector nL(0, -std::sin(th), std::cos(th));
+        G4RotationMatrix slabRot;              // box y-axis → nL
+        slabRot.rotateX(90*deg + th);
+        const G4double big = 200*mm;
+        const G4double hz = (R + wR + 30*mm) * std::tan(th) + 30*mm;   // tube half-length covering the tilt
+        // layer of a plane stack: tube (rin, rout) ∩ slab n·x ∈ [z0, z1]
+        auto slab = [&](const std::string& nm, G4double rin, G4double rout, G4double z0, G4double z1) {
+            auto* tube = new G4Tubs(nm + "_t", rin, rout, hz, 0, twopi);
+            auto* box = new G4Box(nm + "_b", big, (z1 - z0) / 2, big);
+            return new G4IntersectionSolid(nm, tube, box, G4Transform3D(slabRot, 0.5 * (z0 + z1) * nL));
+        };
+        auto mk = [&](const std::string& nm, G4VSolid* s, const std::string& mat, int copy = 0) {
+            auto* lv = new G4LogicalVolume(s, CellMat(mat), nm);
+            place(lv, 0, copy);
+            return lv;
+        };
+        vis(mk("LiTarget_Film", slab("LiTarget_Film", 0, R, -tFilm, 0), film.first), 0.9, 0.2, 0.2, 0.9);
+        G4double z = 0;
+        int iL = 0;
+        for (const auto& bk : ParseLayers(c.liBacking)) {
+            const G4double t = bk.second * um;
+            vis(mk("LiTarget_Backing", slab("LiTarget_Backing", 0, R + wR, z, z + t), bk.first, iL++),
+                0.75, 0.75, 0.8, 0.8);
+            z += t;
+        }
+        vis(mk("LiTarget_Ring", slab("LiTarget_Ring", R, R + wR, -tG - tR, -tG), rg[0], 0), 0.6, 0.6, 0.65, 0.8);
+        vis(mk("LiTarget_Ring", slab("LiTarget_Ring", R, R + wR, z, z + tR), rg[0], 1), 0.6, 0.6, 0.65, 0.8);
+        if (tG > 0) vis(mk("LiTarget_Glue", slab("LiTarget_Glue", R, R + wR, -tG, 0), "Epoxy"), 0.9, 0.9, 0.3, 0.6);
+        desc = "plane stack, aperture R=" + wv[0] + " mm, tilt " + wv[1] + " deg, rings " + c.liWinRing +
+               ", glue " + std::to_string(c.liWinGlue_mm) + " mm";
+        if (c.liWinEndPiece != "none") {
+            // tube (R, R+t) from the window plane (below the upstream ring) back to local z = −len
+            const auto ep = split(c.liWinEndPiece);
+            const G4double tE = std::stod(ep.at(1)) * mm, L = std::stod(ep.at(2)) * mm;
+            const G4double zc = -tG - tR;                      // the cut plane, n·x = zc
+            const G4double top = (R + tE) * std::tan(th) + 1*mm;   // highest local z the cut reaches
+            auto* tube = new G4Tubs("LiTarget_EndPiece_t", R, R + tE, (L + top) / 2, 0, twopi);
+            auto* half = new G4Box("LiTarget_EndPiece_b", big, big, big);   // n·x < zc
+            const G4ThreeVector off(0, 0, (top - L) / 2);   // the tube's centre in the window frame
+            auto* cut = new G4IntersectionSolid("LiTarget_EndPiece_c", tube, half,
+                                                G4Transform3D(slabRot, (zc - big) * nL - off));
+            auto* lv = new G4LogicalVolume(cut, CellMat(ep[0]), "LiTarget_EndPiece");
+            vis(lv, 0.7, 0.7, 0.75, 0.5);
+            new G4PVPlacement(G4Transform3D(toWorld, G4ThreeVector(0, (top - L) / 2, 0)), lv, "LiTarget_EndPiece",
+                              worldLV, false, 0, true);
+            desc += ", end piece " + c.liWinEndPiece;
+        }
+    } else {
+        throw std::runtime_error("li: unknown --shape '" + c.liShape + "' (flat|dome|window)");
+    }
+
+    // beam-line tubes
+    std::string lineDesc;
+    {
+        std::stringstream ls(c.liLine);
+        std::string seg;
+        int iT = 0;
+        while (std::getline(ls, seg, ',')) {
+            const auto v = split(seg);
+            if (v.size() != 5) throw std::runtime_error("li: --line expects Mat:rin:rout:y0:y1, got '" + seg + "'");
+            const G4double rin = std::stod(v[1]) * mm, rout = std::stod(v[2]) * mm;
+            const G4double y0 = std::stod(v[3]) * mm, y1 = std::stod(v[4]) * mm;
+            auto* lv = new G4LogicalVolume(new G4Tubs("BeamLine_Tube", rin, rout, std::abs(y1 - y0) / 2, 0, twopi),
+                                           CellMat(v[0]), "BeamLine_Tube");
+            vis(lv, 0.5, 0.5, 0.55, 0.4);
+            place(lv, 0.5 * (y0 + y1), iT++);
+            lineDesc += (lineDesc.empty() ? "" : "; ") + seg;
+        }
+    }
+    G4cout << "\n=== X17 Full-Experiment Geometry ===" << G4endl;
+    G4cout << "  Beam axis    : +Y (protons, not tracked)" << G4endl;
+    G4cout << "  Li target    : " << c.liShape << ": " << desc << G4endl;
+    G4cout << "  Film         : " << film.first << " " << film.second << " ug/cm2 = " << tFilm/um << " um" << G4endl;
+    G4cout << "  Backing      : " << (c.liShape == "window" ? c.liBacking : std::string("(the dome)")) << G4endl;
+    G4cout << "  Beam line    : " << (lineDesc.empty() ? "none" : lineDesc) << G4endl;
     G4cout << "  Beam spot    : sigma=" << c.liSpotSigma_mm << " mm (pair / gamma vertices)" << G4endl;
 }

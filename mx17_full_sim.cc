@@ -99,6 +99,11 @@ static void PrintUsage() {
               << "  --flange <Mat:mm> (Al:5)  --dump <Mat:mm|none> (Ta:2)  --dump-dist <mm> (250)\n"
               << "  --spot-sigma <mm>    Gaussian beam spot for pair / gamma vertices (default 2)\n"
               << "  --target-y <mm>      move film + backing + holder (and the vertices) along the beam (0)\n"
+              << "  --shape flat|dome|window  no chamber for dome/window: the target ends the beam pipe\n"
+              << "  --dome <Mat:R_mm:t_um> (Cu:11:200)  --dome-rim <w_mm:h_mm>\n"
+              << "  --window <R_mm:tilt_deg> (10:45)  --win-ring <Mat:t_mm:w_mm> (Ti:0.5:5)\n"
+              << "  --win-glue <mm> (0.1)  --win-endpiece <Mat:t_mm:len_mm|none> (Al:0.5:55)\n"
+              << "  --line <Mat:rin:rout:y0:y1[,...]>  coaxial beam-line tubes (mm)\n"
               << "  --gamma-lines <E:w,E:w,...>\n"
               << "                   one isotropic γ per event from the pair vertices, line ∝ w\n"
               << "                   (event_type 3, inv_mass = Eγ)\n"
@@ -265,6 +270,14 @@ int main(int argc, char** argv) {
         else if (a == "--spot-sigma"  && i+1<argc) config.liSpotSigma_mm = std::stod(argv[++i]);
         else if (a == "--target-y"    && i+1<argc) config.liTargetY_mm   = std::stod(argv[++i]);
         else if (a == "--gamma-lines" && i+1<argc) config.gammaLines = argv[++i];
+        else if (a == "--shape"       && i+1<argc) config.liShape    = argv[++i];
+        else if (a == "--dome"        && i+1<argc) config.liDome     = argv[++i];
+        else if (a == "--dome-rim"    && i+1<argc) config.liDomeRim  = argv[++i];
+        else if (a == "--window"      && i+1<argc) config.liWindow   = argv[++i];
+        else if (a == "--win-ring"    && i+1<argc) config.liWinRing  = argv[++i];
+        else if (a == "--win-glue"    && i+1<argc) config.liWinGlue_mm = std::stod(argv[++i]);
+        else if (a == "--win-endpiece" && i+1<argc) config.liWinEndPiece = argv[++i];
+        else if (a == "--line"        && i+1<argc) config.liLine     = argv[++i];
         else if (a[0] != '-') macroFile = a;
         else { std::cerr << "Unknown option: " << a << "\n"; PrintUsage(); return 1; }
     }

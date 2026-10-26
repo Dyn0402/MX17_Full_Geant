@@ -159,6 +159,30 @@ static G4ThreeVector SampleHe3Vertex(const SimConfig& cfg) {
                             ("Unknown Li film material: " + m).c_str());
             return std::stod(cfg.liFilm.substr(c + 1)) * 1e-6 * g/cm2 / mat->GetDensity() / mm;
         }();
+        if (cfg.liShape == "dome" || cfg.liShape == "window") {
+            // the beam spot (x, z) projected along +y onto the film (SHAPES_GEANT.md);
+            // depth uniform through the film along its normal
+            auto num = [](const std::string& s, int i) {
+                std::stringstream ss(s);
+                std::string x;
+                for (int k = 0; k <= i; ++k) std::getline(ss, x, ':');
+                return std::stod(x);
+            };
+            const bool dome = cfg.liShape == "dome";
+            const double R = dome ? num(cfg.liDome, 1) : num(cfg.liWindow, 0);
+            double x, z;
+            do {
+                x = G4RandGauss::shoot(0.0, cfg.liSpotSigma_mm);
+                z = G4RandGauss::shoot(0.0, cfg.liSpotSigma_mm);
+            } while (x * x + z * z > 0.9025 * R * R);
+            const double d = tFilm_mm * G4UniformRand();
+            if (dome) {   // film lines the inside, radius ∈ [R − t, R] about (0, −R, 0)
+                const double rho = R - d;
+                return G4ThreeVector(x * mm, (-R + std::sqrt(rho * rho - x * x - z * z)) * mm, z * mm);
+            }
+            const double th = num(cfg.liWindow, 1) * CLHEP::deg;   // n = (0, cos, sin), film n·x ∈ [−t, 0]
+            return G4ThreeVector(x * mm, ((-d - z * std::sin(th)) / std::cos(th)) * mm, z * mm);
+        }
         const double rMax = 0.95 * cfg.liHolderRout_mm;   // the film disk radius (DetectorConstruction)
         double x, z;
         do {
