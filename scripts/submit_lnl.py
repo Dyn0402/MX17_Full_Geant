@@ -49,6 +49,9 @@ GAMMA_LINES = {
     # 27Al(p,g)28Si, 992 keV resonance (Al backing / holder when the beam crosses
     # 992 keV in Al): mainly 10.76 MeV to the 1.78 MeV 2+, then 1.78 MeV
     "Al28": "10.76:1,1.78:1",
+    # response library (L10, x17_facility_search lnl/target/SHAPES_GEANT.md): 26 lines 0.2-17.64 MeV, equal mix
+    "lib": ("0.2:1,0.3:1,0.478:1,0.67:1,0.85:1,1.0:1,1.3:1,1.63:1,2.0:1,2.37:1,3.0:1,3.5:1,4.44:1,5.0:1,"
+            "6.13:1,7.0:1,8.06:1,9.0:1,10.0:1,11.0:1,12.0:1,13.0:1,14.0:1,15.1:1,16.1:1,17.64:1"),
 }
 
 
