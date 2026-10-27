@@ -49,6 +49,7 @@
 #include "TH2.h"
 #include "TTree.h"
 #include "TString.h"
+#include "OgiveProfile.hh"
 #endif
 
 X17PrimaryGenerator::X17PrimaryGenerator(const SimConfig& cfg)
@@ -159,7 +160,7 @@ static G4ThreeVector SampleHe3Vertex(const SimConfig& cfg) {
                             ("Unknown Li film material: " + m).c_str());
             return std::stod(cfg.liFilm.substr(c + 1)) * 1e-6 * g/cm2 / mat->GetDensity() / mm;
         }();
-        if (cfg.liShape == "dome" || cfg.liShape == "window") {
+        if (cfg.liShape == "dome" || cfg.liShape == "ogive" || cfg.liShape == "window") {
             // the beam spot (x, z) projected along +y onto the film (SHAPES_GEANT.md);
             // depth uniform through the film along its normal
             auto num = [](const std::string& s, int i) {
@@ -168,17 +169,34 @@ static G4ThreeVector SampleHe3Vertex(const SimConfig& cfg) {
                 for (int k = 0; k <= i; ++k) std::getline(ss, x, ':');
                 return std::stod(x);
             };
-            const bool dome = cfg.liShape == "dome";
-            const double R = dome ? num(cfg.liDome, 1) : num(cfg.liWindow, 0);
+            // total liner thickness (mm) inside a dome / ogive: the "+Mat:um" layers
+            auto liner = [](const std::string& s) {
+                double t = 0;
+                std::stringstream ss(s.substr(s.find('+') == std::string::npos ? s.size() : s.find('+') + 1));
+                for (std::string x; std::getline(ss, x, '+');)
+                    if (!x.empty()) t += std::stod(x.substr(x.find(':') + 1)) * 1e-3;
+                return t;
+            };
+            const bool dome = cfg.liShape == "dome", og = cfg.liShape == "ogive";
+            const double R = dome ? num(cfg.liDome, 1) : og ? 24.0 : num(cfg.liWindow, 0);
             double x, z;
             do {
                 x = G4RandGauss::shoot(0.0, cfg.liSpotSigma_mm);
                 z = G4RandGauss::shoot(0.0, cfg.liSpotSigma_mm);
             } while (x * x + z * z > 0.9025 * R * R);
             const double d = tFilm_mm * G4UniformRand();
-            if (dome) {   // film lines the inside, radius ∈ [R − t, R] about (0, −R, 0)
-                const double rho = R - d;
+            if (dome) {   // film lines the inside of the cup (and its liner), radius ∈ [R − tL − t, R − tL]
+                const double rho = R - liner(cfg.liDome) - d;
                 return G4ThreeVector(x * mm, (-R + std::sqrt(rho * rho - x * x - z * z)) * mm, z * mm);
+            }
+            if (og) {     // the film's outer surface is the shell's inner surface offset by the liner
+                static const ogive::Surface surf(liner(cfg.liOgive));
+                const double rho = std::hypot(x, z);
+                double y, nr, ny;
+                if (!surf.hit(rho, y, nr, ny))
+                    G4Exception("X17PrimaryGenerator", "Ogive", FatalException, "beam spot misses the ogive");
+                const double ux = rho > 0 ? x / rho : 0, uz = rho > 0 ? z / rho : 0;
+                return G4ThreeVector((x + d * nr * ux) * mm, (y + d * ny) * mm, (z + d * nr * uz) * mm);
             }
             const double th = num(cfg.liWindow, 1) * CLHEP::deg;   // n = (0, cos, sin), film n·x ∈ [−t, 0]
             return G4ThreeVector(x * mm, ((-d - z * std::sin(th)) / std::cos(th)) * mm, z * mm);

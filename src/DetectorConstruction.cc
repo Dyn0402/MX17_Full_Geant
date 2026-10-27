@@ -55,6 +55,7 @@
 #include <utility>
 #include <algorithm>
 #include <tuple>
+#include "OgiveProfile.hh"
 
 DetectorConstruction::DetectorConstruction(const SimConfig& cfg)
     : G4VUserDetectorConstruction(), fConfig(cfg) {}
@@ -1326,19 +1327,31 @@ void DetectorConstruction::BuildLiShape(G4LogicalVolume* worldLV) {
     std::string desc;
 
     if (c.liShape == "dome") {
-        // cup: inner radius R, centre at y = −R (inner apex at y = 0), concave to the beam
-        const auto d = split(c.liDome);
-        if (d.size() != 3) throw std::runtime_error("li: --dome expects Mat:R_mm:t_um");
+        // cup: inner radius R, centre at y = −R (inner apex at y = 0), concave to the beam;
+        // optional liner layers (Mat:um, from the cup inward) and the film inside them
+        const auto layers = ParseLayers(c.liDome);          // "Mat:R:t" then "Mat:um"...
+        const auto d = split(c.liDome.substr(0, c.liDome.find('+')));
+        if (d.size() != 3) throw std::runtime_error("li: --dome expects Mat:R_mm:t_um[+Liner:um...]");
         const G4double R = std::stod(d[1]) * mm, t = std::stod(d[2]) * um;
         auto* cupLV = new G4LogicalVolume(new G4Sphere("LiTarget_Dome", R, R + t, 0, twopi, 0, 90*deg),
                                           CellMat(d[0]), "LiTarget_Dome");
         vis(cupLV, 0.85, 0.5, 0.2, 0.8);
         place(cupLV, -R);
-        auto* fLV = new G4LogicalVolume(new G4Sphere("LiTarget_Film", R - tFilm, R, 0, twopi, 0, 90*deg),
+        G4double rIn = R;
+        for (size_t i = 1; i < layers.size(); ++i) {
+            const G4double tL = layers[i].second * um;
+            auto* lLV = new G4LogicalVolume(new G4Sphere("LiTarget_Backing", rIn - tL, rIn, 0, twopi, 0, 90*deg),
+                                            CellMat(layers[i].first), "LiTarget_Backing");
+            vis(lLV, 0.75, 0.75, 0.8, 0.8);
+            place(lLV, -R, int(i) - 1);
+            rIn -= tL;
+        }
+        auto* fLV = new G4LogicalVolume(new G4Sphere("LiTarget_Film", rIn - tFilm, rIn, 0, twopi, 0, 90*deg),
                                         filmMat, "LiTarget_Film");
         vis(fLV, 0.9, 0.2, 0.2, 0.9);
         place(fLV, -R);
-        desc = d[0] + " hemisphere R=" + d[1] + " mm, " + d[2] + " um";
+        desc = d[0] + " hemisphere R=" + d[1] + " mm, " + d[2] + " um" +
+               (layers.size() > 1 ? ", liner " + c.liDome.substr(c.liDome.find('+') + 1) : "");
         if (!c.liDomeRim.empty()) {
             const auto r = split(c.liDomeRim);
             const G4double w = std::stod(r.at(0)) * mm, h = std::stod(r.at(1)) * mm;
@@ -1348,6 +1361,41 @@ void DetectorConstruction::BuildLiShape(G4LogicalVolume* worldLV) {
             place(rimLV, -R - h / 2);
             desc += ", rim r " + d[1] + "+" + r[0] + " mm x " + r[1] + " mm";
         }
+    } else if (c.liShape == "ogive") {
+        // the CAD shell (OgiveProfile.hh): G4Polycone layers of revolution about the beam axis,
+        // from the shell outward-in: shell [in, out], liners, film.  Local z = world y (place at 0).
+        const auto layers = ParseLayers(c.liOgive);         // "Mat:t_um" then "Mat:um"...
+        if (layers.empty()) throw std::runtime_error("li: --ogive expects Mat:t_um[+Liner:um...]");
+        const G4double tShell = layers[0].second;           // um → the profile works in mm
+        if (std::abs(tShell * 1e-3 - ogive::WALL) > 1e-6)
+            G4cout << "  NOTE: --ogive wall " << tShell << " um differs from the CAD's 200 um; the inner"
+                      " surface is the CAD's, the outer is offset by the requested wall" << G4endl;
+        auto layer = [&](const std::string& nm, double offIn, double offOut, G4Material* mat, int copy,
+                         G4double r, G4double g, G4double b) {
+            // offsets in mm inward from the shell's inner surface (outer surface: negative)
+            const ogive::Surface sIn(offIn), sOut(offOut);
+            const auto zs = ogive::planes(sOut.yTop());
+            std::vector<G4double> z, rin, rout;
+            for (double y : zs) {
+                z.push_back(y * mm);
+                rin.push_back(sIn.r(y) * mm);
+                rout.push_back(std::max(sOut.r(y), sIn.r(y)) * mm);
+            }
+            auto* pc = new G4Polycone(nm, 0, twopi, int(z.size()), z.data(), rin.data(), rout.data());
+            auto* lv = new G4LogicalVolume(pc, mat, nm);
+            vis(lv, r, g, b, 0.85);
+            place(lv, 0, copy);
+        };
+        layer("LiTarget_Dome", 0.0, -tShell * 1e-3, CellMat(layers[0].first), 0, 0.85, 0.5, 0.2);
+        double off = 0.0;
+        for (size_t i = 1; i < layers.size(); ++i) {
+            const double tL = layers[i].second * 1e-3;
+            layer("LiTarget_Backing", off + tL, off, CellMat(layers[i].first), int(i) - 1, 0.75, 0.75, 0.8);
+            off += tL;
+        }
+        layer("LiTarget_Film", off + tFilm / mm, off, filmMat, 0, 0.9, 0.2, 0.2);
+        desc = layers[0].first + " ogive (27 Oct CAD), wall " + std::to_string(tShell) + " um, O50 x 63 mm, tip R 3" +
+               (layers.size() > 1 ? ", liner " + c.liOgive.substr(c.liOgive.find('+') + 1) : "");
     } else if (c.liShape == "window") {
         const auto wv = split(c.liWindow);
         const G4double R = std::stod(wv.at(0)) * mm, th = std::stod(wv.at(1)) * deg;
@@ -1385,13 +1433,22 @@ void DetectorConstruction::BuildLiShape(G4LogicalVolume* worldLV) {
         if (tG > 0) vis(mk("LiTarget_Glue", slab("LiTarget_Glue", R, R + wR, -tG, 0), "Epoxy"), 0.9, 0.9, 0.3, 0.6);
         desc = "plane stack, aperture R=" + wv[0] + " mm, tilt " + wv[1] + " deg, rings " + c.liWinRing +
                ", glue " + std::to_string(c.liWinGlue_mm) + " mm";
+        G4double zc = -tG - tR;                                // where the mount starts, n·x = zc
+        if (!c.liWinPlate.empty()) {
+            // flange plate in the window plane under the upstream ring, r ∈ [R, r_out]
+            const auto pl = split(c.liWinPlate);
+            const G4double tP = std::stod(pl.at(1)) * mm, rP = std::stod(pl.at(2)) * mm;
+            vis(mk("LiTarget_Plate", slab("LiTarget_Plate", R, rP, zc - tP, zc), pl[0]), 0.7, 0.7, 0.75, 0.6);
+            zc -= tP;
+            desc += ", plate " + c.liWinPlate;
+        }
         if (c.liWinEndPiece != "none") {
-            // tube (R, R+t) from the window plane (below the upstream ring) back to local z = −len
+            // tube (r, r+t) from the window plane (below the upstream ring / plate) back to local z = −len
             const auto ep = split(c.liWinEndPiece);
             const G4double tE = std::stod(ep.at(1)) * mm, L = std::stod(ep.at(2)) * mm;
-            const G4double zc = -tG - tR;                      // the cut plane, n·x = zc
-            const G4double top = (R + tE) * std::tan(th) + 1*mm;   // highest local z the cut reaches
-            auto* tube = new G4Tubs("LiTarget_EndPiece_t", R, R + tE, (L + top) / 2, 0, twopi);
+            const G4double rE = ep.size() > 3 ? std::stod(ep[3]) * mm : R;
+            const G4double top = (rE + tE) * std::tan(th) + 1*mm;   // highest local z the cut reaches
+            auto* tube = new G4Tubs("LiTarget_EndPiece_t", rE, rE + tE, (L + top) / 2, 0, twopi);
             auto* half = new G4Box("LiTarget_EndPiece_b", big, big, big);   // n·x < zc
             const G4ThreeVector off(0, 0, (top - L) / 2);   // the tube's centre in the window frame
             auto* cut = new G4IntersectionSolid("LiTarget_EndPiece_c", tube, half,
@@ -1403,7 +1460,7 @@ void DetectorConstruction::BuildLiShape(G4LogicalVolume* worldLV) {
             desc += ", end piece " + c.liWinEndPiece;
         }
     } else {
-        throw std::runtime_error("li: unknown --shape '" + c.liShape + "' (flat|dome|window)");
+        throw std::runtime_error("li: unknown --shape '" + c.liShape + "' (flat|dome|ogive|window)");
     }
 
     // beam-line tubes
@@ -1428,7 +1485,7 @@ void DetectorConstruction::BuildLiShape(G4LogicalVolume* worldLV) {
     G4cout << "  Beam axis    : +Y (protons, not tracked)" << G4endl;
     G4cout << "  Li target    : " << c.liShape << ": " << desc << G4endl;
     G4cout << "  Film         : " << film.first << " " << film.second << " ug/cm2 = " << tFilm/um << " um" << G4endl;
-    G4cout << "  Backing      : " << (c.liShape == "window" ? c.liBacking : std::string("(the dome)")) << G4endl;
+    G4cout << "  Backing      : " << (c.liShape == "window" ? c.liBacking : std::string("(the shell / its liner)")) << G4endl;
     G4cout << "  Beam line    : " << (lineDesc.empty() ? "none" : lineDesc) << G4endl;
     G4cout << "  Beam spot    : sigma=" << c.liSpotSigma_mm << " mm (pair / gamma vertices)" << G4endl;
 }

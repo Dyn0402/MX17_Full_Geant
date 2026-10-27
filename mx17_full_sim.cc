@@ -99,10 +99,12 @@ static void PrintUsage() {
               << "  --flange <Mat:mm> (Al:5)  --dump <Mat:mm|none> (Ta:2)  --dump-dist <mm> (250)\n"
               << "  --spot-sigma <mm>    Gaussian beam spot for pair / gamma vertices (default 2)\n"
               << "  --target-y <mm>      move film + backing + holder (and the vertices) along the beam (0)\n"
-              << "  --shape flat|dome|window  no chamber for dome/window: the target ends the beam pipe\n"
-              << "  --dome <Mat:R_mm:t_um> (Cu:11:200)  --dome-rim <w_mm:h_mm>\n"
+              << "  --shape flat|dome|ogive|window  no chamber for dome/ogive/window: the target ends the beam pipe\n"
+              << "  --dome <Mat:R_mm:t_um[+Liner:um]> (Cu:11:200)  --dome-rim <w_mm:h_mm>\n"
+              << "  --ogive <Mat:t_um[+Liner:um]> (Cu:200)  the 27 Oct CAD shell (OgiveProfile.hh)\n"
               << "  --win-plane <R_mm:tilt_deg> (10:45)  --win-ring <Mat:t_mm:w_mm> (Ti:0.5:5)\n"
-              << "  --win-glue <mm> (0.1)  --win-endpiece <Mat:t_mm:len_mm|none> (Al:0.5:55)\n"
+              << "  --win-glue <mm> (0.1)  --win-endpiece <Mat:t_mm:len_mm[:r_mm]|none> (Al:0.5:55)\n"
+              << "  --win-plate <Mat:t_mm:r_out_mm>  flange plate in the window plane (wide adapter)\n"
               << "  --line <Mat:rin:rout:y0:y1[,...]>  coaxial beam-line tubes (mm)\n"
               << "  --gamma-lines <E:w,E:w,...>\n"
               << "                   one isotropic γ per event from the pair vertices, line ∝ w\n"
@@ -272,6 +274,8 @@ int main(int argc, char** argv) {
         else if (a == "--gamma-lines" && i+1<argc) config.gammaLines = argv[++i];
         else if (a == "--shape"       && i+1<argc) config.liShape    = argv[++i];
         else if (a == "--dome"        && i+1<argc) config.liDome     = argv[++i];
+        else if (a == "--ogive"       && i+1<argc) config.liOgive    = argv[++i];
+        else if (a == "--win-plate"   && i+1<argc) config.liWinPlate = argv[++i];
         else if (a == "--dome-rim"    && i+1<argc) config.liDomeRim  = argv[++i];
         else if (a == "--win-plane"   && i+1<argc) config.liWindow   = argv[++i];
         else if (a == "--win-ring"    && i+1<argc) config.liWinRing  = argv[++i];

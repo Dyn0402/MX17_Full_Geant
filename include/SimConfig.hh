@@ -178,22 +178,32 @@ struct SimConfig {
     // Target shapes with no chamber (x17_facility_search lnl/target/SHAPES_GEANT.md): the
     // target is the vacuum end of the beam pipe, air outside.  --shape flat keeps the
     // chamber geometry above.
-    //   dome    Mat:R_mm:t_um  hemispherical cup, concave to the beam, inner apex at y = 0;
-    //           the film lines its inside (an inner shell, thickness from --film) and the
-    //           vertices sit in it where the beam spot hits.  --dome-rim w:h adds a ring of
-    //           the cup material r ∈ [R, R+w] below the equator, y ∈ [−R−h, −R].
+    //   dome    Mat:R_mm:t_um[+Liner:um...]  hemispherical cup, concave to the beam, inner apex
+    //           at y = 0; optional liner layers inside the cup (e.g. Be:11:200+Mo:8, the Mo as
+    //           beam stop); the film lines the innermost surface (an inner shell, thickness from
+    //           --film) and the vertices sit in it where the beam spot hits.  --dome-rim w:h
+    //           adds a ring of the cup material r ∈ [R, R+w] below the equator, y ∈ [−R−h, −R].
+    //   ogive   --ogive Mat:t_um[+Liner:um...]  Pierfrancesco's pointed shell (the 27 Oct CAD,
+    //           include/OgiveProfile.hh): Ø50 × 63 mm, tip R 3, inner tip at y = 0, open base
+    //           at y = −63 toward the beam; liner layers and the film inside as for the dome.
+    //           The base mount goes in --line.  (L11, SHAPES_GEANT.md.)
     //   window  --win-plane R_mm:tilt_deg: a plane stack closing a tube end of aperture R: the film on
     //           the vacuum side (n·x ∈ [−t_film, 0], n = (0, cos, sin)), then the --backing
     //           layers, clamped between two rings (--win-ring Mat:t_mm:w_mm, glue line
     //           --win-glue mm under the upstream one), on an end piece of tube
-    //           (--win-endpiece Mat:t_mm:len_mm, cut on the window plane).  --film is the
-    //           areal density along the normal.
+    //           (--win-endpiece Mat:t_mm:len_mm[:r_mm], cut on the window plane; r defaults to
+    //           the aperture R).  --win-plate Mat:t_mm:r_out_mm adds a flange plate in the
+    //           window plane under the upstream ring, r ∈ [R, r_out] (the end piece then hangs
+    //           under the plate: a "wide adapter", L11).  --film is the areal density along the normal.
     //   line    coaxial tubes along the beam, "Mat:rin:rout:y0:y1[,...]" (mm), placed in the
     //           world as given: the flanges, adapters and pipe upstream of the target.
-    // Volume names: LiTarget_Film, LiTarget_Backing, LiTarget_Dome, LiTarget_Rim,
-    // LiTarget_Ring, LiTarget_Glue, LiTarget_EndPiece, BeamLine_Tube.
-    std::string liShape            = "flat";    // flat | dome | window
+    // Volume names: LiTarget_Film, LiTarget_Backing (window backing, dome/ogive liners),
+    // LiTarget_Dome (the cup or the ogive shell), LiTarget_Rim, LiTarget_Ring, LiTarget_Glue,
+    // LiTarget_Plate, LiTarget_EndPiece, BeamLine_Tube.
+    std::string liShape            = "flat";    // flat | dome | ogive | window
     std::string liDome             = "Cu:11:200";
+    std::string liOgive            = "Cu:200";
+    std::string liWinPlate         = "";        // "Mat:t_mm:r_out_mm", empty = none
     std::string liDomeRim          = "";        // "w_mm:h_mm", empty = none
     std::string liWindow           = "10:45";
     std::string liWinRing          = "Ti:0.5:5";
