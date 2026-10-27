@@ -14,6 +14,9 @@ Channels per arm (as l10_singles.py):
 Each channel's hits are sorted in time; a gap > GAP_NS starts a new cluster (beam histories last µs to
 s: moderated neutrons, capture γ, decays).  One row per cluster: event, arm, channel, t0 [ns], E [MeV],
 and the event weight (EventTree ev_weight; 1 for analog runs), with the primary energy En [MeV].
+q [MeVee]: the light, quenched per hit: e±/γ as deposited; protons by the Cecil et al. (NIM 161 (1979) 439)
+plastic curve L = 0.95 E − 8.0 (1 − exp(−0.1 E^0.9)); deuterons/tritons the same at E/2, E/3 (scaled range);
+α, ³He and heavier ions 0.02·E (a stand-in for their < 5 % light in plastic at < 2 MeV).
 """
 import argparse
 
@@ -28,12 +31,25 @@ ap.add_argument("file")
 ap.add_argument("-o", "--out", required=True)
 a = ap.parse_args()
 
-acc = {k: [] for k in ("ev", "key", "t", "e")}
+acc = {k: [] for k in ("ev", "key", "t", "e", "q")}
+
+
+def light(p, e):
+    """per-hit electron-equivalent light [MeV] for particle names p and deposits e [MeV]."""
+    q = e.copy()
+    ion = ~np.isin(p, ["e-", "e+", "gamma", "mu-", "mu+"])
+    for nm, k in (("proton", 1.0), ("deuteron", 2.0), ("triton", 3.0)):
+        m = p == nm
+        E = e[m] / k
+        q[m] = k * np.clip(0.95 * E - 8.0 * (1 - np.exp(-0.1 * np.power(E, 0.9))), 0, None)
+        ion &= ~m
+    q[ion] = 0.02 * e[ion]
+    return q
 with uproot.open(a.file) as f:
     et = f["EventTree"]
     br = ["eventID", "neutron_E_eV"] + (["ev_weight"] if "ev_weight" in et.keys() else [])
     E = et.arrays(br, library="np")
-    for t in f["HitTree"].iterate(["eventID", "armID", "detType", "u", "edep", "time"], library="np",
+    for t in f["HitTree"].iterate(["eventID", "armID", "detType", "particle", "u", "edep", "time"], library="np",
                                   step_size="300 MB"):
         det = np.array([x.decode() if isinstance(x, bytes) else x for x in t["detType"]])
         ch = np.full(len(det), -1, np.int64)
@@ -46,15 +62,18 @@ with uproot.open(a.file) as f:
         acc["key"].append(t["armID"][m].astype(np.int64) * 24 + ch[m])
         acc["t"].append(t["time"][m].astype(np.float64))
         acc["e"].append(t["edep"][m] * 1e-6)
-ev, key, tt, e = (np.concatenate(acc[k]) if acc[k] else np.zeros(0) for k in ("ev", "key", "t", "e"))
+        pn = np.array([x.decode() if isinstance(x, bytes) else str(x) for x in t["particle"][m]])
+        acc["q"].append(light(pn, t["edep"][m] * 1e-6))
+ev, key, tt, e, qq = (np.concatenate(acc[k]) if acc[k] else np.zeros(0) for k in ("ev", "key", "t", "e", "q"))
 o = np.lexsort((tt, key, ev))
-ev, key, tt, e = ev[o], key[o], tt[o], e[o]
+ev, key, tt, e, qq = ev[o], key[o], tt[o], e[o], qq[o]
 new = np.ones(len(ev), bool)
 if len(ev):
     new[1:] = (ev[1:] != ev[:-1]) | (key[1:] != key[:-1]) | (np.diff(tt) > GAP_NS)
 cid = np.cumsum(new) - 1
 first = np.nonzero(new)[0]
 E_cl = np.bincount(cid, e) if len(e) else e
+Q_cl = np.bincount(cid, qq) if len(e) else e
 ev_cl, key_cl, t_cl = ev[first], key[first], tt[first]
 w_ev = np.ones(int(E["eventID"].max()) + 1) if len(E["eventID"]) else np.ones(1)
 en_ev = np.zeros_like(w_ev)
@@ -62,7 +81,7 @@ if "ev_weight" in E:
     w_ev[E["eventID"]] = E["ev_weight"]
 en_ev[E["eventID"]] = E["neutron_E_eV"] * 1e-6
 np.savez_compressed(a.out, ev=ev_cl.astype(np.int32), arm=(key_cl // 24).astype(np.int8),
-                    ch=(key_cl % 24).astype(np.int8), t=t_cl.astype(np.float64), e=E_cl.astype(np.float32),
+                    ch=(key_cl % 24).astype(np.int8), t=t_cl.astype(np.float64), e=E_cl.astype(np.float32), q=Q_cl.astype(np.float32),
                     w=w_ev[ev_cl].astype(np.float32), En=en_ev[ev_cl].astype(np.float32),
                     n_generated=np.array([len(E["eventID"])]))
 print(f"{a.file}: {len(E['eventID'])} events, {len(E_cl)} channel clusters -> {a.out}")

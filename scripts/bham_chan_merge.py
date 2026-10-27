@@ -9,6 +9,7 @@ Rows are channel time clusters (gap > 100 ns) with the event weight w and the pr
 Output, all Σ w (divide by n_generated for per-primary rates):
   h[iEn, arm, ch, iE]    clusters per primary-energy bin, arm, channel, deposited-energy bin
   p[iEn, arm, ch]        Σ w·E deposited [MeV]
+  hq, pq                 the same in quenched light (MeVee; parts from the quenching reducer only)
   en_edges (MeV, 0-20 in 0.05 below 1.3, then coarse), e_edges (log, 1 keV-200 MeV); n_generated.
 """
 import argparse
@@ -24,6 +25,7 @@ ap.add_argument("-o", "--out", required=True)
 a = ap.parse_args()
 h = np.zeros((len(EN) - 1, 4, 24, len(EE) - 1))
 p = np.zeros((len(EN) - 1, 4, 24))
+hq, pq = np.zeros_like(h), np.zeros_like(p)
 ngen = 0
 for f in a.parts:
     z = np.load(f)
@@ -34,5 +36,9 @@ for f in a.parts:
     ik = np.clip(np.digitize(z["e"], EE) - 1, 0, len(EE) - 2)
     np.add.at(h, (ie, z["arm"].astype(int), z["ch"].astype(int), ik), z["w"])
     np.add.at(p, (ie, z["arm"].astype(int), z["ch"].astype(int)), z["w"] * z["e"])
-np.savez_compressed(a.out, h=h, p=p, en_edges=EN, e_edges=EE, n_generated=np.array([ngen]))
+    if "q" in z.files:
+        iq = np.clip(np.digitize(z["q"], EE) - 1, 0, len(EE) - 2)
+        np.add.at(hq, (ie, z["arm"].astype(int), z["ch"].astype(int), iq), z["w"] * (z["q"] > EE[0]))
+        np.add.at(pq, (ie, z["arm"].astype(int), z["ch"].astype(int)), z["w"] * z["q"])
+np.savez_compressed(a.out, h=h, p=p, hq=hq, pq=pq, en_edges=EN, e_edges=EE, n_generated=np.array([ngen]))
 print(f"{len(a.parts)} parts, {ngen} primaries -> {a.out}")
