@@ -20,6 +20,7 @@ ap = argparse.ArgumentParser()
 ap.add_argument("stage")
 ap.add_argument("-o", "--out", required=True)
 ap.add_argument("--npz")
+ap.add_argument("--type", type=int, choices=(0, 1), help="gun file: neutrons (0) or photons (1) only")
 a = ap.parse_args()
 
 nev = 0
@@ -36,6 +37,8 @@ D = np.concatenate(parts) if parts else np.zeros((0, 11))
 D[:, 9] /= max(nev, 1)
 last = int(D[:, 0].max()) if len(D) else 0
 L = D[D[:, 0] == last]
+if a.type is not None:
+    L = L[L[:, 1] == a.type]
 with open(a.out, "w") as f:
     f.write(f"# merged from {a.stage}: N_events {nev}, plane {last}; w per source particle\n")
     f.write("type,E_MeV,x,y,z,dx,dy,dz,w,uncol\n")
