@@ -2,6 +2,7 @@
 // SimConfig.hh — geometry and run parameters for the 4-arm X17 simulation
 
 #include <string>
+#include <vector>
 #include "G4SystemOfUnits.hh"
 
 struct SimConfig {
