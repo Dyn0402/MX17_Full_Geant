@@ -126,6 +126,7 @@ static void PrintUsage() {
               << "                     --src-cosmin <c>; --beam-particle gamma for photons\n"
               << "  --ps-plane <y_mm>  record n/γ crossing y (repeatable; the last one kills) to <out>_ps_t<N>.csv\n"
               << "  --ps-gun <file>    primaries from a merged phase-space file  --ps-drop-uncol\n"
+              << "  --ps-gkeep <p>     keep crossing photons with probability p (weight 1/p)\n"
               << "  -h               Print this help\n";
 }
 
@@ -263,6 +264,7 @@ int main(int argc, char** argv) {
         else if (a == "--ps-plane" && i+1<argc) config.psPlanes.push_back(std::stod(argv[++i]));
         else if (a == "--ps-gun" && i+1<argc) { config.psGunFile = argv[++i]; config.neutronMode = true; }
         else if (a == "--ps-drop-uncol") config.psDropUncollided = true;
+        else if (a == "--ps-gkeep" && i+1<argc) config.psGammaKeep = std::stod(argv[++i]);
         else if (a == "--ts")    config.thermalScattering = 1;
         else if (a == "--no-ts") config.thermalScattering = 0;
         else if (a == "--target" && i+1<argc) {

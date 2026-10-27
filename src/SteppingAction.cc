@@ -18,6 +18,7 @@
 #include "G4Threading.hh"
 #include "G4Event.hh"
 #include "G4EventManager.hh"
+#include "Randomize.hh"
 
 #include <cstring>
 #include <cstdio>
@@ -309,7 +310,11 @@ bool SteppingAction::HandlePlanes(const G4Step* step) {
     for (size_t k = 0; k < P.size(); ++k) {
         const double Y = P[k] * mm;
         if (!(y0 < Y && y1 >= Y)) continue;
-        if (type >= 0) {
+        bool rec = type == 0;
+        if (type == 1)
+            rec = pre->GetKineticEnergy() > 0.05 * MeV &&
+                  (fConfig.psGammaKeep >= 1.0 || G4UniformRand() < fConfig.psGammaKeep);
+        if (rec) {
             if (!fPsFile.is_open()) {
                 const int tid = G4Threading::G4GetThreadId();
                 fPsFile.open(fConfig.outFile + "_ps_t" + std::to_string(tid < 0 ? 0 : tid) + ".csv");
@@ -327,7 +332,8 @@ bool SteppingAction::HandlePlanes(const G4Step* step) {
             char buf[256];
             std::snprintf(buf, sizeof buf, "%zu,%d,%.6g,%.6g,%.6g,%.6g,%.7g,%.7g,%.7g,%.6g,%d\n", k, type,
                           pre->GetKineticEnergy() / MeV, x.x() / mm, x.y() / mm, x.z() / mm, d.x(), d.y(), d.z(),
-                          trk->GetWeight() * evw, unc ? 1 : 0);
+                          trk->GetWeight() * evw / (type == 1 ? std::min(1.0, fConfig.psGammaKeep) : 1.0),
+                          unc ? 1 : 0);
             fPsFile << buf;
         }
         if (k + 1 == P.size()) {

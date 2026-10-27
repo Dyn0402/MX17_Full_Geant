@@ -164,6 +164,8 @@ struct SimConfig {
     std::vector<double> psPlanes;            // scoring planes (record, do not kill) except the last (kill)
     std::string psGunFile;
     bool        psDropUncollided = false;    // --ps-drop-uncol: skip records still uncollided (the bore beam)
+    double      psGammaKeep      = 1.0;      // --ps-gkeep p: record a crossing γ with probability p (weight 1/p);
+                                             // γ below 50 keV are never recorded
 
     // ── Compound-nucleus motion (--cm-beta; fast-neutron capture) ────────────
     // n + ³He at E_n moves the ⁴He* along the beam (+Y) with β = p_n/(E_n+m_n+m_3He).
