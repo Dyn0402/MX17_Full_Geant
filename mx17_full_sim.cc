@@ -116,6 +116,16 @@ static void PrintUsage() {
               << "  --big-plastic <u_cm> <v_cm> <t_cm>  one plastic slab per arm (trigger study)\n"
               << "  --no-ls          omit the LS vessels\n"
               << "  --sipm-readout <N> <shift>  instrumented SiPM bars (default 16 1; all: 20 0)\n"
+              << "\n  Birmingham HF-ADNeF (x17_facility_search/birmingham/TARGET_GEANT.md):\n"
+              << "  --room             target room, shield wall with a bore, experimental room, dump\n"
+              << "  --shield <Mat:mm+...> (BPE:200+Concrete:800+Pb:50)  --shield-y0 <mm> (-1650)\n"
+              << "  --bore <r_mm> (40)  --plug <Mat:mm|none> (Pb:50)  --troom <half_mm> <y0_mm> (800 -2650)\n"
+              << "  --xroom <half_mm> <y1_mm> (2000 4000)  --floor <mm> (1200)  --room-wall <mm> (500)\n"
+              << "  --room-dump <Mat:y0:len:half|none> (BPE:2500:600:300)\n"
+              << "  --src <table.csv>  point source at --src-y (-2050), (cosθ, E) table; --src-sigma <mm> (15),\n"
+              << "                     --src-cosmin <c>; --beam-particle gamma for photons\n"
+              << "  --ps-plane <y_mm>  record n/γ crossing y (repeatable; the last one kills) to <out>_ps_t<N>.csv\n"
+              << "  --ps-gun <file>    primaries from a merged phase-space file  --ps-drop-uncol\n"
               << "  -h               Print this help\n";
 }
 
@@ -233,6 +243,26 @@ int main(int argc, char** argv) {
             config.sipm_readout_shift_bars = std::stoi(argv[++i]);
         }
         else if (a == "--cosmic") config.cosmic = true;
+        // Birmingham HF-ADNeF facility (SimConfig "Birmingham HF-ADNeF facility")
+        else if (a == "--room") config.bhamRoom = true;
+        else if (a == "--src" && i+1<argc) { config.srcTable = argv[++i]; config.neutronMode = true; }
+        else if (a == "--src-y" && i+1<argc) config.roomSrcY_mm = std::stod(argv[++i]);
+        else if (a == "--src-sigma" && i+1<argc) config.srcSigma_mm = std::stod(argv[++i]);
+        else if (a == "--src-cosmin" && i+1<argc) config.srcCosMin = std::stod(argv[++i]);
+        else if (a == "--shield" && i+1<argc) config.shieldLayers = argv[++i];
+        else if (a == "--shield-y0" && i+1<argc) config.shieldY0_mm = std::stod(argv[++i]);
+        else if (a == "--bore" && i+1<argc) config.shieldBoreR_mm = std::stod(argv[++i]);
+        else if (a == "--plug" && i+1<argc) config.shieldPlug = argv[++i];
+        else if (a == "--troom" && i+2<argc) { config.troomHalf_mm = std::stod(argv[++i]);
+                                               config.troomY0_mm = std::stod(argv[++i]); }
+        else if (a == "--xroom" && i+2<argc) { config.xroomHalf_mm = std::stod(argv[++i]);
+                                               config.xroomY1_mm = std::stod(argv[++i]); }
+        else if (a == "--floor" && i+1<argc) config.floorDepth_mm = std::stod(argv[++i]);
+        else if (a == "--room-wall" && i+1<argc) config.roomWall_mm = std::stod(argv[++i]);
+        else if (a == "--room-dump" && i+1<argc) config.roomDump = argv[++i];
+        else if (a == "--ps-plane" && i+1<argc) config.psPlanes.push_back(std::stod(argv[++i]));
+        else if (a == "--ps-gun" && i+1<argc) { config.psGunFile = argv[++i]; config.neutronMode = true; }
+        else if (a == "--ps-drop-uncol") config.psDropUncollided = true;
         else if (a == "--ts")    config.thermalScattering = 1;
         else if (a == "--no-ts") config.thermalScattering = 0;
         else if (a == "--target" && i+1<argc) {
@@ -298,7 +328,8 @@ int main(int argc, char** argv) {
     }
 
     if (config.thermalScattering < 0)
-        config.thermalScattering = (config.illBeam || config.cellTarget || !config.slab.empty()) ? 1 : 0;
+        config.thermalScattering = (config.illBeam || config.cellTarget || !config.slab.empty() ||
+                                    config.bhamRoom) ? 1 : 0;
 
     CLHEP::HepRandom::setTheEngine(new CLHEP::RanecuEngine);
     CLHEP::HepRandom::setTheSeed(config.seed);

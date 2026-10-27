@@ -37,6 +37,7 @@
 #include "G4Ellipsoid.hh"
 #include "G4Polycone.hh"
 #include "G4UnionSolid.hh"
+#include "G4SubtractionSolid.hh"
 #include "G4Transform3D.hh"
 #include "G4LogicalVolume.hh"
 #include "G4PVPlacement.hh"
@@ -355,6 +356,13 @@ G4VPhysicalVolume* DetectorConstruction::Construct() {
         worldHalfY = std::max(worldHalfY, fConfig.liChamberHalfLen_mm*mm + tF + 5.0*cm);
     }
 
+    if (fConfig.bhamRoom) {   // the rooms, the wall and the source must fit
+        const G4double w = fConfig.roomWall_mm*mm;
+        worldHalfXZ = std::max({worldHalfXZ, fConfig.xroomHalf_mm*mm + w + 10.0*cm,
+                                fConfig.floorDepth_mm*mm + w + 10.0*cm});
+        worldHalfY  = std::max({worldHalfY, std::abs(fConfig.troomY0_mm*mm - w) + 10.0*cm,
+                                fConfig.xroomY1_mm*mm + w + 10.0*cm});
+    }
     if (fConfig.cosmic) {   // the muon plane must sit inside the world
         const G4double need = std::max(fConfig.cosmicHeight_mm, fConfig.cosmicPlane_mm / 2) * mm
                               + 10.0*cm;
@@ -775,6 +783,7 @@ G4VPhysicalVolume* DetectorConstruction::Construct() {
                << " cm); SiPM bars " << barLo << "-" << barHi << G4endl;
     }
 
+    if (fConfig.bhamRoom) BuildRoom(worldLV);
     G4cout << "=====================================" << G4endl;
     return worldPV;
 }
@@ -892,6 +901,22 @@ G4Material* DetectorConstruction::CellMat(const std::string& name) {
     if (name == "Vac")    return nist->FindOrBuildMaterial("G4_Galactic");
     if (name == "Kapton") return nist->FindOrBuildMaterial("G4_KAPTON");
     if (name == "B4C")    return nist->FindOrBuildMaterial("G4_BORON_CARBIDE");
+    if (name == "Pb")     return nist->FindOrBuildMaterial("G4_Pb");
+    if (name == "Concrete") return nist->FindOrBuildMaterial("G4_CONCRETE");
+    if (name == "PE" || name == "BPE") {
+        // polyethylene, H bound for S(α,β) (G4NDL TS_H_of_Polyethylene, applied when thermal
+        // scattering is on); BPE: 5 wt% natural boron, 1.01 g/cm³ (commercial borated PE)
+        if (auto it = fMats.find(name); it != fMats.end()) return it->second;
+        static G4Element* elH = new G4Element("TS_H_of_Polyethylene", "H_PE", 1., 1.00794*g/mole);
+        const bool b = name == "BPE";
+        auto* m = new G4Material(b ? "BoratedPE5" : "PE_TS", (b ? 1.01 : 0.94)*g/cm3, b ? 3 : 2);
+        const double fB = b ? 0.05 : 0.0;
+        m->AddElement(elH, (1 - fB) * 0.1437);
+        m->AddElement(nist->FindOrBuildElement("C"), (1 - fB) * 0.8563);
+        if (b) m->AddElement(nist->FindOrBuildElement("B"), fB);
+        fMats[name] = m;
+        return m;
+    }
     if (name == "CFRP")   return GetMat("CFRP");
     if (name == "LiF6") {
         auto it = fMats.find("LiF6");
@@ -1244,4 +1269,81 @@ void DetectorConstruction::BuildLiTarget(G4LogicalVolume* worldLV) {
            << " (upstream hole r=" << c.liFlangeHoleR_mm << " mm)" << G4endl;
     G4cout << "  Beam dump    : " << dumpDesc << G4endl;
     G4cout << "  Beam spot    : sigma=" << c.liSpotSigma_mm << " mm (pair / gamma vertices)" << G4endl;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Birmingham HF-ADNeF (--room; SimConfig "Birmingham HF-ADNeF facility").  Boxes
+// in (h, v, y): h horizontal across the beam, v the vertical axis, y the beam.
+void DetectorConstruction::BuildRoom(G4LogicalVolume* worldLV) {
+    const auto& c = fConfig;
+    const bool vx = c.illVerticalAxis == 'x';
+    auto place = [&](const std::string& nm, G4Material* mat, double h0, double h1, double v0, double v1,
+                     double y0, double y1, G4VSolid* hole = nullptr) {
+        const double hh = (h1 - h0) / 2, hv = (v1 - v0) / 2, hy = (y1 - y0) / 2;
+        G4VSolid* box = vx ? static_cast<G4VSolid*>(new G4Box(nm, hv*mm, hy*mm, hh*mm))
+                           : static_cast<G4VSolid*>(new G4Box(nm, hh*mm, hy*mm, hv*mm));
+        const double ch = (h0 + h1) / 2, cv = (v0 + v1) / 2, cy = (y0 + y1) / 2;
+        if (hole) {   // the bore, along y through the beam axis (h = v = 0)
+            auto* rot = new G4RotationMatrix();
+            rot->rotateX(90.*deg);
+            const G4ThreeVector off = vx ? G4ThreeVector(-cv*mm, 0, -ch*mm) : G4ThreeVector(-ch*mm, 0, -cv*mm);
+            box = new G4SubtractionSolid(nm, box, hole, rot, off);
+        }
+        auto* lv = new G4LogicalVolume(box, mat, nm);
+        lv->SetVisAttributes(new G4VisAttributes(G4Color(0.6, 0.6, 0.55, 0.15)));
+        fCellThickLVs.push_back(lv);
+        const G4ThreeVector pos = vx ? G4ThreeVector(cv*mm, cy*mm, ch*mm) : G4ThreeVector(ch*mm, cy*mm, cv*mm);
+        new G4PVPlacement(nullptr, pos, lv, nm, worldLV, false, 0, true);
+    };
+    G4Material* con = CellMat("Concrete");
+    const double w = c.roomWall_mm;
+    // the wall: layers upstream first, each the full cross-section of the experimental room's shell
+    const auto layers = ParseLayers(c.shieldLayers);
+    double tW = 0;
+    for (const auto& l : layers) tW += l.second;
+    const double H = c.xroomHalf_mm + w, V0 = -c.floorDepth_mm - w, V1 = c.xroomHalf_mm + w;
+    const double rB = c.shieldBoreR_mm;
+    double y = c.shieldY0_mm;
+    for (size_t k = 0; k < layers.size(); ++k) {
+        const double t = layers[k].second;
+        G4VSolid* hole = rB > 0 ? new G4Tubs("Shield_Bore", 0, rB*mm, (t/2 + 1.0)*mm, 0, twopi) : nullptr;
+        place("Shield_" + layers[k].first, CellMat(layers[k].first), -H, H, V0, V1, y, y + t, hole);
+        y += t;
+    }
+    const double yE = y;   // the wall's downstream face
+    if (rB > 0 && c.shieldPlug != "none") {
+        const auto pl = ParseLayers(c.shieldPlug).at(0);
+        auto* rot = new G4RotationMatrix();
+        rot->rotateX(90.*deg);
+        auto* lv = new G4LogicalVolume(new G4Tubs("Shield_Plug", 0, rB*mm, pl.second/2*mm, 0, twopi),
+                                       CellMat(pl.first), "Shield_Plug");
+        fCellThickLVs.push_back(lv);
+        new G4PVPlacement(rot, G4ThreeVector(0, (c.shieldY0_mm + pl.second/2)*mm, 0), lv, "Shield_Plug",
+                          worldLV, false, 0, true);
+    }
+    // target room: concrete shell around [−T, T]² × [troomY0, shieldY0], closed by the wall
+    const double T = c.troomHalf_mm, y0 = c.troomY0_mm, y1 = c.shieldY0_mm;
+    place("Room_Target", con, -T - w, T + w, -T - w, -T, y0 - w, y1);          // floor
+    place("Room_Target", con, -T - w, T + w, T, T + w, y0 - w, y1);            // ceiling
+    place("Room_Target", con, -T - w, -T, -T, T, y0 - w, y1);                  // sides
+    place("Room_Target", con, T, T + w, -T, T, y0 - w, y1);
+    place("Room_Target", con, -T, T, -T, T, y0 - w, y0);                       // back wall
+    // experimental room: [−X, X] × [−floor, X] × [yE, xroomY1]
+    const double X = c.xroomHalf_mm, F = c.floorDepth_mm, y2 = c.xroomY1_mm;
+    place("Room_Exp", con, -X - w, X + w, -F - w, -F, yE, y2 + w);
+    place("Room_Exp", con, -X - w, X + w, X, X + w, yE, y2 + w);
+    place("Room_Exp", con, -X - w, -X, -F, X, yE, y2 + w);
+    place("Room_Exp", con, X, X + w, -F, X, yE, y2 + w);
+    place("Room_Exp", con, -X, X, -F, X, y2, y2 + w);
+    if (c.roomDump != "none") {     // Mat:y0:len:half
+        std::stringstream ss(c.roomDump);
+        std::string m, a, b, d;
+        std::getline(ss, m, ':'); std::getline(ss, a, ':'); std::getline(ss, b, ':'); std::getline(ss, d, ':');
+        const double dy0 = std::stod(a), dl = std::stod(b), dh = std::stod(d);
+        place("BeamDump_Room", CellMat(m), -dh, dh, -dh, dh, dy0, dy0 + dl);
+    }
+    G4cout << "  Room         : source y=" << c.roomSrcY_mm << " mm; wall " << c.shieldLayers << " y=["
+           << c.shieldY0_mm << ", " << yE << "] mm, bore r=" << rB << " mm, plug " << c.shieldPlug
+           << "; target room ±" << T << " mm from y=" << y0 << "; experimental room ±" << X
+           << " mm (floor −" << F << ") to y=" << y2 << "; concrete " << w << " mm; dump " << c.roomDump << G4endl;
 }

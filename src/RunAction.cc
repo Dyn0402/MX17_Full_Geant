@@ -158,7 +158,7 @@ void RunAction::BeginOfRunAction(const G4Run*) {
     fImpl->evtTree->Branch("cap_y",        &fImpl->e_cap_y);
     fImpl->evtTree->Branch("cap_z",        &fImpl->e_cap_z);
     fImpl->evtTree->Branch("weight",       &fImpl->e_weight);    // bias weight
-    if (fConfig.nfsForce || fConfig.rouletteP1 < 1.0 || fConfig.rouletteP0 < 1.0) {
+    if (fConfig.nfsForce || fConfig.rouletteP1 < 1.0 || fConfig.rouletteP0 < 1.0 || !fConfig.psGunFile.empty()) {
         fImpl->evtTree->Branch("ev_weight",   &fImpl->e_ev_weight);   // event weight
         fImpl->evtTree->Branch("force_vol",   fImpl->e_force_vol, "force_vol[32]/C");
         fImpl->evtTree->Branch("force_tau",   &fImpl->e_force_tau);

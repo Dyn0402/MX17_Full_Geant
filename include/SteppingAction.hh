@@ -33,6 +33,11 @@ private:
     // event's convPairs.  Neutron mode only (Al capture-γ background).
     void RecordConvPair(const G4Step* step);
 
+    // --ps-plane (Birmingham wall staging): record n / γ crossing each plane in +y to
+    // <out>_ps_t<thread>.csv; kill everything crossing the last one.  True if killed.
+    bool HandlePlanes(const G4Step* step);
+    std::ofstream  fPsFile;
+
     const SimConfig&                    fConfig;
     EventAction*                        fEventAction;
     const std::array<ArmAxes, 4>&       fArmAxes;

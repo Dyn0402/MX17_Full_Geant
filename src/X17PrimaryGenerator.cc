@@ -80,7 +80,13 @@ void X17PrimaryGenerator::GeneratePrimaries(G4Event* event) {
     auto* info = new EventTypeInfo();
     fInfo = info;
 
-    if (fConfig.cosmic) {
+    if (!fConfig.psGunFile.empty()) {
+        info->event_type   = 2;
+        info->neutron_E_eV = GeneratePhaseSpace(event);
+    } else if (!fConfig.srcTable.empty()) {
+        info->event_type   = 2;
+        info->neutron_E_eV = GenerateRoomSource(event);
+    } else if (fConfig.cosmic) {
         info->event_type   = 4;
         info->inv_mass_MeV = GenerateCosmic(event);    // p [GeV/c] in the inv_mass slot
     } else if (fConfig.illBeam) {
@@ -1073,4 +1079,98 @@ void X17PrimaryGenerator::GenerateSingle(G4Event* event) {
     fGun->SetParticleEnergy(fConfig.singleParticleEnergy_MeV * MeV);
     fGun->SetParticleMomentumDirection(momDir);
     fGun->GeneratePrimaryVertex(event);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Birmingham (--room).  --src: the ⁷Li(p,n) spot as a point source with a 2D
+// (cosθ, E) table; --ps-gun: particles recorded on a --ps-plane by an earlier
+// stage.  SimConfig "Birmingham HF-ADNeF facility".
+namespace {
+struct SrcCell { double c0, c1, e0, e1; };
+std::vector<SrcCell> gSrc;
+std::vector<double>  gSrcCdf;
+std::once_flag       gSrcOnce;
+struct PsRec { int type; double E, x, y, z, dx, dy, dz, w; int unc; };
+std::vector<PsRec>   gPs;
+std::once_flag       gPsOnce;
+
+void LoadSrc(const SimConfig& cfg) {
+    std::ifstream in(cfg.srcTable);
+    if (!in) G4Exception("X17PrimaryGenerator", "Src", FatalException, ("Cannot open " + cfg.srcTable).c_str());
+    std::string line;
+    double cum = 0;
+    while (std::getline(in, line)) {
+        if (line.empty() || !(std::isdigit(static_cast<unsigned char>(line[0])) || line[0] == '-')) continue;
+        std::istringstream ss(line);
+        SrcCell c{};
+        double w = 0;
+        char k;
+        ss >> c.c0 >> k >> c.c1 >> k >> c.e0 >> k >> c.e1 >> k >> w;
+        if (w <= 0 || c.c1 <= cfg.srcCosMin) continue;
+        c.c0 = std::max(c.c0, cfg.srcCosMin);   // (partial cell: w is taken as uniform in cosθ)
+        cum += w;
+        gSrc.push_back(c);
+        gSrcCdf.push_back(cum);
+    }
+    if (gSrc.empty()) G4Exception("X17PrimaryGenerator", "Src", FatalException, "empty source table");
+    for (auto& v : gSrcCdf) v /= cum;
+    G4cout << "X17PrimaryGenerator: source table " << gSrc.size() << " cells, cosθ > " << cfg.srcCosMin << G4endl;
+}
+
+void LoadPs(const SimConfig& cfg) {
+    std::ifstream in(cfg.psGunFile);
+    if (!in) G4Exception("X17PrimaryGenerator", "PsGun", FatalException, ("Cannot open " + cfg.psGunFile).c_str());
+    std::string line;
+    size_t dropped = 0;
+    while (std::getline(in, line)) {
+        if (line.empty() || !std::isdigit(static_cast<unsigned char>(line[0]))) continue;
+        std::istringstream ss(line);
+        PsRec r{};
+        char k;
+        ss >> r.type >> k >> r.E >> k >> r.x >> k >> r.y >> k >> r.z >> k >> r.dx >> k >> r.dy >> k >> r.dz
+           >> k >> r.w >> k >> r.unc;
+        if (cfg.psDropUncollided && r.unc) { ++dropped; continue; }
+        gPs.push_back(r);
+    }
+    if (gPs.empty()) G4Exception("X17PrimaryGenerator", "PsGun", FatalException, "empty phase-space file");
+    G4cout << "X17PrimaryGenerator: phase space " << gPs.size() << " records (" << dropped
+           << " uncollided dropped)" << G4endl;
+}
+}   // namespace
+
+G4double X17PrimaryGenerator::GenerateRoomSource(G4Event* event) {
+    std::call_once(gSrcOnce, LoadSrc, std::cref(fConfig));
+    const double u = G4UniformRand();
+    const size_t i = std::min(static_cast<size_t>(std::lower_bound(gSrcCdf.begin(), gSrcCdf.end(), u)
+                                                  - gSrcCdf.begin()), gSrc.size() - 1);
+    const auto& c = gSrc[i];
+    const double ct = c.c0 + G4UniformRand() * (c.c1 - c.c0);
+    const double E = c.e0 + G4UniformRand() * (c.e1 - c.e0);       // MeV
+    const double st = std::sqrt(std::max(0.0, 1 - ct * ct)), ph = CLHEP::twopi * G4UniformRand();
+    const double a = st * std::cos(ph), b = st * std::sin(ph);
+    const double s = fConfig.srcSigma_mm;
+    G4ThreeVector pos(s * G4RandGauss::shoot() * mm, fConfig.roomSrcY_mm * mm, s * G4RandGauss::shoot() * mm);
+    fGun->SetParticleDefinition(fConfig.nfsGamma ? fGamma : fNeutron);
+    fGun->SetParticlePosition(pos);
+    fGun->SetParticleMomentumDirection(G4ThreeVector(a, ct, b));
+    fGun->SetParticleEnergy(E * MeV);
+    fGun->SetParticleTime(0.0);
+    fGun->GeneratePrimaryVertex(event);
+    fInfo->ps_uncol = true;
+    return E * 1e6;
+}
+
+G4double X17PrimaryGenerator::GeneratePhaseSpace(G4Event* event) {
+    std::call_once(gPsOnce, LoadPs, std::cref(fConfig));
+    const size_t i = std::min(static_cast<size_t>(G4UniformRand() * gPs.size()), gPs.size() - 1);
+    const auto& r = gPs[i];
+    fGun->SetParticleDefinition(r.type == 1 ? fGamma : fNeutron);
+    fGun->SetParticlePosition(G4ThreeVector(r.x * mm, r.y * mm + 1e-3 * mm, r.z * mm));
+    fGun->SetParticleMomentumDirection(G4ThreeVector(r.dx, r.dy, r.dz).unit());
+    fGun->SetParticleEnergy(r.E * MeV);
+    fGun->SetParticleTime(0.0);
+    fGun->GeneratePrimaryVertex(event);
+    fInfo->ev_weight = r.w * static_cast<double>(gPs.size());
+    fInfo->ps_uncol  = r.unc != 0;
+    return r.E * 1e6;
 }

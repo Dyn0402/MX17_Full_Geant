@@ -41,6 +41,7 @@ private:
     void BuildCell(G4LogicalVolume* worldLV);
     void BuildSlab(G4LogicalVolume* worldLV);   // --slab (V1 check)
     void BuildLiTarget(G4LogicalVolume* worldLV);  // --target li (LNL)
+    void BuildRoom(G4LogicalVolume* worldLV);      // --room (Birmingham)
     G4Material* CellMat(const std::string& name);
 
     const SimConfig& fConfig;

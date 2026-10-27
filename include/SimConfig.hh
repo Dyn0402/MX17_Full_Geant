@@ -121,6 +121,49 @@ struct SimConfig {
     double      rouletteP1         = 1.0;
     double      rouletteP0         = 1.0;
 
+    // ── Birmingham HF-ADNeF facility (--room; x17_facility_search/birmingham/TARGET_GEANT.md) ──
+    // A point source (the ⁷Li(p,n) spot on the rotating wheel) in a small
+    // concrete target room, a layered shield wall with a collimator bore
+    // between it and the experimental room, the experimental room's concrete
+    // shell and a beam dump.  All along the beam (+Y); the vertical axis is
+    // illVerticalAxis.  Volume names: Room_Target, Room_Exp, Shield_<k>,
+    // Shield_Plug, BeamDump_Room.
+    //   roomSrcY_mm     source position (y)
+    //   shieldY0_mm     upstream face of the wall; shieldLayers "BPE:200+Concrete:800+Pb:50" (mm, upstream first)
+    //   shieldBoreR_mm  collimator bore radius; shieldPlug "Pb:50" at the bore's upstream end ("none")
+    //   troomHalf_mm    target room: inner half-size across the beam; it runs from troomY0_mm to the wall
+    //   xroomHalf_mm    experimental room: inner half-size across the beam; from the wall to xroomY1_mm;
+    //                   floor at −floorDepth_mm on the vertical axis
+    //   roomWall_mm     concrete shell thickness (both rooms)
+    //   roomDump        "Mat:y0:len:half" block on the axis ("none")
+    bool        bhamRoom        = false;
+    double      roomSrcY_mm     = -2050.0;
+    double      shieldY0_mm     = -1650.0;
+    std::string shieldLayers    = "BPE:200+Concrete:800+Pb:50";
+    double      shieldBoreR_mm  = 40.0;
+    std::string shieldPlug      = "Pb:50";
+    double      troomHalf_mm    = 800.0;
+    double      troomY0_mm      = -2650.0;
+    double      xroomHalf_mm    = 2000.0;
+    double      xroomY1_mm      = 4000.0;
+    double      floorDepth_mm   = 1200.0;
+    double      roomWall_mm     = 500.0;
+    std::string roomDump        = "BPE:2500:600:300";
+    // --src <table.csv>: primaries from the point source at roomSrcY_mm, (E, cosθ) from a 2D table
+    // (rows cos_lo,cos_hi,E_lo,E_hi,w; θ from +Y; uniform inside a cell), φ uniform; particle
+    // neutron or (--beam-particle gamma) photon.  Gaussian spot srcSigma_mm across the beam.
+    std::string srcTable;
+    double      srcSigma_mm     = 15.0;
+    double      srcCosMin       = -1.0;     // emit only cosθ > this (the rest never reaches the wall)
+    // Phase-space staging through the wall (splitting by stages):
+    //   --ps-plane <y>     every n / γ crossing y in +y is written to <out>_ps.csv and killed
+    //                      (type, E, x, y, z, dx, dy, dz, w = track × event weight, uncollided flag)
+    //   --ps-gun <file> <K> primaries from such a file (after the stage merge normalises w per source
+    //                      particle): each event draws a record at random; event weight = w · N_rec
+    std::vector<double> psPlanes;            // scoring planes (record, do not kill) except the last (kill)
+    std::string psGunFile;
+    bool        psDropUncollided = false;    // --ps-drop-uncol: skip records still uncollided (the bore beam)
+
     // ── Compound-nucleus motion (--cm-beta; fast-neutron capture) ────────────
     // n + ³He at E_n moves the ⁴He* along the beam (+Y) with β = p_n/(E_n+m_n+m_3He).
     // Every X17 / IPC lepton pair is boosted by it after generation (0 = at rest).

@@ -20,6 +20,7 @@
 #include "G4EventManager.hh"
 
 #include <cstring>
+#include <cstdio>
 #include <sstream>
 #include <cmath>
 #include <algorithm>
@@ -52,6 +53,9 @@ SteppingAction::SteppingAction(const SimConfig& cfg, EventAction* eventAction,
 void SteppingAction::UserSteppingAction(const G4Step* step) {
     // ── Trajectory dump for event displays (--trajdump) ──────────────────
     if (fConfig.trajDump) DumpTrajectoryStep(step);
+
+    // ── Phase-space planes through the Birmingham wall (--ps-plane) ──────
+    if (!fConfig.psPlanes.empty() && HandlePlanes(step)) return;
 
     // ── γ→e⁺e⁻ pair-production truth (neutron mode, --gamma-lines) ─────────
     // The Al(n,γ) 7.72 MeV capture γ pair-produces in the Al capsule, faking
@@ -285,4 +289,51 @@ void SteppingAction::RecordConvPair(const G4Step* step) {
     cp.openingAngle_deg = std::acos(coso) / deg;
 
     fEventAction->GetEventData().convPairs.push_back(cp);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// --ps-plane: one CSV row per neutron / photon crossing a plane in +y
+// (plane index, type 0 n / 1 γ, E MeV, x y z mm at the plane, direction,
+// w = track weight × event weight, uncollided since the source), and every
+// particle crossing the last plane is killed (splitting by stages: the next
+// stage restarts from these rows with --ps-gun).
+bool SteppingAction::HandlePlanes(const G4Step* step) {
+    const G4StepPoint* pre  = step->GetPreStepPoint();
+    const G4StepPoint* post = step->GetPostStepPoint();
+    const double y0 = pre->GetPosition().y(), y1 = post->GetPosition().y();
+    if (y1 <= y0) return false;
+    const auto& P = fConfig.psPlanes;
+    G4Track* trk = step->GetTrack();
+    const std::string& pn = trk->GetDefinition()->GetParticleName();
+    const int type = pn == "neutron" ? 0 : (pn == "gamma" ? 1 : -1);
+    for (size_t k = 0; k < P.size(); ++k) {
+        const double Y = P[k] * mm;
+        if (!(y0 < Y && y1 >= Y)) continue;
+        if (type >= 0) {
+            if (!fPsFile.is_open()) {
+                const int tid = G4Threading::G4GetThreadId();
+                fPsFile.open(fConfig.outFile + "_ps_t" + std::to_string(tid < 0 ? 0 : tid) + ".csv");
+                fPsFile << "plane,type,E_MeV,x,y,z,dx,dy,dz,w,uncol\n";
+            }
+            const G4ThreeVector a = pre->GetPosition(), b = post->GetPosition();
+            const G4ThreeVector x = a + (b - a) * ((Y - y0) / (y1 - y0));
+            const G4ThreeVector d = pre->GetMomentumDirection();
+            const G4Event* ev = G4EventManager::GetEventManager()->GetConstCurrentEvent();
+            const auto* info = ev ? static_cast<const EventTypeInfo*>(ev->GetUserInformation()) : nullptr;
+            const double evw = info ? info->ev_weight : 1.0;
+            const bool unc = info && info->ps_uncol && trk->GetTrackID() == 1 &&
+                             pre->GetKineticEnergy() == trk->GetVertexKineticEnergy() &&
+                             (d - trk->GetVertexMomentumDirection()).mag() < 1e-9;
+            char buf[256];
+            std::snprintf(buf, sizeof buf, "%zu,%d,%.6g,%.6g,%.6g,%.6g,%.7g,%.7g,%.7g,%.6g,%d\n", k, type,
+                          pre->GetKineticEnergy() / MeV, x.x() / mm, x.y() / mm, x.z() / mm, d.x(), d.y(), d.z(),
+                          trk->GetWeight() * evw, unc ? 1 : 0);
+            fPsFile << buf;
+        }
+        if (k + 1 == P.size()) {
+            trk->SetTrackStatus(fStopAndKill);
+            return true;
+        }
+    }
+    return false;
 }

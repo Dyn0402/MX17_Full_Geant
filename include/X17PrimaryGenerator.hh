@@ -34,6 +34,8 @@ private:
     G4double GenerateGammaSource(G4Event* event); // capture γ, returns Eγ [MeV]
     G4double GenerateCosmic(G4Event* event);      // cosmic μ±, returns p [GeV/c]
     G4double GenerateGammaLines(G4Event* event);  // --gamma-lines γ, returns Eγ [MeV]
+    G4double GenerateRoomSource(G4Event* event);  // --src point source (Birmingham), returns E [eV]
+    G4double GeneratePhaseSpace(G4Event* event);  // --ps-gun, returns E [eV]
     // --force-beam: pick the volume of the first collision on the neutron's
     // straight line, move the gun inside it; sets fInfo's weight and target.
     void     ForceFirstCollision(G4ThreeVector& pos, const G4ThreeVector& dir, double E);

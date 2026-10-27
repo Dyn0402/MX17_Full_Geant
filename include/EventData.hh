@@ -27,6 +27,7 @@ struct EventTypeInfo : public G4VUserEventInformation {
     double force_w       = 0.0;     // primary weight after it (= 1 − e^(−τ) if consistent)
     int    n_arms_pred   = -1;      // roulette: arms predicted (−1: not run)
     bool   killed        = false;   // roulette killed the history
+    bool   ps_uncol      = false;   // --src / --ps-gun: the primary has not interacted since the source
     void Print() const override {}
 };
 

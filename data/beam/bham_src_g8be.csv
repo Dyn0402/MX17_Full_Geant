@@ -1,0 +1,6 @@
+# Birmingham 7Li(p,gamma)8Be lines, isotropic, 1e-07 gamma per proton (ESTIMATE)
+cos_lo,cos_hi,E_lo,E_hi,w
+-1,1,17.630,17.650,2e-08
+-1,1,18.140,18.160,1.333e-08
+-1,1,14.630,14.650,4e-08
+-1,1,15.140,15.160,2.667e-08
