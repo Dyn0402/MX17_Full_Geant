@@ -27,9 +27,13 @@ h = np.zeros((len(EN) - 1, 4, 24, len(EE) - 1))
 p = np.zeros((len(EN) - 1, 4, 24))
 hq, pq = np.zeros_like(h), np.zeros_like(p)
 ngen = 0
+LG = {k: [] for k in ("w", "En", "arm", "e", "q")}
 for f in a.parts:
     z = np.load(f)
     ngen += int(z["n_generated"][0])
+    if "lg_e" in z.files:
+        for k in LG:
+            LG[k].append(z["lg_" + k])
     if not len(z["e"]):
         continue
     ie = np.clip(np.digitize(z["En"], EN) - 1, 0, len(EN) - 2)
@@ -40,5 +44,6 @@ for f in a.parts:
         iq = np.clip(np.digitize(z["q"], EE) - 1, 0, len(EE) - 2)
         np.add.at(hq, (ie, z["arm"].astype(int), z["ch"].astype(int), iq), z["w"] * (z["q"] > EE[0]))
         np.add.at(pq, (ie, z["arm"].astype(int), z["ch"].astype(int)), z["w"] * z["q"])
-np.savez_compressed(a.out, h=h, p=p, hq=hq, pq=pq, en_edges=EN, e_edges=EE, n_generated=np.array([ngen]))
+LG = {"lg_" + k: (np.concatenate(v) if v else np.zeros(0)) for k, v in LG.items()}
+np.savez_compressed(a.out, h=h, p=p, hq=hq, pq=pq, **LG, en_edges=EN, e_edges=EE, n_generated=np.array([ngen]))
 print(f"{len(a.parts)} parts, {ngen} primaries -> {a.out}")
