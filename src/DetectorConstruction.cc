@@ -1378,8 +1378,8 @@ void DetectorConstruction::BuildLiShape(G4LogicalVolume* worldLV) {
             if (copyCut && c.liOgiveLinerR_mm > 0) {   // partial liner: from the tip down to r = R on the shell
                 const double a = ogive::A_IN, R = c.liOgiveLinerR_mm;
                 const double yCut = ogive::YC + std::sqrt(a * a - (R + ogive::RM) * (R + ogive::RM));
-                std::vector<double> zc{yCut};
-                for (double y : zs) if (y > yCut + 1e-6) zc.push_back(y);
+                std::vector<double> zc;      // snap to the shell's own planes (same chords: no overlap)
+                for (double y : zs) if (y >= yCut - 1e-6) zc.push_back(y);
                 zs = zc;
             }
             std::vector<G4double> z, rin, rout;
