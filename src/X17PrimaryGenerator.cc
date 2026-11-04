@@ -183,7 +183,8 @@ static G4ThreeVector SampleHe3Vertex(const SimConfig& cfg) {
             do {
                 x = G4RandGauss::shoot(0.0, cfg.liSpotSigma_mm);
                 z = G4RandGauss::shoot(0.0, cfg.liSpotSigma_mm);
-            } while (x * x + z * z > 0.9025 * R * R);
+            } while (x * x + z * z > 0.9025 * R * R ||
+                     (og && cfg.liMaskR_mm > 0 && x * x + z * z > cfg.liMaskR_mm * cfg.liMaskR_mm));
             const double d = tFilm_mm * G4UniformRand();
             if (dome) {   // film lines the inside of the cup (and its liner), radius ∈ [R − tL − t, R − tL]
                 const double rho = R - liner(cfg.liDome) - d;

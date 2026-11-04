@@ -1371,10 +1371,17 @@ void DetectorConstruction::BuildLiShape(G4LogicalVolume* worldLV) {
             G4cout << "  NOTE: --ogive wall " << tShell << " um differs from the CAD's 200 um; the inner"
                       " surface is the CAD's, the outer is offset by the requested wall" << G4endl;
         auto layer = [&](const std::string& nm, double offIn, double offOut, G4Material* mat, int copy,
-                         G4double r, G4double g, G4double b) {
+                         G4double r, G4double g, G4double b, bool copyCut = false) {
             // offsets in mm inward from the shell's inner surface (outer surface: negative)
             const ogive::Surface sIn(offIn), sOut(offOut);
-            const auto zs = ogive::planes(sOut.yTop());
+            auto zs = ogive::planes(sOut.yTop());
+            if (copyCut && c.liOgiveLinerR_mm > 0) {   // partial liner: from the tip down to r = R on the shell
+                const double a = ogive::A_IN, R = c.liOgiveLinerR_mm;
+                const double yCut = ogive::YC + std::sqrt(a * a - (R + ogive::RM) * (R + ogive::RM));
+                std::vector<double> zc{yCut};
+                for (double y : zs) if (y > yCut + 1e-6) zc.push_back(y);
+                zs = zc;
+            }
             std::vector<G4double> z, rin, rout;
             for (double y : zs) {
                 z.push_back(y * mm);
@@ -1390,12 +1397,14 @@ void DetectorConstruction::BuildLiShape(G4LogicalVolume* worldLV) {
         double off = 0.0;
         for (size_t i = 1; i < layers.size(); ++i) {
             const double tL = layers[i].second * 1e-3;
-            layer("LiTarget_Backing", off + tL, off, CellMat(layers[i].first), int(i) - 1, 0.75, 0.75, 0.8);
+            layer("LiTarget_Backing", off + tL, off, CellMat(layers[i].first), int(i) - 1, 0.75, 0.75, 0.8, true);
             off += tL;
         }
-        layer("LiTarget_Film", off + tFilm / mm, off, filmMat, 0, 0.9, 0.2, 0.2);
+        layer("LiTarget_Film", off + tFilm / mm, off, filmMat, 0, 0.9, 0.2, 0.2, true);
         desc = layers[0].first + " ogive (27 Oct CAD), wall " + std::to_string(tShell) + " um, O50 x 63 mm, tip R 3" +
-               (layers.size() > 1 ? ", liner " + c.liOgive.substr(c.liOgive.find('+') + 1) : "");
+               (layers.size() > 1 ? ", liner " + c.liOgive.substr(c.liOgive.find('+') + 1) : "") +
+               (c.liOgiveLinerR_mm > 0 ? ", liner and film only at r <= " + std::to_string(c.liOgiveLinerR_mm) + " mm" : "") +
+               (c.liMaskR_mm > 0 ? ", Li mask r <= " + std::to_string(c.liMaskR_mm) + " mm" : "");
     } else if (c.liShape == "window") {
         const auto wv = split(c.liWindow);
         const G4double R = std::stod(wv.at(0)) * mm, th = std::stod(wv.at(1)) * deg;

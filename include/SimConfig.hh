@@ -203,6 +203,10 @@ struct SimConfig {
     std::string liShape            = "flat";    // flat | dome | ogive | window
     std::string liDome             = "Cu:11:200";
     std::string liOgive            = "Cu:200";
+    double      liOgiveLinerR_mm   = 0.0;       // --ogive-liner-r: liners + film only where the shell's inner
+                                                //   radius <= R (from the tip down); 0 = the whole shell
+    double      liMaskR_mm         = 0.0;       // --li-mask-r: pair/gamma vertices only where the spot lands at
+                                                //   r <= R (Li evaporated through a mask); 0 = no mask
     std::string liWinPlate         = "";        // "Mat:t_mm:r_out_mm", empty = none
     std::string liDomeRim          = "";        // "w_mm:h_mm", empty = none
     std::string liWindow           = "10:45";

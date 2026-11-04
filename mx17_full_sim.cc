@@ -102,6 +102,8 @@ static void PrintUsage() {
               << "  --shape flat|dome|ogive|window  no chamber for dome/ogive/window: the target ends the beam pipe\n"
               << "  --dome <Mat:R_mm:t_um[+Liner:um]> (Cu:11:200)  --dome-rim <w_mm:h_mm>\n"
               << "  --ogive <Mat:t_um[+Liner:um]> (Cu:200)  the 27 Oct CAD shell (OgiveProfile.hh)\n"
+              << "  --ogive-liner-r <mm>  liners and film only where the shell radius <= mm (tip region; 0 = all)\n"
+              << "  --li-mask-r <mm>      vertices only where the beam lands at r <= mm (Li masked to the tip)\n"
               << "  --win-plane <R_mm:tilt_deg> (10:45)  --win-ring <Mat:t_mm:w_mm> (Ti:0.5:5)\n"
               << "  --win-glue <mm> (0.1)  --win-endpiece <Mat:t_mm:len_mm[:r_mm]|none> (Al:0.5:55)\n"
               << "  --win-plate <Mat:t_mm:r_out_mm>  flange plate in the window plane (wide adapter)\n"
@@ -275,6 +277,8 @@ int main(int argc, char** argv) {
         else if (a == "--shape"       && i+1<argc) config.liShape    = argv[++i];
         else if (a == "--dome"        && i+1<argc) config.liDome     = argv[++i];
         else if (a == "--ogive"       && i+1<argc) config.liOgive    = argv[++i];
+        else if (a == "--ogive-liner-r" && i+1<argc) config.liOgiveLinerR_mm = std::stod(argv[++i]);
+        else if (a == "--li-mask-r"   && i+1<argc) config.liMaskR_mm = std::stod(argv[++i]);
         else if (a == "--win-plate"   && i+1<argc) config.liWinPlate = argv[++i];
         else if (a == "--dome-rim"    && i+1<argc) config.liDomeRim  = argv[++i];
         else if (a == "--win-plane"   && i+1<argc) config.liWindow   = argv[++i];
