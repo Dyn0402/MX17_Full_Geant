@@ -226,6 +226,7 @@ int main(int argc, char** argv) {
             config.sipm_readout_shift_bars = std::stoi(argv[++i]);
         }
         else if (a == "--cosmic") config.cosmic = true;
+        else if (a == "--cosmic-disk" && i+1<argc) { config.cosmic = true; config.cosmicDisk_mm = std::stod(argv[++i]); }
         else if (a == "--ts")    config.thermalScattering = 1;
         else if (a == "--no-ts") config.thermalScattering = 0;
         else if (a == "--target" && i+1<argc) {

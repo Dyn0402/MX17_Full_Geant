@@ -781,6 +781,26 @@ G4double X17PrimaryGenerator::GenerateCosmic(G4Event* event) {
     size_t i = std::max<size_t>(1, std::min<size_t>(it - gMuCdf.begin(), gMuCdf.size() - 1));
     const double t = (gMuCdf[i] > gMuCdf[i - 1]) ? (u - gMuCdf[i - 1]) / (gMuCdf[i] - gMuCdf[i - 1]) : 0.5;
     const double p_GeV = std::pow(10.0, gMuLogP[i - 1] + t * (gMuLogP[i] - gMuLogP[i - 1]));
+    if (c.cosmicDisk_mm > 0) {                // --cosmic-disk: start on a disk normal to the track
+        double ctd;
+        do { ctd = std::cbrt(G4UniformRand()); } while (ctd < std::cos(89.0 * deg));
+        const double std_ = std::sqrt(1 - ctd * ctd), phd = CLHEP::twopi * G4UniformRand();
+        G4ThreeVector d;                       // local (a, b, w=up) -> world
+        if (c.illVerticalAxis == 'x') d = G4ThreeVector(-ctd, std_ * std::cos(phd), std_ * std::sin(phd));
+        else                           d = G4ThreeVector(std_ * std::cos(phd), std_ * std::sin(phd), -ctd);
+        const G4ThreeVector e1 = d.orthogonal().unit(), e2 = d.cross(e1).unit();
+        const double r = c.cosmicDisk_mm * std::sqrt(G4UniformRand()), ps = CLHEP::twopi * G4UniformRand();
+        const G4ThreeVector pos0 = (r * std::cos(ps)) * e1 + (r * std::sin(ps)) * e2 - (1.2 * c.cosmicDisk_mm) * d;
+        const bool plusd = G4UniformRand() < 1.27 / 2.27;
+        G4ParticleDefinition* mud = plusd ? fMuPlus : fMuMinus;
+        const double md = mud->GetPDGMass(), ppd = p_GeV * GeV;
+        fGun->SetParticleDefinition(mud);
+        fGun->SetParticlePosition(pos0 * mm);
+        fGun->SetParticleMomentumDirection(d);
+        fGun->SetParticleEnergy(std::sqrt(ppd * ppd + md * md) - md);
+        fGun->GeneratePrimaryVertex(event);
+        return p_GeV;
+    }
     // zenith: dN/dθ ∝ cos³θ sinθ → cosθ = u^(1/4), θ < 85°
     double ct;
     do { ct = std::pow(G4UniformRand(), 0.25); } while (ct < std::cos(85.0 * deg));

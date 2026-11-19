@@ -101,6 +101,12 @@ struct SimConfig {
     bool        cosmic          = false;
     double      cosmicPlane_mm  = 3000.0;
     double      cosmicHeight_mm = 1500.0;
+    // --cosmic-disk R (lnl_x17, 2026-11-19): instead of the plane, each muon starts on a disk of radius R
+    // perpendicular to its own direction, centred on the target, 1.2 R upstream along the track: every zenith
+    // angle reaches the set-up (the plane misses theta > ~45 deg at the centre).  Zenith from the intensity
+    // through a surface normal to the track, cos^2 theta sin theta, theta < 89 deg.  Live time: N / (J A_eff),
+    // A_eff = (4 pi / 3) R^2 for J = 1 cm^-2 min^-1 through a horizontal surface (I0 = 2/pi cm^-2 min^-1 sr^-1).
+    double      cosmicDisk_mm   = 0.0;
 
     // ── Thermal scattering S(α,β) for solids (G4ThermalNeutrons) ──────────────
     // −1 = auto (on with --beam ill / --target cell, off otherwise, so n_TOF
