@@ -365,6 +365,8 @@ G4VPhysicalVolume* DetectorConstruction::Construct() {
         }
     }
 
+    for (int k = 0; k < 4; ++k)      // rotated arms (--arm-phi): the corners of the stacks reach further out
+        if (fConfig.arm_phi_deg[k] != 0.0) { worldHalfXZ *= 1.45; break; }
     if (fConfig.cosmic) {   // the muon plane must sit inside the world
         const G4double need = std::max(fConfig.cosmicHeight_mm, fConfig.cosmicPlane_mm / 2) * mm
                               + 10.0*cm;
@@ -699,6 +701,14 @@ G4VPhysicalVolume* DetectorConstruction::Construct() {
             adr.wHat = Rphi * armDefs[arm].wHat;
         }
         const auto& ad = adr;
+        // G4PVPlacement takes the FRAME (inverse) rotation while the position math uses ad.rot actively; the
+        // original 90/180 deg arms are symmetric under that swap, an arbitrary phi is not: keep the solids'
+        // original orientation P0^-1 and turn it by Rphi (active) -> frame rotation P0 * Rphi^-1.
+        G4RotationMatrix* placeRot = armDefs[arm].rot;
+        if (fConfig.arm_phi_deg[arm] != 0.0) {
+            G4RotationMatrix Rphi; Rphi.rotateY(fConfig.arm_phi_deg[arm] * deg);
+            placeRot = new G4RotationMatrix((armDefs[arm].rot ? *armDefs[arm].rot : G4RotationMatrix()) * Rphi.inverse());
+        }
         if (!fConfig.arm_on[arm]) {
             fArmAxes[arm].frontFace = ad.frontFace; fArmAxes[arm].uHat = ad.uHat;
             fArmAxes[arm].vHat = G4ThreeVector(0, 1, 0); fArmAxes[arm].wHat = ad.wHat;
@@ -729,7 +739,7 @@ G4VPhysicalVolume* DetectorConstruction::Construct() {
             G4ThreeVector localPos(u, v, w);
             G4ThreeVector worldPos = base +
                 (ad.rot ? (*ad.rot)*localPos : localPos);
-            new G4PVPlacement(ad.rot, worldPos, lv,
+            new G4PVPlacement(placeRot, worldPos, lv,
                                "Arm" + std::to_string(arm) + "_" + tag,
                                worldLV, false, arm, true);
         };
