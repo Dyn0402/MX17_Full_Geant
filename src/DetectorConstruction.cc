@@ -689,7 +689,22 @@ G4VPhysicalVolume* DetectorConstruction::Construct() {
 
     // ── Place arms ────────────────────────────────────────────
     for (int arm = 0; arm < 4; ++arm) {
-        const auto& ad = armDefs[arm];
+        // two-arm studies: rotate the arm about the beam axis, or leave it out
+        ArmDef adr = armDefs[arm];
+        if (fConfig.arm_phi_deg[arm] != 0.0) {
+            G4RotationMatrix Rphi; Rphi.rotateY(fConfig.arm_phi_deg[arm] * deg);
+            adr.rot = new G4RotationMatrix(Rphi * (armDefs[arm].rot ? *armDefs[arm].rot : G4RotationMatrix()));
+            adr.frontFace = Rphi * armDefs[arm].frontFace;
+            adr.uHat = Rphi * armDefs[arm].uHat;
+            adr.wHat = Rphi * armDefs[arm].wHat;
+        }
+        const auto& ad = adr;
+        if (!fConfig.arm_on[arm]) {
+            fArmAxes[arm].frontFace = ad.frontFace; fArmAxes[arm].uHat = ad.uHat;
+            fArmAxes[arm].vHat = G4ThreeVector(0, 1, 0); fArmAxes[arm].wHat = ad.wHat;
+            G4cout << "  Arm " << arm << " not built (--arms)" << G4endl;
+            continue;
+        }
 
         // Pinwheel: slide the whole arm tangentially (⟂ its normal) along
         // −uHat by the measured per-MM amount.  This translates the arm's

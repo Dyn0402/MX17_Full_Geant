@@ -295,6 +295,10 @@ struct SimConfig {
     //   [0]=D(+X)  [1]=B(−X)  [2]=A(+Z)  [3]=C(−Z).
     // Measured 2026-06-30, halved 2026-07-14 (earlier values were 2× too large).
     double mm_pinwheel_shift_cm[4] = {1.55, 1.575, 1.635, 1.73};
+    // Two-arm studies (lnl_x17, 2026-11-19): extra rotation of each arm about the beam (+Y) axis [deg]
+    // (--arm-phi p0,p1,p2,p3; G4 rotateY sense: +Z turns toward +X) and which arms are built (--arms 2,3).
+    double arm_phi_deg[4] = {0, 0, 0, 0};
+    bool   arm_on[4]      = {true, true, true, true};
 
     // ── MM active area (measured 2026-08-11; was an unsourced 38 × 34 cm) ──
     // u is the full metallised strip region: 512 strips at 0.78 mm, 398.58 mm

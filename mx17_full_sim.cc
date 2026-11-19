@@ -113,6 +113,8 @@ static void PrintUsage() {
               << "                   (event_type 3, inv_mass = Eγ)\n"
               << "  --big-plastic <u_cm> <v_cm> <t_cm>  one plastic slab per arm (trigger study)\n"
               << "  --no-ls          omit the LS vessels\n"
+              << "  --arm-phi p0,p1,p2,p3  rotate each arm about the beam axis [deg]\n"
+              << "  --arms 2,3       build only these arms\n"
               << "  --sipm-readout <N> <shift>  instrumented SiPM bars (default 16 1; all: 20 0)\n"
               << "  -h               Print this help\n";
 }
@@ -207,6 +209,17 @@ int main(int argc, char** argv) {
             config.bigPlastic_thick_cm = std::stod(argv[++i]);
         }
         else if (a == "--no-ls") config.noLS = true;
+        else if (a == "--arm-phi" && i+1<argc) {   // p0,p1,p2,p3 [deg] about the beam axis
+            std::string v = argv[++i]; size_t p0 = 0;
+            for (int k = 0; k < 4; ++k) { size_t c = v.find(',', p0);
+                config.arm_phi_deg[k] = std::stod(v.substr(p0, c - p0));
+                if (c == std::string::npos) break; p0 = c + 1; }
+        }
+        else if (a == "--arms" && i+1<argc) {      // comma list of the arms to build, e.g. 2,3
+            std::string v = argv[++i];
+            for (int k = 0; k < 4; ++k) config.arm_on[k] = false;
+            for (char ch : v) if (ch >= '0' && ch <= '3') config.arm_on[ch - '0'] = true;
+        }
         else if (a == "--plastic-shield" && i+1<argc) config.plasticShield = argv[++i];
         else if (a == "--sipm-readout" && i+2<argc) {  // N instrumented bars, window shift [bars]
             config.sipm_n_readout          = std::stoi(argv[++i]);
