@@ -342,6 +342,11 @@ G4VPhysicalVolume* DetectorConstruction::Construct() {
 
     G4double lsVExtent   = lsVo + lsFunL + lsNkL + pmtOut;  // vessel+PMT reach along v
     G4double worldHalfXZ = distMax + stackDepth + 5.0*cm;
+    if (!fConfig.noLS) {   // a sideways LS neck + PMT (A/D) reaches past the stack when the LS sits close (--ls-front)
+        G4double uMax = 0.0;
+        for (int k = 0; k < 4; ++k) uMax = std::max(uMax, std::abs(fConfig.ls_center_u_cm[k]) * cm);
+        worldHalfXZ = std::max(worldHalfXZ, uMax + lsUo + lsFunL + lsNkL + pmtOut + 1.0*cm);
+    }
     G4double worldHalfY  = std::max({sipmBar_hv, lsVExtent, bscTape_hv}) + 5.0*cm;
     if (fConfig.cellTarget) {
         // The cell and (ILL beam) the gun plane upstream of it must fit along Y.
