@@ -39,7 +39,7 @@ const std::map<std::string, bool> SteppingAction::kScoredVolumes = {
 // descends from the one primary neutron, so a particle-type filter suffices.
 const std::set<std::string> SteppingAction::kTrajParticles = {
     "neutron", "proton", "triton", "alpha", "deuteron", "He3",
-    "e-", "e+", "gamma",
+    "e-", "e+", "gamma", "mu-", "mu+",   // mu: cosmic event displays (lnl_x17 2026-11-20)
 };
 
 SteppingAction::SteppingAction(const SimConfig& cfg, EventAction* eventAction,
