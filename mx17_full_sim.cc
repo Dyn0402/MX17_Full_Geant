@@ -209,6 +209,16 @@ int main(int argc, char** argv) {
             config.bigPlastic_thick_cm = std::stod(argv[++i]);
         }
         else if (a == "--no-ls") config.noLS = true;
+        else if (a == "--ls-front" && i+1<argc) {   // LS flat slab front, cm behind the SiPM container back, all arms
+            double v = std::stod(argv[++i]);
+            for (int k = 0; k < 4; ++k) config.ls_front_from_sipm_back_cm[k] = v;
+        }
+        else if (a == "--ls-slab" && i+4<argc) {    // u v thick [cm] (outer, unbulged), fill [L]
+            config.ls_slab_u_cm     = std::stod(argv[++i]);
+            config.ls_slab_v_cm     = std::stod(argv[++i]);
+            config.ls_slab_thick_cm = std::stod(argv[++i]);
+            config.ls_fill_liters   = std::stod(argv[++i]);
+        }
         else if (a == "--arm-phi" && i+1<argc) {   // p0,p1,p2,p3 [deg] about the beam axis
             std::string v = argv[++i]; size_t p0 = 0;
             for (int k = 0; k < 4; ++k) { size_t c = v.find(',', p0);
